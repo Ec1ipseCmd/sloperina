@@ -17,3 +17,7 @@ tools/magicwatch.log
 
 # Personal notes
 *.local.md
+tools/*.csv
+tools/*.npz
+tools/meterscan_report.txt
+tools/meterscan_state.json

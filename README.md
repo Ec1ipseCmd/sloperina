@@ -15,8 +15,14 @@ work. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the build and test routine.
 
 Dimmed entries in the menu are placeholders that aren't wired up yet.
 
-- **link**: map, health, rupees, wallet, position. **equips** shows what Link wears. A levitate hotkey
-  (`levitate_combo` in settings) floats Link upward like gz's.
+- **link**: map, health, rupees, wallet; **x / y / z** move Link (D-left/right, by **move step**), also while
+  the game is paused (he moves when it runs) and while floating. **equips** shows what Link wears.
+- **levitate**, like gz's: tap **L3** to float and tap again to drop (soft landing, no fall damage); hold **R3** to
+  keep the current height (a notice shows ON/OFF; the **levitate** watch shows off / rising / holding /
+  landing); the left stick moves Link relative to the camera while he floats, and walls stop him
+  (settings > **levitate through walls** lets him pass through instead).
+  Rise and move speeds are in settings (`levitate_combo`, `levitate_hold_combo`, `levitate_rise_speed`,
+  `levitate_move_speed`, `levitate_through_walls`).
 - **inventory**: items, owned gear, ammo, capacities, magic, bottles, upgrades, quest items, songs, dungeon items,
   small keys. Ticking and unticking goes through the game's own code where the game needs it:
   - **Ocarinas** are given and removed the way the game does it: Link holds a playable ocarina, the D-pad appears,
@@ -26,6 +32,8 @@ Dimmed entries in the menu are placeholders that aren't wired up yet.
   - **Unticking** worn gear takes it off Link; unticking a button item clears it from the item buttons.
   - **Dungeon map / compass / boss key** update the pause map screen at once.
 - **warps**: any map and spawn point.
+- **scene > collision > show air walls**: draws the map's invisible walls over the game (cyan; red when Link is inside one).
+  The **air wall** watch shows how deep Link is in one and which side the game will push him out of.
 - **cheats**: infinite energy, rupees, magic, ammo.
 - **story / flags**: quest stages, tutorial guides, event flags (`flags.py` searches and sets them from the command
   line).
@@ -70,11 +78,13 @@ run when you close the menu. Settings save to `settings.json` (created on first 
 - `patch.py` — the code patch (bytes, install, request protocol) and the helpers that use it
   (`give_gear`, `unequip`, `clear_buttons`, `set_upgrade`, `refresh_screen`).
 - `win32.py` — emulator window, overlay, keyboard/XInput, process memory.
+- `airwall.py` — air wall placement maths, inside tests and screen projection (data: `airwalls.json`).
 - `flags.py` — search and set flags from the command line; `python flags.py backup` copies your saves.
 - `gamedata.py`, `guestmem.py`, `scan.py` — research helpers (MurmurHash3, RAM block, value scanner).
 - `*.json` — field names and types, story stages, warp points (see `docs/FINDINGS.md` §1).
 - `tools/` — research tools: patch assembler (`hook_asm.py`), static analysis (`re64.py`), game files
-  (`nupfs.py`, `byml.py`, `evdump.py`), snapshots (`snap.py`), GDB watchpoint tools (`dpadwatch.py`,
+  (`nupfs.py`, `byml.py`, `gamefiles.py`, `evdump.py`, `airwalls.py`; set `OOTMENU_NUP` to the dump's path),
+  physics recording (`wallwatch.py`), finding a meter on Link by recording it (`linkwatch.py`), snapshots (`snap.py`), GDB watchpoint tools (`dpadwatch.py`,
   `readwatch.py`, `magicwatch.py`).
 - `docs/` — findings (`FINDINGS.md`) and a browsable field/quest/tutorial reference (`index.html`; rebuild the
   generated pages with `python docs/build.py`).

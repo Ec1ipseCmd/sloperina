@@ -59,6 +59,17 @@ PHYS_Y = 0.585  # Link's physics record sits this far above the drawn position
 FRAME_COUNTER_OFF = 0x4E84BA0  # main+: u32, +1 per game update
 # Soft landing after levitate: a fall from rest (units/s^2, units/s, s).
 LAND_G, LAND_MAX_SPEED, LAND_TIMEOUT = 40.0, 60.0, 5.0
+LAND_HEAL_WINDOW = 1.5  # s after landing to give back fall damage
+# Levitate: default speeds (units/s) and how long Link takes to reach them (s).
+LEV_RISE_SPEED, LEV_MOVE_SPEED = 4.0, 6.0
+LEV_RISE_RAMP, LEV_STOP_RAMP, LEV_MOVE_RAMP = 0.35, 0.08, 0.15
+LEV_PAUSED_AFTER = 0.1  # s without the game moving or redrawing Link: gameplay is frozen
+LEV_START_GRACE = 0.3   # s at the start of a float that never count as frozen (to get off the ground)
+LEV_CHECK_EVERY = 0.25  # s between checks that the record still follows Link
+LEV_FIND_RETRY = 5.0    # s before searching for Link's record again after a failure
+LEV_PUSHBACK_MIN = 0.01  # units: a push-back from the game this big marks a wall
+LEV_WALL_MEMORY = 0.15   # s a wall stays marked after its last push-back
+LEV_STEADY_TIME = 0.1    # s Link must keep his heading before a push-back counts
 # Motion state captured from Link mid-run; written after the position so the
 # game stops treating him as standing still and applies the move at once.
 WAKE = bytes.fromhex("000000002567154100000000cecf8d40fbf99f3e263ca1bf"
@@ -84,6 +95,19 @@ MAGIC_RETRY = 5.0  # seconds between searches while it's missing
 MEM_COMMIT = 0x1000
 READABLE = (0x02, 0x04, 0x20, 0x40)
 WRITABLE = (0x04, 0x40)
+
+
+def _approach(v, target, step):
+    """v moved towards target by at most step."""
+    return min(v + step, target) if v < target else max(v - step, target)
+
+
+def _same_way(a, b):
+    """True if 2D directions a and b are within about 45 degrees of each other."""
+    if not (a and b):
+        return False
+    n = math.hypot(*a) * math.hypot(*b)
+    return n > 0 and (a[0] * b[0] + a[1] * b[1]) / n > 0.7
 
 
 class Game:
@@ -125,7 +149,14 @@ class Game:
     def _valid_base(self, gb, M):
         if not gb or not M:
             return False
-        return self._q(gb + M + CHECK_OFF) == M + CHECK_VAL_OFF
+        if self._q(gb + M + CHECK_OFF) != M + CHECK_VAL_OFF:
+            return False
+        # Lichii also holds the game's RAM as a flat backing store, where that self-referencing value
+        # matches too (a wrong base: guestbase 0x4e1000, main 0x1ae892d2000 after a warp, while the
+        # real one was 0x2304c200000 / 0x8073a000). Vtable entries are absolute guest addresses, so
+        # Link's first virtual function lands inside main only in the real mapping (FINDINGS §5.14).
+        f = self._q(gb + M + VT_LINKOBJ_OFF)
+        return f is not None and M <= f < M + 0x8000000
 
     def _find_base(self):
         k, m, addr = guestmem.k, guestmem.MBI(), 0
@@ -649,9 +680,226 @@ class Game:
         return round(v, 3) if type_.startswith("f") else v
 
     # ------------------------------------------------------------ levitate
+    # Tap to start floating, tap again to drop. While floating Link rises
+    # (unless held at his height) and the left stick moves him relative to
+    # the camera. The game gives Link no air control, and his velocity on the
+    # actor (LINK_VELOCITY) is only an output (writing it does nothing), so the
+    # loop drives his physics record (x, y, z) itself ~1000 times a second,
+    # worked out from elapsed time so every game frame sees smooth motion.
+    # Walls still stop him: the loop keeps the game's push-back (FINDINGS §5.10).
+    #
+    # Only one loop (floating or landing) may touch Link at a time: two loops
+    # writing different heights yanked him about, and repeated record searches
+    # from overlapping presses wrote into look-alike records (the crash).
 
-    def _soft_landing(self, a, y_top):
-        """Lower Link from y_top like a fall from rest, until the ground stops him.
+    _lev_on = False
+    _lev_gen = 0              # each start gets a new number; older loops stop when it changes
+    _lev_lock = threading.Lock()
+    _lev_find_failed = -1e9   # when a search for Link's record last failed
+    _lev_y = None             # height the float ended at, where the landing starts
+    protect_landing = True    # restore health lost landing from a levitate
+    lev_rise_speed = LEV_RISE_SPEED
+    lev_move_speed = LEV_MOVE_SPEED
+    lev_hold = False          # True: keep the current height (and stop rising)
+    lev_through_walls = False  # True: ignore the game's wall push-back (float through walls)
+    lev_stick = (0.0, 0.0)    # left stick, -1..1, x right / y up, dead zone applied
+    lev_message = None        # set when a start fails; the app shows and clears it
+
+    @property
+    def levitating(self):
+        return self._lev_on
+
+    def levitate_start(self):
+        """Start floating until levitate_stop()."""
+        if self._lev_on:
+            return
+        self._lev_on = True
+        self._lev_gen += 1
+        threading.Thread(target=self._levitate_loop, args=(self._lev_gen,), daemon=True).start()
+
+    def levitate_stop(self):
+        """Drop: the running loop hands over to the soft landing."""
+        self._lev_on = False
+
+    _lev_landing = False
+    _lev_jump = None  # (x, y, z) record position the float loop should jump to
+
+    @property
+    def levitate_state(self):
+        """'off', 'rising', 'holding' or 'landing'."""
+        if self._lev_on:
+            return "holding" if self.lev_hold else "rising"
+        return "landing" if self._lev_landing else "off"
+
+    # ------------------------------------------------------------ teleport
+    _tp_written = None  # the record bytes our last teleport wrote
+
+    def _record_is_ours(self):
+        """Link's record is known: it follows Link, or still holds what we last wrote (a teleport
+        made while the game is paused only shows once it runs)."""
+        if not self.pos:
+            return False
+        if self._record_ok(self.pos):
+            return True
+        try:
+            return bool(self._tp_written) and self.p.read(self.gb + self.pos, 24) == self._tp_written[:24]
+        except OSError:
+            return False
+
+    def teleport(self, x, y, z):
+        """Put Link at drawn position (x, y, z). Works while the game is paused (he moves when it
+        runs). While floating, the float loop takes the new position. Returns False if Link's record
+        isn't known yet (finding it needs the game running: see move_link)."""
+        rec = (x, y + PHYS_Y, z)
+        if self._lev_on:
+            self._lev_jump = rec
+            return True
+        if self._lev_landing:
+            self._lev_gen += 1  # end the soft landing; it would pull him back to its curve
+        if not self._record_is_ours():
+            return False
+        data = struct.pack("<3d", *rec) + WAKE
+        self.p.write(self.gb + self.pos, data)
+        self._tp_written = data
+        return True
+
+    def _levitate_loop(self, gen):
+        winmm = ctypes.WinDLL("winmm")
+        winmm.timeBeginPeriod(1)
+        win32.raise_thread_priority()  # keep the millisecond writes going under load (FINDINGS §5.12)
+        try:
+            with self._lev_lock:  # an older landing sees the new number and ends within ms
+                if gen == self._lev_gen and self._lev_on and self._float(gen):
+                    self._soft_landing(gen)
+        except (OSError, RuntimeError, ValueError) as e:
+            self.log(f"levitate stopped: {e}")
+        finally:
+            if gen == self._lev_gen:
+                self._lev_on = False
+            winmm.timeEndPeriod(1)
+
+    def _camera_forward(self):
+        """Unit (x, z) the camera looks along, or None."""
+        if not self.camera:
+            return None
+        try:
+            px, _, pz, lx, _, lz = struct.unpack("<6f", self.p.read(self.gb + self.camera + 0x38, 24))
+        except OSError:
+            return None
+        n = math.hypot(lx - px, lz - pz)
+        return ((lx - px) / n, (lz - pz) / n) if n > 1e-3 else None
+
+    def _float(self, gen):
+        """Float until dropped or replaced. Returns True if Link should land softly."""
+        if not self._record_is_ours():
+            if time.monotonic() - self._lev_find_failed < LEV_FIND_RETRY:
+                self.lev_message = "levitate: Link not found, try again shortly"
+                return False
+            d = self.display_pos()
+            # A small lift tells which record is Link's (see move_link).
+            if not d or not self.move_link(d[0], d[1] + 0.6, d[2]):
+                self._lev_find_failed = time.monotonic()
+                self.lev_message = "levitate: couldn't find Link"
+                return False
+        a = self.gb + self.pos
+        x, y, z = self._rd3(self.pos)
+        self.p.write(a + 24, WAKE)  # the game ignores the record while he stands still
+        vx = vy = vz = 0.0
+        heading = None  # last horizontal direction Link moved in
+        wall_n, wall_until = None, 0.0  # direction a wall last pushed him, and until when it counts
+        heading_refs, steady_at = (None, None), 0.0  # headings a moment ago
+        now = time.monotonic()
+        last, check_at = now, now + LEV_CHECK_EVERY
+        stepped_at = now + LEV_START_GRACE  # when gameplay last showed it's running (see below)
+        drawn = self.display_pos()
+        while self._lev_on and gen == self._lev_gen:
+            now = time.monotonic()
+            dt, last = min(now - last, 0.05), now
+            if self._lev_jump:  # a teleport while floating: carry on from there
+                x, y, z = self._lev_jump
+                self._lev_jump = None
+                self.p.write(a, struct.pack("<3d", x, y, z))
+                vx = vz = 0.0
+                heading, wall_n, check_at = None, None, now + 1.0
+            # Gameplay frozen (emulator paused, pause screen, R item menu): hold
+            # still. The frame counter keeps running in the game's menus, so
+            # watch Link instead: while gameplay runs the game either moves the
+            # record off what we wrote (gravity, once he's in the air) or redraws
+            # him (standing, it snaps him to the ground without touching the
+            # record, and his drawn height flickers). Watching only the record
+            # froze the float on the ground and Link never got off it.
+            # Standing, the game clears Link's motion state and then ignores the
+            # record; written once at the start, WAKE was sometimes cleared before
+            # he left the ground (Lost Woods), so put it back whenever it's gone.
+            if self.p.read(a + 24, len(WAKE)) == bytes(len(WAKE)):
+                self.p.write(a + 24, WAKE)
+            cx, cy, cz = self._rd3(self.pos)
+            now_drawn = self.display_pos()
+            if (cx, cy, cz) != (x, y, z) or now_drawn != drawn:
+                stepped_at = max(stepped_at, now)
+            drawn = now_drawn
+            if now - stepped_at > LEV_PAUSED_AFTER:
+                vx = vy = vz = 0.0
+            else:
+                rise, move = self.lev_rise_speed, self.lev_move_speed
+                vy = _approach(vy, 0.0 if self.lev_hold else rise,
+                               rise / (LEV_STOP_RAMP if self.lev_hold else LEV_RISE_RAMP) * dt)
+                sx, sy = self.lev_stick
+                fwd = self._camera_forward() if (sx or sy) else None
+                if fwd:
+                    fx, fz = fwd
+                    rx, rz = -fz, fx  # camera's right (right-handed, +Y up)
+                    tx, tz = (fx * sy + rx * sx) * move, (fz * sy + rz * sx) * move
+                else:
+                    tx = tz = 0.0
+                step = move / LEV_MOVE_RAMP * dt
+                vx, vz = _approach(vx, tx, step), _approach(vz, tz, step)
+                y += vy * dt
+            # Walls: the game pushes Link back out of them between our writes.
+            # Keep that push-back (writing our own position over it every ms
+            # is what let him through walls), but not the game's own drift:
+            # it turns our movement into momentum and slid him on for metres
+            # after the stick was let go. A push-back points against the way
+            # he's going; drift points along it. The height stays ours, or the
+            # game's gravity would drag him down.
+            # A push-back also marks a wall for a moment: while it's marked
+            # we stop pushing into it (pushing on crept Link into the rock
+            # about a unit), and never take a move towards it (the game's
+            # leftover momentum otherwise dragged him back in as he backed off).
+            # Only while he's been heading the same way for a moment: right
+            # after a turn, the game's momentum from the old direction looks
+            # just like a push-back and made turning round sluggish.
+            if not self.lev_through_walls:  # the option turns all of this off
+                gx, gz = cx - x, cz - z
+                wall = wall_n if now < wall_until else None
+                if now >= steady_at:  # snapshots 0-0.1 s and 0.1-0.2 s old
+                    heading_refs, steady_at = (heading, heading_refs[0]), now + LEV_STEADY_TIME
+                steady = all(_same_way(heading, h) for h in heading_refs)
+                if (steady and heading and gx * heading[0] + gz * heading[1] < 0
+                        and not (wall and gx * wall[0] + gz * wall[1] < 0)):
+                    x, z = cx, cz
+                    m = math.hypot(gx, gz)
+                    if m > LEV_PUSHBACK_MIN:
+                        wall_n, wall_until = (gx / m, gz / m), now + LEV_WALL_MEMORY
+                        wall = wall_n
+                if wall:
+                    into = vx * wall[0] + vz * wall[1]
+                    if into < 0:
+                        vx, vz = vx - into * wall[0], vz - into * wall[1]
+            x, z = x + vx * dt, z + vz * dt
+            if math.hypot(vx, vz) > 0.05:
+                heading = (vx, vz)
+            self.p.write(a, struct.pack("<3d", x, y, z))
+            if now >= check_at:  # new area, loading, death: the record isn't Link's any more
+                check_at = now + LEV_CHECK_EVERY
+                if not self._record_ok(self.pos):
+                    raise RuntimeError("lost Link's record (area change?)")
+            time.sleep(0.001)
+        self._lev_y = y
+        return gen == self._lev_gen
+
+    def _soft_landing(self, gen):
+        """Lower Link from where the float ended like a fall from rest, until the ground stops him.
 
         While levitating, the game's own falling speed (kept internally, not
         found yet) builds up to its maximum, so simply letting go dropped Link
@@ -661,25 +909,30 @@ class Game:
         # Only ever hold Link *up* to the curve, never push him down: the game's
         # own gravity (which respects collision) does all the falling. Writing
         # heights below the floor once dropped Link straight through it.
-        t0 = time.monotonic()
+        a, y_top = self.gb + self.pos + 8, self._lev_y
         hp_before = self.health() if self.protect_landing else None
+        self._lev_landing = True
         try:
-            self._land(a, y_top, t0)
+            self._land(a, y_top, time.monotonic(), gen)
         finally:
+            self._lev_landing = False
             # The game bases fall damage on a falling speed kept internally (not
             # found yet; gz resets it by setting Link's velocity), so a long
             # levitate still hurts on landing. Give back any health lost on the
             # way down instead.
-            if hp_before:
-                time.sleep(0.6)  # damage is applied just after touching down
+            # Damage lands a little after touching down, not always within the same 0.6 s
+            # (one check missed it), so watch for LAND_HEAL_WINDOW.
+            end = time.monotonic() + LAND_HEAL_WINDOW
+            while hp_before and gen == self._lev_gen and time.monotonic() < end:
+                time.sleep(0.05)
                 hp = self.health()
                 if hp and hp[0] < hp_before[0]:
                     self.set_health(hp_before[0])
                     self.log(f"levitate: landing cost {hp_before[0] - hp[0]} quarter hearts; restored")
 
-    def _land(self, a, y_top, t0):
+    def _land(self, a, y_top, t0, gen):
         held_up_by_game = 0
-        while not self._lev_on and time.monotonic() - t0 < LAND_TIMEOUT:
+        while gen == self._lev_gen and time.monotonic() - t0 < LAND_TIMEOUT:
             t = time.monotonic() - t0
             t_cap = LAND_MAX_SPEED / LAND_G  # time to reach top speed
             if t <= t_cap:
@@ -705,60 +958,21 @@ class Game:
             return False
         return bool(d) and abs(x - d[0]) < 3 and abs(z - d[2]) < 3 and abs(y - d[1] - PHYS_Y) < 3
 
-    _lev_on = False
-    _lev_gen = 0  # each press gets a new number; only the current one may switch off
-    protect_landing = True  # restore health lost landing from a levitate
-
-    def levitate_start(self, speed):
-        """Start rising at `speed` units/s until levitate_stop()."""
-        self._lev_speed = speed
-        if not self._lev_on:
-            self._lev_on = True
-            self._lev_gen += 1
-            threading.Thread(target=self._levitate_loop, args=(self._lev_gen,), daemon=True).start()
-
-    def levitate_stop(self):
-        self._lev_on = False
-
-    def _levitate_loop(self, gen):
-        # The game applies gravity every frame; writing the height ~1000 times a
-        # second, worked out from elapsed time, means every frame sees a smoothly
-        # rising value instead of a fall-then-yank (which looked juddery).
-        winmm = ctypes.WinDLL("winmm")
-        winmm.timeBeginPeriod(1)
-        try:
-            if not (self.pos and self._record_ok(self.pos)):
-                d = self.display_pos()
-                if not d or not self.move_link(d[0], d[1] + 1.0, d[2]):  # finds the record
-                    return
-            a = self.gb + self.pos + 8
-            y0, t0 = self._rd3(self.pos)[1], time.monotonic()
-            self.p.write(self.gb + self.pos + 24, WAKE)  # in case he's standing still
-            y = y0
-            while self._lev_on:
-                y = y0 + self._lev_speed * (time.monotonic() - t0)
-                self.p.write(a, struct.pack("<d", y))
-                time.sleep(0.001)
-            self._soft_landing(a, y)
-        except (OSError, RuntimeError, ValueError) as e:
-            self.log(f"levitate stopped: {e}")
-        finally:
-            if gen == self._lev_gen:  # a newer press may already be running
-                self._lev_on = False
-            winmm.timeEndPeriod(1)
-
     # ------------------------------------------------------------ warps
     # Method from oot26-tools: clear the "next map" slot, wait for the game to
     # fill it (Link entered an exit), then immediately swap in our destination.
 
     warp = None  # {"map", "spawn", "event", "state": armed|done|cancelled|timed out|failed}
 
-    def arm_warp(self, map_name, spawn, event):
-        """Arm a warp: the next exit Link takes leads to map_name/spawn."""
+    def arm_warp(self, map_name, spawn, event, keep_into=()):
+        """Arm a warp: the next exit Link takes leads to map_name/spawn. Exits leading into a map in
+        keep_into (dungeons) are left alone and the warp is skipped: their door transition waits for its
+        own arrival, and swapping the map under it left the screen black for good (FINDINGS §5.16)."""
         if not self.str_base:
             raise RuntimeError("game data not found yet")
         self.cancel_warp()
-        w = {"map": map_name, "spawn": spawn, "event": event, "state": "armed"}
+        w = {"map": map_name, "spawn": spawn, "event": event, "state": "armed",
+             "keep_into": frozenset(keep_into), "from_map": self.get_str("map")}
         self.warp = w
         self.set_str("next_map", "")
         threading.Thread(target=self._warp_loop, args=(w,), daemon=True).start()
@@ -770,6 +984,8 @@ class Game:
         if not (exits and here):
             return False
         x, y, z = min(exits, key=lambda e: (e[0] - here[0]) ** 2 + (e[2] - here[2]) ** 2)
+        if self.warp is not None:
+            self.warp["exit"] = (x, y, z)  # remembered if it turns out to be a door to keep
         return self.move_link(x, y, z)
 
     def cancel_warp(self):
@@ -787,7 +1003,12 @@ class Game:
                     w["state"] = "timed out"
                     return
                 try:
-                    if self.get_str("next_map"):
+                    original = self.get_str("next_map")
+                    if original and original in w["keep_into"]:
+                        w["state"] = f"skipped: that exit leads into {original}"
+                        w["kept"] = original
+                        return
+                    if original:
                         self.set_str("next_map", w["map"])
                         self.set_str("spawn", w["spawn"])
                         self.set_str("starter", w["spawn"])

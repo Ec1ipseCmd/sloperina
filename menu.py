@@ -7,6 +7,8 @@ its item a handler (see the TODOs in ootmenu.pyw)."""
 
 
 class Item:
+    selectable = True  # the cursor can stop here (Info lines are only shown)
+
     def __init__(self, label, handler=None):
         self.label = label
         self.handler = handler
@@ -67,26 +69,32 @@ class Toggle(Item):
 
 
 class Choice(Item):
-    """'label   < value >'. L or D-Right moves forward, D-Left moves back."""
+    """'label   < value >'. L or D-Right moves forward, D-Left moves back. `names` optionally maps option
+    values to what's shown (the value itself is what get/set use)."""
 
-    def __init__(self, label, options, get, set):
+    def __init__(self, label, options, get, set, names=None):
         super().__init__(label, handler=lambda app: self.adjust(app, 1))
-        self.options, self.get, self.set = options, get, set
+        self.options, self.get, self.set, self.names = options, get, set, names or {}
 
     def text(self):
-        return f"{self.label:<14}< {self.get()} >"
+        v = self.get()
+        return f"{self.label + ' ':<14}< {self.names.get(v, v)} >"
 
     def adjust(self, app, step):
-        i = self.options.index(self.get()) if self.get() in self.options else 0
-        self.set(self.options[(i + step) % len(self.options)])
+        v = self.get()
+        if v in self.options:
+            new = self.options[(self.options.index(v) + step) % len(self.options)]
+        else:  # a value that isn't one of the options: start from the first / last
+            new = self.options[0] if step > 0 else self.options[-1]
+        self.set(new)
         app.on_setting_changed()
 
 
 class Number(Item):
     """'label   < value >' bound to a live game value.
 
-    D-Left/D-Right change it by `step` (hold to repeat); L runs `on_select`
-    (e.g. fill to max). get() returns None while the value is unavailable."""
+    D-Left/D-Right change it by `step` (a number, or a function returning one; hold to repeat);
+    L runs `on_select` (e.g. fill to max). get() returns None while the value is unavailable."""
 
     def __init__(self, label, get, set, lo=0, hi=lambda: 999, step=1,
                  fmt=str, on_select=None):
@@ -105,7 +113,7 @@ class Number(Item):
 
     def text(self):
         v = self._value()
-        return f"{self.label:<14}" + ("-" if v is None else f"< {self.fmt(v)} >")
+        return f"{self.label + ' ':<14}" + ("-" if v is None else f"< {self.fmt(v)} >")
 
     def select(self, app):
         if self.handler and self._value() is not None:
@@ -117,11 +125,14 @@ class Number(Item):
             app.status(f"{self.label}: not available yet")
             return
         hi = self.hi()
-        self.set(max(self.lo, min(hi if hi is not None else v, v + step * self.step)))
+        size = self.step() if callable(self.step) else self.step
+        self.set(max(self.lo, min(hi if hi is not None else v, v + step * size)))
 
 
 class Info(Item):
-    """Read-only line whose text is computed each redraw."""
+    """Read-only line whose text is computed each redraw; the cursor skips it."""
+
+    selectable = False
 
     def __init__(self, fn):
         super().__init__("", handler=lambda app: None)
@@ -141,7 +152,11 @@ class Menu:
         self.cursor = 0
 
     def move(self, step):
-        self.cursor = (self.cursor + step) % len(self.items)
+        """Move the cursor, skipping lines that are only shown (labels and readouts)."""
+        for _ in range(len(self.items)):
+            self.cursor = (self.cursor + step) % len(self.items)
+            if self.items[self.cursor].selectable:
+                return
 
     @property
     def current(self):

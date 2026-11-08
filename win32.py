@@ -93,6 +93,7 @@ def screen_work_area():
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
 user32.EnumWindows.argtypes = [WNDENUMPROC, wt.LPARAM]
+user32.EnumChildWindows.argtypes = [wt.HWND, WNDENUMPROC, wt.LPARAM]
 user32.GetWindowThreadProcessId.argtypes = [wt.HWND, ctypes.POINTER(wt.DWORD)]
 user32.IsWindowVisible.argtypes = [wt.HWND]
 user32.GetClientRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
@@ -134,6 +135,44 @@ def client_rect_on_screen(hwnd):
     p = wt.POINT(0, 0)
     user32.ClientToScreen(hwnd, ctypes.byref(p))
     return p.x, p.y, r.right - r.left, r.bottom - r.top
+
+
+def render_rect(hwnd):
+    """(x, y, w, h) on screen of the emulator's picture: its largest visible child window (Lichii draws
+    the game in a child below the menu bar), else the client area."""
+    best = [None, 0]
+
+    def cb(child, _):
+        if user32.IsWindowVisible(child):
+            r = wt.RECT()
+            user32.GetWindowRect(child, ctypes.byref(r))
+            area = (r.right - r.left) * (r.bottom - r.top)
+            if area > best[1]:
+                best[0], best[1] = (r.left, r.top, r.right - r.left, r.bottom - r.top), area
+        return True
+
+    user32.EnumChildWindows(hwnd, WNDENUMPROC(cb), 0)
+    return best[0] or client_rect_on_screen(hwnd)
+
+
+kernel32.GetCurrentProcess.restype = wt.HANDLE
+kernel32.GetCurrentThread.restype = wt.HANDLE
+kernel32.SetPriorityClass.argtypes = [wt.HANDLE, wt.DWORD]
+kernel32.GetPriorityClass.argtypes = [wt.HANDLE]
+kernel32.SetThreadPriority.argtypes = [wt.HANDLE, ctypes.c_int]
+kernel32.GetThreadPriority.argtypes = [wt.HANDLE]
+ABOVE_NORMAL_PRIORITY_CLASS = 0x8000
+THREAD_PRIORITY_HIGHEST = 2
+
+
+def raise_priority():
+    """Run this process above normal priority, so a busy emulator in the foreground doesn't starve it."""
+    kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS)
+
+
+def raise_thread_priority():
+    """Highest priority for the calling thread (the levitate loop's millisecond writes)."""
+    kernel32.SetThreadPriority(kernel32.GetCurrentThread(), THREAD_PRIORITY_HIGHEST)
 
 
 def foreground_window():

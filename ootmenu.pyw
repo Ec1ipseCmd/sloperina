@@ -9,8 +9,10 @@ input. It reads the controller itself to drive the menu.
 """
 
 import json
+import math
 import os
 import re
+import struct
 import sys
 import tempfile
 import threading
@@ -19,6 +21,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from pathlib import Path
 
+import airwall
 import game
 import patch
 import guestmem
@@ -48,11 +51,20 @@ DEFAULTS = {
     "warp_auto_exit": True,
     # Play each spawn's own arrival cutscene instead of the standard arrival.
     "warp_arrival_cutscenes": False,
-    # Hold to float upward, like gz's levitate (L on N64; LB is the ocarina here,
-    # and the right stick moves the camera, so L3 it is).
+    # Levitate, like gz's (L on N64; every other pad button is used by the game):
+    # tap L3 to start floating, tap again to drop; hold R3 to keep the current
+    # height; the left stick moves Link while he floats.
     "levitate_combo": ["LSTICK"],
-    "levitate_speed": 12,  # units per second
+    "levitate_hold_combo": ["RSTICK"],
+    "levitate_rise_speed": 4,  # units per second
+    "levitate_move_speed": 6,  # units per second
     "levitate_no_fall_damage": True,  # give back health lost landing from a levitate
+    "levitate_through_walls": False,  # let Link float through walls (walls stop him otherwise)
+    "move_step": 1.0,  # units per D-left/right on the link menu's x / y / z
+    # Draw the map's air walls over the game (scene menu); "all" adds the ones that don't stop Link.
+    "airwalls_shown": False,
+    "airwalls_all": False,
+    "airwalls_opacity": 15,  # % for the faces (outlines use AIRWALL_LINE_OPACITY)
     # On-screen watches (gz: R + D-Right toggles them).
     "watches_shown": True,
     "watches_combo": ["RB", "DRIGHT"],
@@ -68,6 +80,12 @@ COLORS = {
     "bg": "#0c0f13", "border": "#2b3440", "title": "#ffffff", "text": "#d6dde6",
     "cursor": "#ffd75e", "dim": "#5f6b78", "status": "#8fd3ff",
 }
+# Air wall view: walls that stop Link, the one he's inside, other kinds; the key colour is see-through.
+AIRWALL_COLORS = {"blocks": "#3ad7ff", "inside": "#ff4848", "other": "#9a8cff"}
+AIRWALL_KEY = "#010203"
+AIRWALL_RANGE = 60.0  # units from the camera to draw walls
+AIRWALL_FPS = 60      # redraws per second at most
+AIRWALL_LINE_OPACITY = 0.85
 
 REPEAT_DELAY, REPEAT_RATE = 0.40, 0.07  # seconds, like holding the d-pad in gz
 
@@ -153,6 +171,12 @@ CAPACITIES = {"Deku Stick capacity": [0, 10, 20, 30], "Deku Nut capacity": [0, 2
               # (The onif editor's 24/48 make a tiny bar.)
               "Arrow capacity": [0, 30, 40, 50], "Magic capacity": [0, 240, 480],
               "Wallet capacity": [0, 200, 500, 1000]}
+# What the inventory > capacity menu calls them (the item that holds them).
+CAPACITY_LABELS = {"Deku Stick capacity": "deku stick bag", "Deku Nut capacity": "deku nut bag",
+                   "Deku Seed capacity": "deku seed bag", "Bomb capacity": "bomb bag",
+                   "Arrow capacity": "quiver"}
+# Names for capacity values in that menu (0 always shows as "none").
+CAPACITY_NAMES = {"Arrow capacity": {30: "quiver (30)", 40: "bigger quiver (40)", 50: "biggest quiver (50)"}}
 # Fields mapped from the onif editor's demo save (tools: export with known changes,
 # diff the save): songs, quest items, bottles, upgrades, dungeon items.
 EXTRA_PATH = Path(__file__).with_name("extra_fields.json")
@@ -237,6 +261,8 @@ WATCHES = [
     ("lag", "lag"), ("timer", "timer"),                           # gz lag counter/timer
     ("frame", "frame"),
     ("map", "map"),
+    ("airwall", "air wall"),                                      # depth inside an air wall
+    ("levitate", "levitate"),                                     # off / rising / holding / landing
 ]
 WATCH_LABELS = dict(WATCHES)
 
@@ -373,6 +399,15 @@ def log(msg):
         pass
 
 
+def stick_vector(x, y, dead=7849):
+    """Raw XInput stick values as (x, y) in -1..1 with a round dead zone (XInput's own)."""
+    m = math.hypot(x, y)
+    if m <= dead:
+        return (0.0, 0.0)
+    k = min(1.0, (m - dead) / (32767 - dead)) / m
+    return (x * k, y * k)
+
+
 def load_settings():
     s = dict(DEFAULTS)
     try:
@@ -460,6 +495,7 @@ class App:
         self.test = test
         self.settings = load_settings()
         self.input = Input(self.settings)
+        self.lev_down = False  # levitate combo held last tick (it acts on the press)
         self.is_open = test
         self.paused_by_us = False
         self.status_text, self.status_until = "", 0.0
@@ -467,6 +503,7 @@ class App:
         self.pid = self.hwnd = self.proc = self.ram = self.game = None
         self.cheats = {}
         self.warp_exits = {}
+        self.door_exits = set()  # (map, exit) seen leading into a dungeon: auto-exit avoids them
         self.frames = FrameStats()
         self.next_attach = 0.0
         self.toast_until = time.monotonic() + 6.0  # "I'm running" notice on start
@@ -516,6 +553,33 @@ class App:
             self.hwnd_hud = win32.root_hwnd(self.hud_canvas.winfo_id())
             win32.make_overlay(self.hwnd_hud)
             win32.show_no_activate(self.hwnd_hud, False)
+
+        # Air walls: a click-through window over the game picture, see-through except for the lines.
+        self.aw_win = self.hwnd_aw = None
+        self.aw_shown, self.aw_last = False, None
+        self.aw_map, self.aw_walls = None, []
+        self.aw_entry = {}  # wall index -> outward normal of the face Link went in through
+        self.aw_state = (None, None)  # (wall index Link is inside, faces nearest first)
+        if not test:
+            # Two windows: faces (very see-through, the setting) under outlines (more opaque).
+            def overlay_window(alpha):
+                win = tk.Toplevel(self.tk)
+                win.overrideredirect(True)
+                win.attributes("-topmost", True)
+                win.configure(bg=AIRWALL_KEY)
+                win.attributes("-transparentcolor", AIRWALL_KEY)
+                win.attributes("-alpha", alpha)
+                cv = tk.Canvas(win, bg=AIRWALL_KEY, highlightthickness=0, bd=0)
+                cv.pack(fill="both", expand=True)
+                win.update_idletasks()
+                hwnd = win32.root_hwnd(cv.winfo_id())
+                win32.make_overlay(hwnd)
+                win32.show_no_activate(hwnd, False)
+                return win, cv, hwnd
+            self.aw_fwin, aw_fcanvas, self.hwnd_awf = overlay_window(self.settings["airwalls_opacity"] / 100)
+            self.aw_win, aw_lcanvas, self.hwnd_aw = overlay_window(AIRWALL_LINE_OPACITY)
+            self.aw_painter = airwall.Painter(aw_fcanvas, aw_lcanvas, AIRWALL_KEY)
+            self.aw_rect, self.aw_rect_at, self.aw_next = None, 0.0, 0.0
         self.last_frame = None
         self.tick()
 
@@ -534,9 +598,19 @@ class App:
                    lambda v: s.__setitem__("warp_arrival_cutscenes", v)),
         ] + todo("age", "cutscene"))
 
-        scene = Menu("scene", todo(
-            "reload scene", "void out", "set entrance point", "clear flags",
-            "noclip", "collision view"))
+        collision = Menu("collision", [
+            Toggle("show air walls", lambda: s["airwalls_shown"],
+                   lambda v: s.__setitem__("airwalls_shown", v)),
+            Toggle("all air wall kinds", lambda: s["airwalls_all"],
+                   lambda v: s.__setitem__("airwalls_all", v)),
+            Choice("wall opacity", [5, 10, 15, 20, 30, 40, 60], lambda: s["airwalls_opacity"],
+                   lambda v: s.__setitem__("airwalls_opacity", v)),
+            Info(lambda: f"air walls  {self.airwall_summary()}"),
+            Info(lambda: f"link       {self.airwall_text()}"),
+        ])
+
+        scene = Menu("scene", [Submenu("collision", collision)]
+                     + todo("reload scene", "void out", "set entrance point", "clear flags", "noclip"))
 
         def cheat(name):
             return Toggle(name, lambda: self.cheats.get(name, False),
@@ -708,18 +782,26 @@ class App:
                 app.status(f"{label_of(title)} filled")
             return go
 
+        wanted = {}  # upgrade setting -> the value last chosen (shown until the game has it)
+
         def upgrade(setting, value):
             """Make the pouch hold the item(s) for this upgrade setting, through the game's own code
             (patch.set_upgrade). The game's screens and story checks look at those, not the numbers."""
             if self.patch_active:
+                wanted[setting] = value
                 patch.submit(("upgrade", setting), patch.set_upgrade, g(), setting, value, log)
 
-        def capacity(title, label):
+        def capacity(title, label, names=None):
             def set_(v):
                 set_field(title)(v)
                 if title in patch.UPGRADES:
                     upgrade(title, int(v))
             def get():
+                # While a change is waiting for the game to run (the menu pauses it) or running, the
+                # value chosen: reading the pouch then gives the old one, so presses stepped from it and
+                # a burst of stale changes ran on resume (FINDINGS §5.17).
+                if title in wanted and patch.pending(("upgrade", title)):
+                    return wanted[title]
                 # The upgrade item Link holds (what the game shows); the number if he holds none.
                 if title in patch.UPGRADES and self.game and self.game.ready:
                     v = self.safe(lambda: patch.held_upgrade(g(), title))
@@ -728,20 +810,22 @@ class App:
                     if title != "Deku Stick capacity":  # sticks hold 10 without any bag item
                         return 0  # no bag / quiver / magic item: the game shows none
                 return self.safe(field(title), 0)
-            return Choice(label, CAPACITIES[title], get, set_)
+            return Choice(label, CAPACITIES[title], get, set_,
+                          names={0: "none", **CAPACITY_NAMES.get(title, {}), **(names or {})})
 
         ammo = Menu("ammo", [Number(label, field(t), set_field(t), hi=limit(cap),
                                     on_select=fill(t, cap)) for label, t, cap in AMMO]
                     + [Info(lambda: "d-left/right change, L fills")])
-        caps = Menu("capacity", [capacity(t, label_of(t).replace(" capacity", ""))
+        caps = Menu("capacity", [capacity(t, CAPACITY_LABELS.get(t) or label_of(t).replace(" capacity", ""))
                                  for t in CAPACITIES if t not in ("Magic capacity", "Wallet capacity")]
-                    + [capacity("Wallet capacity", "wallet")])
+                    + [capacity("Wallet capacity", "wallet capacity",
+                                names={0: "none (0)", 200: "kokiri wallet (200)", 500: "adult's wallet (500)",
+                                       1000: "giant's wallet (1000)"})])
         magic = Menu("magic", [
             Number("magic", field("Current magic"), lambda v: g().set_magic(int(v)),
                    hi=field("Magic capacity"), on_select=fill("Current magic", "Magic capacity")),
-            capacity("Magic capacity", "magic meter"),
-            Info(lambda: "meter: 0 none, 240 normal, 480 double"),
-            Info(lambda: "(set the meter first, then magic)"),
+            capacity("Magic capacity", "magic meter", names={240: "single", 480: "double"}),
+            Info(lambda: "(set the meter first, then magic; it applies when the game runs)"),
         ])
         amounts = Menu("amounts", [
             Number("skulltulas", field("Gold Skulltula tokens"), set_field("Gold Skulltula tokens"),
@@ -899,7 +983,15 @@ class App:
             Number("rupees", lambda: g().get_int("rupees"), lambda v: g().set_int("rupees", v),
                    hi=lambda: g().get_int("wallet"), on_select=fill_rupees),
             Info(lambda: f"wallet        {self.game_val(lambda: g().get_int('wallet'))}"),
-            Info(lambda: f"position      {self.pos_desc()}"),
+            Number("x", lambda: self.link_coord(0), lambda v: self.move_link_axis(0, v),
+                   lo=-1e6, hi=lambda: 1e6, step=lambda: s["move_step"], fmt=lambda v: f"{v:.2f}"),
+            Number("y", lambda: self.link_coord(1), lambda v: self.move_link_axis(1, v),
+                   lo=-1e6, hi=lambda: 1e6, step=lambda: s["move_step"], fmt=lambda v: f"{v:.2f}"),
+            Number("z", lambda: self.link_coord(2), lambda v: self.move_link_axis(2, v),
+                   lo=-1e6, hi=lambda: 1e6, step=lambda: s["move_step"], fmt=lambda v: f"{v:.2f}"),
+            Choice("move step", [0.1, 0.5, 1.0, 5.0, 10.0, 50.0], lambda: s["move_step"],
+                   lambda v: s.__setitem__("move_step", v)),
+            Info(lambda: f"levitate      {self.game_val(lambda: g().levitate_state)}"),
             Info(lambda: "d-left/right change, L fills"),
         ])
 
@@ -964,11 +1056,16 @@ class App:
             Info(lambda: f"open      {' + '.join(s['open_combo'])}  /  {s['open_key']}"),
             Info(lambda: f"close     {' + '.join(s['close_combo'])}"),
             Info(lambda: f"select    {' / '.join(s['select'])}  /  Enter"),
-            Info(lambda: f"levitate  hold {' + '.join(s['levitate_combo']) or 'off'}"),
-            Choice("levitate speed", [4, 8, 12, 20, 30], lambda: s["levitate_speed"],
-                   setter("levitate_speed")),
+            Info(lambda: f"levitate  tap {' + '.join(s['levitate_combo']) or 'off'} float / drop"),
+            Info(lambda: f"          hold {' + '.join(s['levitate_hold_combo']) or 'off'} keep height"),
+            Choice("levitate rise speed", [2, 4, 6, 8, 12, 20], lambda: s["levitate_rise_speed"],
+                   setter("levitate_rise_speed")),
+            Choice("levitate move speed", [2, 4, 6, 8, 12, 20, 30], lambda: s["levitate_move_speed"],
+                   setter("levitate_move_speed")),
             Toggle("no levitate fall damage", lambda: s["levitate_no_fall_damage"],
                    lambda v: s.__setitem__("levitate_no_fall_damage", v)),
+            Toggle("levitate through walls", lambda: s["levitate_through_walls"],
+                   lambda v: s.__setitem__("levitate_through_walls", v)),
             Item("restore defaults", handler=restore),
         ])
 
@@ -1070,15 +1167,17 @@ class App:
         g = self.game
         # Loading zones of the current map: Link is put into the nearest one so
         # the warp starts straight away.
-        exits = (self.warp_exits.get(g.get_str("map"))
-                 if self.settings["warp_auto_exit"] else None)
+        here = g.get_str("map")
+        exits = (self.warp_exits.get(here) if self.settings["warp_auto_exit"] else None)
+        if exits:  # never pick an exit already seen leading into a dungeon (its door transition)
+            exits = [e for e in exits if (here, tuple(e)) not in self.door_exits]
         # Spawn-specific arrival cutscenes (walking out of a particular door, story
         # 'before'/'after' variants) can hang when the game state doesn't match,
         # leaving Link stuck with no control. The standard arrival just places him.
         if not self.settings["warp_arrival_cutscenes"]:
             event = STANDARD_ARRIVAL
         try:
-            g.arm_warp(map_name, spawn, event)
+            g.arm_warp(map_name, spawn, event, keep_into=DUNGEONS)
         except (OSError, RuntimeError) as e:
             self.status(f"warp failed: {e}")
             return
@@ -1111,6 +1210,43 @@ class App:
         else:
             self.status("no warp armed")
 
+    # ------------------------------------------------------------ moving Link
+
+    POS_EDIT_HOLD = 3.0  # s the menu shows the edited position before the game's again
+
+    def link_coord(self, axis):
+        """Link's x / y / z for the link menu: what was just set (the game may be paused and not show
+        it yet), else where he's drawn."""
+        edit = getattr(self, "pos_edit", None)
+        if edit and time.monotonic() - edit[1] < self.POS_EDIT_HOLD:
+            return edit[0][axis]
+        d = self.game.display_pos() if (self.game and self.game.ready) else None
+        return round(d[axis], 2) if d else None
+
+    def move_link_axis(self, axis, value):
+        g = self.game
+        if not (g and g.ready):
+            return
+        edit = getattr(self, "pos_edit", None)
+        if edit and time.monotonic() - edit[1] < self.POS_EDIT_HOLD:
+            target = list(edit[0])
+        else:
+            d = g.display_pos()
+            if not d:
+                return
+            target = list(d)
+        target[axis] = round(value, 4)
+        if g.teleport(*target):
+            self.pos_edit = (tuple(target), time.monotonic())
+            return
+        # Link's record isn't known yet: finding it moves him a little and needs the game running.
+        if self.is_open and self.settings["pause_while_open"]:
+            self.status("close the menu once (game running) so Link can be found, then try again")
+            return
+        self.status("finding Link...")
+        threading.Thread(target=lambda: g.move_link(*target), daemon=True).start()
+        self.pos_edit = (tuple(target), time.monotonic())
+
     def pos_desc(self):
         g = self.game
         if not (g and g.ready):
@@ -1134,6 +1270,13 @@ class App:
             w["reported"] = True
             if w["state"] == "done":
                 self.notify([(f"warping to {pretty(w['map'])}", COLORS["title"])], 3)
+            elif w.get("kept"):
+                if w.get("exit"):
+                    self.door_exits.add((w["from_map"], tuple(w["exit"])))
+                log(f"warp skipped: the exit leads into {w['kept']} (door transition left alone)")
+                self.notify([("warp skipped", COLORS["title"]),
+                             (f"that exit is the door into {pretty(w['kept'])}", COLORS["status"]),
+                             ("warp again from there", COLORS["dim"])], 6)
             elif w["state"] != "cancelled":
                 self.notify([(f"warp {w['state']}", COLORS["status"])], 4)
 
@@ -1321,17 +1464,31 @@ class App:
             pass  # mid scene load; try again next tick
 
     def apply_levitate(self, focused):
-        """Hold the levitate button(s) to rise; not while the menu is open."""
-        g, held = self.game, self.input.prev
-        combo = self.settings["levitate_combo"]
-        active = (g and g.ready and focused and not self.is_open and combo
-                  and all(b in held for b in combo))
-        if g:
-            g.protect_landing = self.settings["levitate_no_fall_damage"]
-        if active:
-            g.levitate_start(self.settings["levitate_speed"])
-        elif g:
-            g.levitate_stop()
+        """Tap the levitate combo to float / drop, hold the hold combo to keep the
+        height, steer with the left stick. Link holds still while the menu is open."""
+        g, held, s = self.game, self.input.prev, self.settings
+        combo, hold = s["levitate_combo"], s["levitate_hold_combo"]
+        down = bool(combo) and all(b in held for b in combo)
+        pressed, self.lev_down = down and not self.lev_down, down
+        if not g:
+            return
+        usable = g.ready and focused and not self.is_open
+        g.protect_landing = s["levitate_no_fall_damage"]
+        g.lev_rise_speed = s["levitate_rise_speed"]
+        g.lev_move_speed = s["levitate_move_speed"]
+        g.lev_through_walls = s["levitate_through_walls"]
+        g.lev_hold = not usable or (bool(hold) and all(b in held for b in hold))
+        g.lev_stick = stick_vector(*win32.last_sticks[:2]) if usable else (0.0, 0.0)
+        if pressed and usable:
+            if g.levitating:
+                g.levitate_stop()
+                self.notify([("levitate OFF", COLORS["dim"])], 1.0)
+            else:
+                g.levitate_start()
+                self.notify([("levitate ON", COLORS["cursor"])], 1.0)
+        if g.lev_message:
+            self.notify([(g.lev_message, COLORS["text"])], 2.0)
+            g.lev_message = None
 
     def ram_desc(self):
         return f"{self.ram.size / 2**30:.0f} GiB found" if self.ram else "not found"
@@ -1357,6 +1514,8 @@ class App:
         if getattr(self, "hud", None):
             self.hud.attributes("-alpha", self.settings["opacity"] / 100)
             self.hud_last = None
+        if getattr(self, "aw_fwin", None):
+            self.aw_fwin.attributes("-alpha", self.settings["airwalls_opacity"] / 100)
         self.last_frame = None
 
     def frame_lines(self):
@@ -1416,6 +1575,8 @@ class App:
                 vals.update(x=d[0], y=d[1], z=d[2])
             vals.update(g.link_motion())
             vals["map"] = g.get_str("map")
+            vals["airwall"] = self.airwall_text()
+            vals["levitate"] = g.levitate_state + (" (walls off)" if g.lev_through_walls else "")
             f = self.frames
             vals.update(frame=f.count, fps=f.fps, lag=f.lag, timer=f.timer,
                         paused="PAUSED" if f.paused else "no")
@@ -1481,6 +1642,128 @@ class App:
             win32.show_no_activate(self.hwnd_hud, visible)
             self.hud_shown = visible
 
+    # ------------------------------------------------------------ air walls
+
+    def current_walls(self):
+        """The current map's air walls (re-read when the map changes)."""
+        m = self.game_str("map")
+        if m != self.aw_map:
+            self.aw_map = m
+            self.aw_walls = airwall.walls_for(m) if m and m != "-" else []
+            self.aw_entry = {}
+        return self.aw_walls
+
+    def airwalls_used(self):
+        s = self.settings
+        return s["airwalls_shown"] or "airwall" in s["hud_watches"] or self.is_open
+
+    def update_airwall_state(self):
+        """Which air wall Link's body (his physics point) is inside, and the face he went in through.
+        Skipped when nothing shows it, to keep the tick light."""
+        g = self.game
+        inside, faces = None, None
+        if not self.airwalls_used():
+            self.aw_state = (None, None)
+            return
+        if g and g.ready:
+            d = g.display_pos()
+            if d:
+                p = (d[0], d[1] + game.PHYS_Y, d[2])
+                for i, w in enumerate(self.current_walls()):
+                    if w.blocks_link:
+                        f = w.inside(p)
+                        if f:
+                            inside, faces = i, f
+                            break
+        if inside is None:
+            self.aw_entry = {}
+        elif inside not in self.aw_entry:
+            self.aw_entry = {inside: faces[0][1]}  # the nearest face on the way in
+        self.aw_state = (inside, faces)
+
+    def airwall_text(self):
+        """Link's depth inside an air wall and which face the game will push him out of."""
+        inside, faces = self.aw_state
+        if inside is None:
+            return "outside"
+        depth, n = faces[0]
+        e = self.aw_entry.get(inside)
+        dot = lambda a, b: sum(a[i] * b[i] for i in range(3))  # noqa: E731
+        if e and dot(n, e) > 0.7:
+            where = "back"
+        elif e and dot(n, e) < -0.7:
+            where = "THROUGH"
+        else:
+            where = "up" if n[1] > 0.7 else "down" if n[1] < -0.7 else "side"
+        far = next((f[0] for f in faces if e and dot(f[1], e) < -0.7), None)
+        return f"{depth:.2f} in, exits {where}" + (f", far side {far:.2f}" if far is not None else "")
+
+    def airwall_summary(self):
+        walls = self.current_walls()
+        return f"{sum(w.blocks_link for w in walls)} stop Link, {len(walls)} in this map"
+
+    def read_camera(self):
+        g = self.game
+        c = g.gb + g.camera
+        pos = struct.unpack("<3f", g.p.read(c + 0x38, 12))
+        look = struct.unpack("<3f", g.p.read(c + 0x44, 12))
+        fov, aspect = struct.unpack("<f", g.p.read(c + 0x130, 4))[0], struct.unpack("<f", g.p.read(c + 0x140, 4))[0]
+        if not (0.1 < fov < 3.0 and 0.5 < aspect < 4.0):
+            fov, aspect = math.radians(50), 16 / 9
+        return airwall.Camera(pos, look, fov, aspect), aspect
+
+    def update_airwalls(self, game_shown):
+        """Draw the air walls near the camera over the game picture."""
+        if not self.aw_win:
+            return
+        s, g = self.settings, self.game
+        visible = bool(s["airwalls_shown"] and game_shown and g and g.ready and g.camera)
+        if visible:
+            try:
+                cam, aspect = self.read_camera()
+            except (OSError, struct.error, TypeError):
+                visible = False
+        now = time.monotonic()
+        if visible and now >= self.aw_next:
+            self.aw_next = now + 1 / AIRWALL_FPS
+            if now >= self.aw_rect_at:  # where the picture is: checked twice a second
+                self.aw_rect_at = now + 0.5
+                x, y, w, h = win32.render_rect(self.hwnd)
+                if w / max(h, 1) > aspect:  # the picture keeps its shape inside the window
+                    nw = round(h * aspect)
+                    x, w = x + (w - nw) // 2, nw
+                else:
+                    nh = round(w / aspect)
+                    y, h = y + (h - nh) // 2, nh
+                if (x, y, w, h) != self.aw_rect:
+                    self.aw_rect = (x, y, w, h)
+                    for hw in (self.hwnd_awf, self.hwnd_aw):  # faces under outlines
+                        win32.move_topmost(hw, x, y, w, h)
+                    self.aw_last = None
+            _, _, w, h = self.aw_rect
+            inside = self.aw_state[0]
+            d = g.display_pos()
+            link = None
+            if d:
+                height, radius = airwall.LINK_SIZE["adult" if self.aw_map.endswith("_Adult") else "child"]
+                link = (d, height, radius)
+            key = (tuple(round(v, 3) for v in cam.p + tuple(cam.f)), self.aw_rect, inside,
+                   s["airwalls_all"], self.aw_map, tuple(round(v, 3) for v in d) if d else None)
+            if key != self.aw_last:
+                styles = [(AIRWALL_COLORS["inside"], 3) if i == inside else
+                          (AIRWALL_COLORS["blocks"], 2) if wall.blocks_link else
+                          (AIRWALL_COLORS["other"], 1) if s["airwalls_all"] else None
+                          for i, wall in enumerate(self.current_walls())]
+                self.aw_painter.draw(cam, self.current_walls(), w, h, styles, AIRWALL_RANGE, link)
+                self.aw_last = key
+        if visible != self.aw_shown:
+            for hw in (self.hwnd_awf, self.hwnd_aw):  # faces under outlines
+                if visible and self.aw_rect:
+                    win32.move_topmost(hw, *self.aw_rect)
+                win32.show_no_activate(hw, visible)
+            self.aw_shown = visible
+            self.aw_last = None
+
     def notify(self, lines, seconds):
         """Show a short notice over the game while the menu is closed."""
         self.toast_custom = lines
@@ -1531,6 +1814,7 @@ class App:
             self.watch_patch()
             self.watch_warp()
             self.apply_levitate(focused)
+            self.update_airwall_state()
             if self.game and self.game.ready:
                 self.frames.update(self.game.frame_count())
             self.frames.timer_hold(self.is_open)
@@ -1552,6 +1836,7 @@ class App:
                 win32.show_no_activate(self.hwnd_self, visible)
                 self.shown = visible
             self.update_hud(game_shown)
+            self.update_airwalls(game_shown)
         except Exception as e:  # keep the overlay alive, but leave a trace
             log(f"error: {e!r}")
         finally:
@@ -1573,6 +1858,10 @@ def main():
                     pass
             return
         PID_PATH.write_text(str(os.getpid()))
+    # Lichii in the foreground gets the CPU first; without this the levitate thread (which must write
+    # Link's position every millisecond) was starved while the air wall view drew (FINDINGS §5.12).
+    win32.raise_priority()
+    sys.setswitchinterval(0.001)  # hand the GIL to the levitate thread sooner
     App(test=test).tk.mainloop()
 
 

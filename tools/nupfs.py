@@ -8,7 +8,10 @@ import struct
 import sys
 from pathlib import Path
 
-NUP = next(Path(__file__).resolve().parents[2].glob("*.nup"))
+import os
+
+# The dump: $OOTMENU_NUP, else the first .nup two folders up from tools/.
+NUP = os.environ.get("OOTMENU_NUP") or next(Path(__file__).resolve().parents[2].glob("*.nup"), None)
 ZSTD = b"\x28\xb5\x2f\xfd"
 
 

@@ -240,6 +240,178 @@ Objects:
 - **Found by:** GDB read watchpoint on the `IsGetMap` value (`tools/readwatch.py`): the map screen reads it on open
   at `main+0x33e158c` and `main+0xb2a2c4`.
 
+### 5.9 Levitate jerks Link about, can't steer, and once crashed the game
+- **Symptom:** holding L3 shot Link upward and yanked him about; he couldn't be moved with the left stick; one
+  session ended in a crash. The log showed two "moved Link with record" lines in the same instant, and about ten
+  record searches within one second ending in "no record moved Link".
+- **Cause 1 (jerks):** releasing and re-pressing L3 while the first press was still searching for Link's physics
+  record started a second loop. Both loops checked the shared on/off flag, so both kept writing heights with
+  different starting points.
+- **Cause 2 (crash):** each overlapping press ran `move_link`'s search, which writes into candidate records. Writing
+  look-alike records is what broke the camera and softlocked the game before (see "position" in `game.py`).
+- **Cause 3 (no steering):** only the height was written. The game treats Link as falling, and falling Link has no
+  air control.
+- **Fix:** one loop at a time (`Game._lev_lock` plus a press number that older loops check); a failed search waits
+  `LEV_FIND_RETRY` seconds before trying again; the loop writes x, y, z, with the rise easing in and horizontal
+  speed set from the left stick relative to the camera (camera forward from `[[main+0x4E98068]+0x68]` +0x38/+0x44,
+  right = (-fz, fx)). It stops moving Link when the game's frame counter stops (menu open, emulator paused). The
+  controls are now tap L3 to float or drop, hold R3 to keep the height.
+- **Found by:** the log; a live test measured each 0.1 s of movement against the camera's forward and right, plus a
+  screenshot before and after a move to the right.
+
+### 5.10 Levitate floats Link through walls
+- **Symptom:** steering while floating passed straight through walls and rocks.
+- **Cause:** the game does resolve collisions for a position we write: between our writes it pushes Link back out
+  of a wall. But the float wrote its own running x/z every millisecond, which undid each push-back.
+- **Fix** (`Game._float`): each step starts from the game's current x/z when the game has moved Link *against* his
+  heading (a push-back), and otherwise from our own position. A push-back marks the wall for `LEV_WALL_MEMORY`;
+  while marked, the velocity into it is removed and moves towards it are refused. Push-backs only count once the
+  heading has held for `LEV_STEADY_TIME` (0.1-0.2 s). The height stays ours. Settings > "levitate through
+  walls" (`levitate_through_walls`, `Game.lev_through_walls`) skips all of this, which is the old behaviour.
+- **Why each part is needed:**
+  - Starting every step from the game's position also takes in the game's own momentum (it turns our moves into
+    velocity at actor `+0x3A0/+0x3A8`): after the stick was let go, Link slid on 2.5 units.
+  - Without the wall mark, Link crept about a unit into the rock (hidden inside it). The game's leftover momentum
+    into the wall also counted as a push-back once he turned to back off, so he got stuck.
+  - Without the steady-heading check, the momentum from the old direction counted as a push-back for about 0.25 s
+    after every turn.
+- **Found by:** a hover-and-push test into a known rock wall in SacredForestMeadow_Child, from (-5.94, 115.86,
+  -106.58) along (0.978, -0.209). The wall is about 10.1 units away. Pushing down into the floor showed the same
+  push-back (Link sank about 0.4 and held). Result: Link holds at 9.9-10.1 against the wall through 2.5 s at full
+  speed, backs off normally, stops within 0.26 units of the stick being released, and reverses in about 0.25 s
+  (that's the ease-in).
+- **Physics record motion state** (after the position doubles, f32): `+0x24/+0x28/+0x2C` = requested velocity
+  (z, x, y), `+0x3C/+0x40/+0x44` = the same after collision (a blocked component becomes 0); the actor's velocity at
+  `+0x388` follows the second copy. The game ignores the position while this is all zero, hence `WAKE`.
+
+### 5.11 Air walls: where they are and what they do
+- **Data:** `tools/airwalls.py` builds `airwalls.json` from the layouts (`romfs/Banc/<Area>/<Map>_Static|_Dynamic
+  .bcett.byml.zs`, the map name is the save's "map" string) and the actor packs (`romfs/Pack/Actor/<Actor>.pack.zs`, a
+  SARC). Each placed actor whose name contains `AirWall` has `Translate`, `Rotate` (radians, X Y Z; applied as
+  Rz Ry Rx like sead's makeR) and `Scale`. Its shape comes from the pack: PhysicsParam `ControllerSetPath` →
+  ControllerSetParam `ShapeNamePathAry` (follow `$parent`) → ShapeParam `Box` (Center + OffsetTranslation,
+  HalfExtents) or `Cylinder` (CenterA, CenterB, Radius). What it stops is the RigidBodyEntityParam
+  `EnableLayerHitMask`: `HitOnlyPlayer`, `Default` or none stop Link. `HitOnlyCharacter` walls (1565 of them,
+  `AirWallEnemy*`) are for enemies and NPCs. 3504 walls in 71 maps; 236 Polytope/PhshMesh/Cone shapes are left out.
+- **romfs `.zs` files** use zstd dictionaries from `romfs/Pack/ZsDic.pack.zs` (a zstd SARC): `bcett.byml.zsdic`
+  for layouts, `pack.zsdic` for packs, `zs.zsdic` otherwise (`tools/gamefiles.py`).
+- **`FldObj_AirWall_Player_Unridable`:** a 4 x 4 x 4 box sitting on its origin (centre +2 up), scaled per
+  placement, `HitOnlyPlayer`. In SacredForestMeadow_Child the temple ledge has two:
+  - **A (Dynamic):** origin (-6.94, 118.49, -117.60), scale (1.46, 2.87, 2.87). It covers x -9.87 to -4.01,
+    y 118.49 to 129.99, z -123.35 to -111.85. It sits on top of the ruin wall in front of the entrance (the screen
+    overlay lines up with it).
+  - **B (Static):** a 30-unit cube at (-8.67, 122.87, -128.83), tilted 15 degrees about x, above and behind A.
+  - Both are in memory once each as f32 position triples (A at `0x215c6ce600`, B at `0x215c658500` this session).
+- **Push-out:** while Link floated against A, the requested velocity (record `+0x24`) jumped to +79 to +85 units/s
+  out of the wall, and Link left at about 47 units/s, losing it only slowly in the air (wallwatch, `tools/wallwatch.py`).
+  It looks like penetration depth over one frame, so the deeper he is when the game resolves it, the harder the
+  launch. Which face it chooses hasn't been measured cleanly yet (the overlay's writes were mixed in).
+- **The frame counter (`main+0x4E84BA0`) keeps running in the game's menus** (pause screen, R item menu) while
+  gameplay is frozen. The levitate used it to hold still while paused, so in the R menu it kept moving Link with no
+  collision, which caused most of the launches and the "lost Link's record" stops. It now holds still when the game
+  hasn't touched Link's record for `LEV_PAUSED_AFTER` (every gameplay frame moves him off what we wrote).
+- **Camera** (`[[main+0x4E98068]+0x68]`): `+0x38` position, `+0x44` look-at, `+0x130` vertical fov (0.8727 =
+  50 degrees), `+0x134/+0x138/+0x13C` sin/cos/tan of half of it, `+0x140` aspect (16/9); projection scales at
+  `+0x9C` (1/(tan*aspect)) and `+0xB0` (1/tan). Lichii draws the picture in its largest child window
+  (`win32.render_rect`).
+- **The view** (scene > collision > show air walls): `airwall.py` projects every wall within 60 units with that camera onto a
+  pair of see-through click-through windows over the picture: front faces filled on one at the "wall opacity" setting (scene > collision) (default 15%; Tk's `-alpha` and `-transparentcolor` work together), outlines on the other
+  at 85% (back edges dashed). Redrawn up to 60 times a second. Cyan = stops Link, red = Link's inside it, violet
+  = other kinds. Walls further from the camera than Link get his silhouette cut out (a capsule from his feet,
+  `airwall.LINK_SIZE` by age from the map name, filled with the key colour), so he stays in front of them.
+  - **Accuracy:** checked against a screen recording while panning (`pan` capture, 160 frames). Link's feet
+    project onto his feet in every frame, still or at 95 degrees/s, and the picture trails the camera data by only
+    about 0-50 ms.
+  - **It can't hide behind scenery:** the overlay has no depth for the game's picture. Doing that needs the map's
+    collision (the placed actors' `romfs/Phive/Shape/*.bphsh`, 5877 files, a compressed Havok mesh format, not
+    decoded yet) and a ray test per line.
+  The "air wall" watch shows Link's depth (physics point) and which face is nearest, relative to the face he went in
+  through: back, THROUGH, up, down, side.
+
+### 5.12 Levitate laggy with the air wall view on
+- **Symptom:** with scene > collision > show air walls on, levitating (and input in general) felt laggy.
+- **Measured** (the real App in a harness pretending Lichii is focused, Link hovering; the levitate thread's
+  position writes counted):
+  - View off: 240 writes/s, longest gap 6.5 ms, 1.3 ms per Tk tick.
+  - View on: 88 writes/s with one **2.4 s stall**, 3.9 ms per tick (the stall didn't happen on every run).
+  - The emulator's own frame rate was unaffected (51 frames/s with or without a 60 Hz see-through overlay).
+- **Cause:** the levitate thread shares the process (and the GIL) with the Tk thread, which redrew every wall
+  from scratch each tick. With Lichii in the foreground Windows favours it, so the overlay's threads get less
+  CPU and the levitate loop misses its slots; while it isn't writing, gravity pulls Link down.
+- **Fix:**
+  - The process runs above normal priority (`win32.raise_priority`) and the levitate thread at highest
+    (`win32.raise_thread_priority`); `sys.setswitchinterval(0.001)`.
+  - The view caches each wall's world-space corners, projects each corner once, reuses canvas lines
+    (`airwall.Painter`), redraws at most `AIRWALL_FPS` (30) times a second, and checks the picture's position
+    twice a second.
+  - The "inside a wall" test only runs when the view, its watch or the menu is showing.
+  - Result: view on 168-176 writes/s, longest gap 11 ms, 1.4 ms per tick.
+- **Also found:** the landing heal checked health once, 0.6 s after touching down, and once missed the damage
+  (6 quarter hearts). It now watches for `LAND_HEAL_WINDOW` (1.5 s).
+
+### 5.13 Moving Link from the menu
+- `Game.teleport(x, y, z)` writes the physics record (`+ PHYS_Y`) followed by `WAKE` when the record is known,
+  so it works while the game is paused: the record keeps what was written and the move shows when gameplay runs.
+  `_record_ok` (record within 3 units of the drawn position) fails in between, so `_record_is_ours` also accepts
+  a record that still holds our last write. While floating, the float loop takes the position (`_lev_jump`);
+  during a soft landing the landing is ended first (its curve would pull him back).
+- If the record isn't known yet, `move_link` finds it, which nudges Link and needs the game running.
+- **The dive meter** isn't a save field (only "Diving depth", the scale) or one of the parameter objects on
+  Link's status object (`[[link+8]+0x6A0]`: only health `+0x1C10` and max health `+0x1C18`, each listed twice,
+  `+0x1CD8/+0x1CE0`). `tools/linkwatch.py` records his actor, status object and every object they point to
+  (394 objects, 816 KiB) to find it from a dive.
+- **What it isn't (so far):** `[link+0x6F8] +0x188..+0x194` follows the meter (0..1) but is a short history of
+  gauge values for its animation, rewritten every frame (writing it does nothing). The ~4,100 objects two
+  pointers out from Link hold 16 more 0..1 copies; holding each full during a dive didn't slow the meter. Code
+  storing to +0x18C/+0x190/+0x194 together (`main+0x33ED40`, a 4x4 matrix normalise; `main+0x27BD5DC`, a
+  vector copy) isn't it either. `tools/meterscan.py` now scans the whole heap (5.3 GiB) in batches while the
+  meter drains, saving progress in `tools/meterscan_state.json`.
+
+### 5.14 After a warp, a fresh attach found the wrong memory
+- **Symptom:** after a menu warp to LostWood_Child, a newly started tool (or ootmenu after a restart, or after
+  the save data went missing for 3 s) reported "save data not found" and no Link, while the game was running.
+- **Cause:** `_find_base` scans the process from low addresses for the self-referencing value at
+  `main+CHECK_OFF`. Lichii also keeps the guest RAM as a flat backing store (the 14 GiB block `guestmem` uses),
+  where the same value matches. That page had become readable, so it was found first: guestbase `0x4e1000`,
+  main `0x1ae892d2000` instead of `0x2304c200000` / `0x8073a000`.
+- **Fix:** `_valid_base` also needs Link's vtable (`main+VT_LINKOBJ_OFF`) to start with a function inside main.
+  Vtable entries are absolute guest addresses, so this only holds in the real mapping.
+
+### 5.15 Levitate didn't lift Link off the ground (Lost Woods)
+- **Symptom:** L3 started the float (no errors) but Link stayed on the ground.
+- **Cause 1:** the frozen-gameplay check (§5.11) only watched the record. Standing, the game snaps Link to the
+  ground without touching the record (his drawn height flickers), so after the first small lift the float
+  decided gameplay was frozen and stopped rising.
+- **Cause 2:** standing, the game also clears the motion state after the position (`WAKE`) and then ignores the
+  record altogether. `WAKE` was written once at the start; in the meadow Link was airborne before it was cleared,
+  in the Lost Woods it wasn't.
+- **Fix:** gameplay counts as running if either the record or the drawn position changed; the first
+  `LEV_START_GRACE` (0.3 s) never counts as frozen; the float rewrites `WAKE` whenever it finds it cleared.
+  Tested in LostWood_Child: about 2.4 units in 1.2 s, then a normal landing.
+
+### 5.16 Black screen after warping from the Minuet pad
+- **Symptom:** a menu warp to SacredForestMeadow_Child / ForestMinuet made from inside the meadow, with Link on
+  the Minuet pad, left the screen black for good (HUD too) while the game kept running.
+- **Cause:** auto-exit puts Link into the nearest exit, and the nearest of the meadow's two exits is the
+  Forest Temple door, 1.6 units from the pad (the other is the Lost Woods one, 205 away). The warp swapped the
+  door's destination for the meadow: the door's own transition started (fade out) but never got its arrival,
+  so the fade-in never came. After that, loading zones did nothing either (moving Link into the Lost Woods exit
+  with a new warp armed didn't fire it).
+- **Fix:** `arm_warp(..., keep_into=DUNGEONS)`: if an exit's original destination is a dungeon, the warp leaves
+  it alone ("skipped", Link goes into the dungeon normally) and the menu remembers that exit for the session so
+  auto-exit picks another one next time.
+- **Not checked:** whether other door-like exits (houses, shops, grottos) behave the same.
+
+### 5.17 Upgrade choices (magic meter etc.) jumped between values
+- **Symptom:** inventory > magic > magic meter wouldn't settle on 0 / 240 / 480; one burst of presses logged
+  "= 0" then "= 480" in the same second and ended with neither magic item held.
+- **Cause:** upgrades change the pouch through the game's own code (`patch.set_upgrade`), which only runs while
+  the game runs; with the menu open the emulator is paused, so the request waits. The choice read the value back
+  from the pouch, i.e. the old one, so every press stepped from the old value and queued a stale change.
+- **Fix:** while a request for that setting is queued or running (`patch.pending`), the choice shows and steps
+  from the value last chosen; the queue keeps only the newest request per setting, so the last choice is what
+  gets applied. Applies to every upgrade choice (magic, wallet, bags, quiver).
+
 ## 6. Things that do not work
 
 Each of these was tried and verified not to help:
@@ -251,6 +423,14 @@ Each of these was tried and verified not to help:
 - AddPouch with a negative count: does nothing.
 - `main+0x2df6c80` with an empty slot: doesn't take gear off.
 - AddPouch with `Item_Dungeon_Map/Compass/BossKey/SmallKey`: sets none of the dungeon flags.
+- Link's velocity on the actor (`+0x388/+0x38C/+0x390`): output only. Writing `+0x38C` (y) every millisecond while
+  he stood still kept the value but didn't move him, and the game set it back to 0 afterwards (§5.9).
+- Steering by writing velocity instead of position (§5.10), tested while hovering at 4 units/s for 1 s each:
+  - Record `+0x24/+0x28` (requested velocity) and actor `+0x388/+0x390`: no movement.
+  - Record `+0x3C/+0x40` (after collision): moves Link only about 25% of the asked amount (the game rewrites it
+    every frame), and it comes after collision, so it can't respect walls anyway.
+- Zeroing actor `+0x3A0/+0x3A8` (the game's horizontal momentum) every ms while steering: Link went straight
+  through the wall. The push-back is carried by that velocity.
 
 ## 7. How to investigate
 
