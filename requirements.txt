@@ -1,0 +1,6 @@
+numpy
+# research tools only (tools/):
+# capstone
+# keystone-engine
+# evfl
+# zstandard

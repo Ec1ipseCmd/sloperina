@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Local state (per user)
+settings.json
+save_backups/
+snapshots/
+scan_state.bin
+scan_state.json
+
+# Research tool output
+tools/*.log
+tools/*_report.txt
+tools/*.arm
+tools/magicwatch.log
+
+# Personal notes
+*.local.md

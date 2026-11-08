@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OoT data notes</title><link rel="stylesheet" href="style.css"></head>
+<body><nav><a href="index.html">overview</a><a href="fields.html">save fields</a><a href="quests.html">quests</a><a href="guides.html">tutorials</a></nav>
+<main>
+<h1>Ocarina of Time (Switch 2) &mdash; data notes</h1>
+<p><b>The full write-up of solved problems, the code patch and investigation methods is in <a href="FINDINGS.md">FINDINGS.md</a>.</b> This page is a short overview plus browsable references.</p>
+<p>What has been worked out about the game's save data, story progress and code while building ootmenu,
+a gz-style practice menu for the Lichii emulator. Everything here applies to
+<b>program 0400486024DEC000, update v131072, main build E0F3CCFA&hellip;</b>; other versions differ.</p>
+<p class="dim">Addresses are offsets into the main module ("main+0x&hellip;"). Field hashes are MurmurHash3_32 (seed 0)
+of the field's name, shown as hex.</p>
+
+<h2>Save data (GameData)</h2>
+<p>All saved state lives in GameData fields, each keyed by the hash of its name. The full list, with types and
+defaults, ships in the game: <code>romfs/GameData/GameDataList.Product.110.byml.zs</code> (a big-endian BYML,
+zstd-compressed with <code>zs.zsdic</code> from <code>romfs/Pack/ZsDic.pack.zs</code>). It holds about 15,000
+fields with 32-bit keys plus 11,657 <code>Bool64bitKey</code> flags. Browse them on the
+<a href="fields.html">save fields</a> page.</p>
+<h3>Types that matter</h3>
+<ul>
+<li><b>Bool / Int / UInt / Float</b>: plain values (flags, counts, capacities).</li>
+<li><b>Enum</b>: the value is the hash of a choice name (for example <code>Strength</code>: None/Low/Middle/High; bottle contents).</li>
+<li><b>BoolExp</b>: a formula over other fields, evaluated by the game (for example "quest is at or past stage X").</li>
+<li><b>Struct</b>: a named group of other fields (for example <code>PlayerStatus</code>, <code>ActionGuide_IsEnd</code>).</li>
+<li><b>String64</b>: up to 63 characters of text (equipped gear names, current map).</li>
+</ul>
+<h3>In memory</h3>
+<p>GameData keeps a type list of <code>(type vtable, count, objects, hash table)</code> entries. Objects of one type
+are a fixed size apart (Int and Float 0x28, Enum 0x38, Bool 0x18). The current value sits at <b>+0x1C with a
+copy at +0x20</b> (Bool: +0x16 and +0x17); write both. The hash table maps field hash &rarr; object index.</p>
+<h3>Save files</h3>
+<p><code>%APPDATA%\eden\nand\user\save\0000000000000000\&lt;user&gt;\0400486024DEC000\slot_NN\progress.sav</code>.
+From offset 0x20 it is a table of <code>(hash u32, value u32)</code> pairs; for String64 fields the value is the
+file offset of a 64-byte text slot. There is no checksum.</p>
+
+<h2>Names</h2>
+<p>The game stores hashes, not names. Names were recovered by hashing every string found in the game's
+scripts and data (event flows, logic, sequences, UI) and matching against the field list: about 4,600 real names
+such as <code>Get_StoneOfForest_IsCompleted_Exp</code> or <code>PouchData.Item_Ocarina_Fairy.StockNum</code>.
+Another ~3,600 fields have readable titles from the onif save editor, matched by exporting its demo save with
+known changes and diffing the result.</p>
+<p>Useful name patterns:</p>
+<ul>
+<li><code>IsGet.&lt;item&gt;</code>: item acquired (also songs: <code>IsGet.Item_Melody_SariaSong</code>).</li>
+<li><code>PouchData.&lt;item&gt;.StockNum</code>: number owned.</li>
+<li><code>HavePlayedEvent.&lt;event&gt;</code>, <code>HaveTalked_Special.&lt;npc&gt;_&lt;event&gt;</code>: event and conversation history.</li>
+<li><code>Step_&lt;quest&gt;</code>: quest stage (see below).</li>
+<li><code>Sequence_*</code>, <code>UI_*</code>: runtime switches.</li>
+</ul>
+
+<h2>Story progress</h2>
+<p>Each quest is one Enum field holding its current stage. 45 exist; see <a href="quests.html">quests</a>. Setting
+"played event" flags alone does nothing; setting the stage does, after a loading zone. Example: the Deku Tree is
+<code>Step_Get_StoneOfForest</code>, from <code>NotReady</code> to <code>Complete</code>.</p>
+
+<h2>Tutorial guides</h2>
+<p><code>ActionGuide_IsEnd</code> records which tutorial screens have been seen. Some HUD features stay off until
+theirs has been seen. The D-pad only appears after the <b>Navi</b> guide, normally shown on entering the Deku Tree.
+See <a href="guides.html">tutorials</a>.</p>
+
+<h2>Items and equipment</h2>
+<ul>
+<li>An item needs <code>PouchData.&lt;item&gt;.StockNum</code> and its <code>IsGet.&lt;item&gt;</code> flag to show on
+the item screen. The L/R quick menus only open with two or more items acquired.</li>
+<li>Equipped gear is the struct <code>PlayerStatus</code>: <code>EquipWeapon</code>, <code>EquipShield</code>,
+<code>EquipArmor</code>, <code>EquipBoot</code>, <code>EquipHeadArmor</code>, <code>EquipHandArmor</code>,
+<code>EquipOcarina</code> (String64, e.g. <code>Item_Ocarina_Fairy</code>).</li>
+<li><b>Link's gear is separate objects.</b> Pouch counts, <code>IsGet</code> and <code>PlayerStatus.Equip*</code> are
+only data; the usable item exists once the game calls <code>main+0x2df6c80(equipment component, slot)</code>, which
+reads the slot's <code>PlayerStatus.Equip*</code> name and creates the item on Link (slot <code>0xd</code> =
+<code>EquipOcarina</code>; the full set is applied in slots 0, 6&ndash;10, 0xd&ndash;0x10). Link's equipment component has
+vtable <code>main+0x4b49698</code> and points back at Link's actor at <code>+0x18</code>. An area reload does not
+re-run it. Without it the D-pad shows the ocarina but the button does nothing.</li>
+<li><b>Giving the ocarina live</b> (verified, what ootmenu does): set <code>ActionGuide_IsEnd.Navi</code> (the D-pad
+needs it) and <code>PlayerStatus.EquipOcarina</code>; add it with the game's add-to-inventory code as the Saria scene
+does (<code>IsEquipDirect = false</code>); call <code>main+0x2df6c80(component, 0xd)</code>; then redraw the HUD with
+the PlayerStatus screen's virtual method 98 (<code>+0x310</code> = <code>main+0xa77ff0(screen)</code>), which is what
+pause/unpause runs. All three calls run on the game's thread through ootmenu's patch.</li>
+<li><b>Taking it away</b> (verified): the game's <code>AddOrRemovePouchContent</code> node with <code>Num &lt; 0</code>
+calls <code>main+0x33a4fa0(pouch manager, &amp;name, count, 0, 0, 0)</code> (the add function with a negative count does
+nothing). With <code>EquipOcarina</code> emptied first, <code>main+0xf201b0(owner, 0)</code> (the full gear re-apply
+the remove code also uses; owner = vtable <code>main+0x4bdfe68</code>, component at <code>+0x470</code>) takes the
+ocarina off Link; the single-slot call does not. Then the HUD redraw, and clear <code>IsGet</code>.</li>
+<li><code>PlayerStatus.Equip*</code> follow what the player equips in the pause menu, live. To take worn gear off
+Link, empty its field and call <code>main+0xf201b0(owner, 0)</code>.</li>
+<li><b>Item buttons</b> are four Enum fields (names not recovered): <code>0x6bee602d</code>, <code>0x76f85e6d</code>,
+<code>0xa0029837</code>, <code>0xbc32ce24</code>. Their choices are the assignable items (<code>Empty</code>,
+<code>DekuStick</code>, <code>SlingShot</code>, <code>HeavyBoot</code>, bottles, masks, ...). The in-game item wheel
+keeps its own copy and writes it back when it closes.</li>
+<li>Songs are just their <code>IsGet.Item_Melody_*</code> flags.</li>
+</ul>
+
+<h2>Magic</h2>
+<p>Current magic has a "real" value in the magic meter object (it holds the hashes of <code>Current magic</code> and
+<code>Magic capacity</code> at +0x38/+0x3C, the value at +0x44). Every frame the game writes
+clamp(value, 0, capacity) into the save field, so writing only the save field is undone. With capacity 0 there is no
+meter. Normal meter = 240, double = 480.</p>
+
+<h2>Game files</h2>
+<p>The game ships as a <code>.nup</code> package (layout documented by
+<a href="https://github.com/NotRexed/Hookshot">Hookshot</a>'s <code>nx2/nup.py</code>). Most romfs files are zstd with
+dictionaries from <code>Pack/ZsDic.pack.zs</code>. Event scripts (<code>Event/EventFlow/*.bfevfl</code>, format v0.4)
+decode with the <code>evfl</code> Python package and list exactly what each scene sets and checks.</p>
+
+<h2>Code patches</h2>
+<p>Lichii applies IPS/IPS32 patches from
+<code>%APPDATA%\eden\load\0400486024DEC000\&lt;mod&gt;\exefs\E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips</code> at game
+start. Offsets are main offsets + 0x100 (module header). Patches can't take effect in a running game.
+The gap between the end of main's code (0x3c461d0) and rodata (0x3c47000) is executable and zero-filled; Lichii's
+own fixes use 0x3c46200&ndash;0x3c46278, ootmenu uses 0x3c46400 onwards.</p>
+<h3>ootmenu's give-item hook (patch v6)</h3>
+<p>Every frame <code>main+0x3b500a4</code> locks GameData, applies its command queue (<code>main+0xb99980</code>) and
+tail-calls the unlock at <code>main+0x3b500dc</code>. The patch redirects that tail call to a routine in the code gap,
+which unlocks, reads a mailbox field (<code>SimpleIntForMessage3</code>, never saved) with the game's
+<code>GetInt</code> (<code>main+0x163d20</code>). The game itself also writes that field (its save-date text,
+<code>main+0x33cc94c</code>, puts the day there), so requests are tagged <code>0x0CA7 &lt;&lt; 16 | IsEquipDirect &lt;&lt; 8 |
+item</code> (or <code>0x7F</code> = call request) and anything else is left alone. A tagged request is cleared with
+<code>SetInt</code> (<code>main+0x163b70</code>), and the hook
+calls the game's add-to-inventory function <code>main+0x110d570</code> exactly as the
+<code>OneShotAddOrRemovePouchContent</code> node (used by the Saria scene) does:
+<code>(pouch manager = *[main+0x4c7e0d0], &amp;name, 0, count, reason, 0, 0, IsEquipDirect, [sp]=0)</code>, where
+name is <code>{char* top; s32 size = 0x80; char buf[]}</code>. This only puts the item in the pouch (count +
+<code>IsGet</code>); see <i>Items and equipment</i> for making it usable. The hook also sets the
+<code>SeqOneShotResetPlayerStatus</code> flags (PlayerStatus screen <code>+0x384 = -1</code>, <code>+0x388 = 1</code>);
+they are consumed but do <i>not</i> redraw the D-pad, and neither does <code>main+0xe35440</code>.
+Source: <code>tools/hook_asm.py</code>.</p>
+<p>The "call a game function" request (<code>patch.call_function</code>: function and arguments in the message
+scratch Ints) runs <code>main+fn(x0, x1)</code> once on the game's thread; ootmenu uses it for the equip call and the
+HUD redraw (<code>patch.give_gear</code>). The HUD screen (UI manager <code>*[main+0x4c7e098]</code>, screen hash
+<code>0x5c7f1c3c</code>) holds the D-pad widget (vtable <code>main+0x4be1068</code>) at <code>+0x330</code>.
+<code>tools/dpadwatch.py</code> sets GDB write watchpoints on that widget to catch the code that shows it.</p>
+
+<h2>Tools (ootmenu/tools)</h2>
+<ul>
+<li><code>nupfs.py</code>: list and extract files from the .nup.</li>
+<li><code>byml.py</code>: read BYML files.</li>
+<li><code>evdump.py</code>: decode an event script (what it sets and checks).</li>
+<li><code>re64.py</code>: find code that uses a string or function; disassemble with field names shown.</li>
+<li><code>snap.py</code>: snapshot every live save field and diff two snapshots.</li>
+<li><code>../flags.py</code>: search and set flags by name in the running game.</li>
+</ul>
+<p class="dim">Rebuild the generated pages with <code>python docs/build.py</code>.</p>
+</main></body></html>

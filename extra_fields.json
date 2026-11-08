@@ -1,0 +1,969 @@
+{
+ "dungeons/Fire Temple/Boss key": {
+  "hash": "0xb72d73df",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Fire Temple",
+  "title": "Boss key"
+ },
+ "dungeons/Gerudo Training Ground/Compass": {
+  "hash": "0x3d9a2750",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Training Ground",
+  "title": "Compass"
+ },
+ "quests/Quest items/Water Medallion": {
+  "hash": "0xcf64e780",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Water Medallion"
+ },
+ "dungeons/Inside Ganon Castle/Compass": {
+  "hash": "0xc4d4734e",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Ganon Castle",
+  "title": "Compass"
+ },
+ "quests/Quest items/Forest Medallion": {
+  "hash": "0xfcd8d653",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Forest Medallion"
+ },
+ "quests/Songs/Bolero of Fire": {
+  "hash": "0x49041ab9",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Bolero of Fire"
+ },
+ "dungeons/Spirit Temple/Compass": {
+  "hash": "0x9bd1181c",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Spirit Temple",
+  "title": "Compass"
+ },
+ "dungeons/Bottom Of The Well/Compass": {
+  "hash": "0x9d6efaac",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Bottom Of The Well",
+  "title": "Compass"
+ },
+ "dungeons/Gerudo Fortress/Map": {
+  "hash": "0xbcaad6ce",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Fortress",
+  "title": "Map"
+ },
+ "dungeons/Inside The Deku Tree/Compass": {
+  "hash": "0x06c51ff2",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside The Deku Tree",
+  "title": "Compass"
+ },
+ "dungeons/Inside Jabu Jabu Belly/Map": {
+  "hash": "0xfcadd210",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Jabu Jabu Belly",
+  "title": "Map"
+ },
+ "quests/Quest items/Kokiri's Emerald": {
+  "hash": "0x110b83ec",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Kokiri's Emerald"
+ },
+ "quests/Quest items/Shadow Medallion": {
+  "hash": "0x12d63ac6",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Shadow Medallion"
+ },
+ "dungeons/Water Temple/Map": {
+  "hash": "0x4a4402ab",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Water Temple",
+  "title": "Map"
+ },
+ "dungeons/Forest Temple/Compass": {
+  "hash": "0xf240eeb2",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Forest Temple",
+  "title": "Compass"
+ },
+ "dungeons/Dodongo Cavern/Boss key": {
+  "hash": "0xfaabc084",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Dodongo Cavern",
+  "title": "Boss key"
+ },
+ "dungeons/Fire Temple/Map": {
+  "hash": "0x5b3ac0ba",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Fire Temple",
+  "title": "Map"
+ },
+ "dungeons/Dodongo Cavern/Map": {
+  "hash": "0xa52c3a19",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Dodongo Cavern",
+  "title": "Map"
+ },
+ "quests/Songs/Saria's Song": {
+  "hash": "0xd3f8bfcc",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Saria's Song"
+ },
+ "quests/Songs/Prelude of Light": {
+  "hash": "0xd6320ba4",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Prelude of Light"
+ },
+ "dungeons/Shadow Temple/Map": {
+  "hash": "0xf6177b93",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Shadow Temple",
+  "title": "Map"
+ },
+ "equipment/Effects & appearance/Stone of Agony equipped": {
+  "hash": "0x58bda396",
+  "type": "Bool",
+  "category": "equipment",
+  "group": "Effects & appearance",
+  "title": "Stone of Agony equipped"
+ },
+ "dungeons/Ice Cavern/Boss key": {
+  "hash": "0x275f4512",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Ice Cavern",
+  "title": "Boss key"
+ },
+ "quests/Songs/Serenade of Water": {
+  "hash": "0x3fa63986",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Serenade of Water"
+ },
+ "quests/Songs/Zelda's Lullaby": {
+  "hash": "0x01c20002",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Zelda's Lullaby"
+ },
+ "quests/Songs/Song of Time": {
+  "hash": "0x03b3450e",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Song of Time"
+ },
+ "dungeons/Inside Jabu Jabu Belly/Boss key": {
+  "hash": "0x656bd5ee",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Jabu Jabu Belly",
+  "title": "Boss key"
+ },
+ "quests/Songs/Minuet of Forest": {
+  "hash": "0xdc0a0b54",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Minuet of Forest"
+ },
+ "dungeons/Final Battle Field/Compass": {
+  "hash": "0x874493ce",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Final Battle Field",
+  "title": "Compass"
+ },
+ "dungeons/Gerudo Fortress/Boss key": {
+  "hash": "0x95fbcb7c",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Fortress",
+  "title": "Boss key"
+ },
+ "dungeons/Ice Cavern/Map": {
+  "hash": "0x322f2a94",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Ice Cavern",
+  "title": "Map"
+ },
+ "link/Abilities/Double defense": {
+  "hash": "0x56bbe07c",
+  "type": "Bool",
+  "category": "link",
+  "group": "Abilities",
+  "title": "Double defense"
+ },
+ "dungeons/Water Temple/Boss key": {
+  "hash": "0x79daf80a",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Water Temple",
+  "title": "Boss key"
+ },
+ "dungeons/Shadow Temple/Boss key": {
+  "hash": "0xc33c66cf",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Shadow Temple",
+  "title": "Boss key"
+ },
+ "inventory/Items/Water Medallion": {
+  "hash": "0x0151a68f",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Water Medallion"
+ },
+ "inventory/Items/Bottle D": {
+  "hash": "0x5324f9d3",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Bottle D"
+ },
+ "inventory/Items/Bottle B": {
+  "hash": "0xfca29a04",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Bottle B"
+ },
+ "inventory/Items/Light Medallion": {
+  "hash": "0x235c7d9a",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Light Medallion"
+ },
+ "inventory/Items/Goron's Ruby": {
+  "hash": "0x7d69ad47",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Goron's Ruby"
+ },
+ "inventory/Items/Fire Medallion": {
+  "hash": "0x5ce254a6",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Fire Medallion"
+ },
+ "inventory/Items/Kokiri Tunic child": {
+  "hash": "0x84ba0d24",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Kokiri Tunic child"
+ },
+ "inventory/Items/Spirit Medallion": {
+  "hash": "0x0c7a5fd0",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Spirit Medallion"
+ },
+ "link/Abilities/Diving depth": {
+  "hash": "0x61466c21",
+  "type": "Float",
+  "category": "link",
+  "group": "Abilities",
+  "title": "Diving depth",
+  "choices": [
+   [
+    3.0,
+    "Normal 3"
+   ],
+   [
+    6.0,
+    "Silver scale 6"
+   ],
+   [
+    9.0,
+    "Gold scale 9"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle D contents": {
+  "hash": "0xe4c1b1fc",
+  "type": "Enum",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle D contents",
+  "choices": [
+   [
+    3194609225,
+    "Empty"
+   ],
+   [
+    3938082919,
+    "Red Potion"
+   ],
+   [
+    77412289,
+    "Green Potion"
+   ],
+   [
+    4085503717,
+    "Blue Potion"
+   ],
+   [
+    472462615,
+    "Blue Fire"
+   ],
+   [
+    511921912,
+    "Fish"
+   ],
+   [
+    254076936,
+    "Letter"
+   ],
+   [
+    3452048497,
+    "Big Poe"
+   ],
+   [
+    34099102,
+    "Poe"
+   ],
+   [
+    1960193739,
+    "Bug"
+   ],
+   [
+    1867113303,
+    "Fairy"
+   ],
+   [
+    1932879911,
+    "Max Milk"
+   ],
+   [
+    4009157808,
+    "Half Milk"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle B contents": {
+  "hash": "0x1edd164a",
+  "type": "Enum",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle B contents",
+  "choices": [
+   [
+    3194609225,
+    "Empty"
+   ],
+   [
+    3938082919,
+    "Red Potion"
+   ],
+   [
+    77412289,
+    "Green Potion"
+   ],
+   [
+    4085503717,
+    "Blue Potion"
+   ],
+   [
+    472462615,
+    "Blue Fire"
+   ],
+   [
+    511921912,
+    "Fish"
+   ],
+   [
+    254076936,
+    "Letter"
+   ],
+   [
+    3452048497,
+    "Big Poe"
+   ],
+   [
+    34099102,
+    "Poe"
+   ],
+   [
+    1960193739,
+    "Bug"
+   ],
+   [
+    1867113303,
+    "Fairy"
+   ],
+   [
+    1932879911,
+    "Max Milk"
+   ],
+   [
+    4009157808,
+    "Half Milk"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle C contents": {
+  "hash": "0xb80c70a8",
+  "type": "Enum",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle C contents",
+  "choices": [
+   [
+    3194609225,
+    "Empty"
+   ],
+   [
+    3938082919,
+    "Red Potion"
+   ],
+   [
+    77412289,
+    "Green Potion"
+   ],
+   [
+    4085503717,
+    "Blue Potion"
+   ],
+   [
+    472462615,
+    "Blue Fire"
+   ],
+   [
+    511921912,
+    "Fish"
+   ],
+   [
+    254076936,
+    "Letter"
+   ],
+   [
+    3452048497,
+    "Big Poe"
+   ],
+   [
+    34099102,
+    "Poe"
+   ],
+   [
+    1960193739,
+    "Bug"
+   ],
+   [
+    1867113303,
+    "Fairy"
+   ],
+   [
+    1932879911,
+    "Max Milk"
+   ],
+   [
+    4009157808,
+    "Half Milk"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle E contents": {
+  "hash": "0x365e1953",
+  "type": "Enum",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle E contents",
+  "choices": [
+   [
+    3194609225,
+    "Empty"
+   ],
+   [
+    3938082919,
+    "Red Potion"
+   ],
+   [
+    77412289,
+    "Green Potion"
+   ],
+   [
+    4085503717,
+    "Blue Potion"
+   ],
+   [
+    472462615,
+    "Blue Fire"
+   ],
+   [
+    511921912,
+    "Fish"
+   ],
+   [
+    254076936,
+    "Letter"
+   ],
+   [
+    3452048497,
+    "Big Poe"
+   ],
+   [
+    34099102,
+    "Poe"
+   ],
+   [
+    1960193739,
+    "Bug"
+   ],
+   [
+    1867113303,
+    "Fairy"
+   ],
+   [
+    1932879911,
+    "Max Milk"
+   ],
+   [
+    4009157808,
+    "Half Milk"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle A contents": {
+  "hash": "0x7d48df76",
+  "type": "Enum",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle A contents",
+  "choices": [
+   [
+    3194609225,
+    "Empty"
+   ],
+   [
+    3938082919,
+    "Red Potion"
+   ],
+   [
+    77412289,
+    "Green Potion"
+   ],
+   [
+    4085503717,
+    "Blue Potion"
+   ],
+   [
+    472462615,
+    "Blue Fire"
+   ],
+   [
+    511921912,
+    "Fish"
+   ],
+   [
+    254076936,
+    "Letter"
+   ],
+   [
+    3452048497,
+    "Big Poe"
+   ],
+   [
+    34099102,
+    "Poe"
+   ],
+   [
+    1960193739,
+    "Bug"
+   ],
+   [
+    1867113303,
+    "Fairy"
+   ],
+   [
+    1932879911,
+    "Max Milk"
+   ],
+   [
+    4009157808,
+    "Half Milk"
+   ]
+  ]
+ },
+ "dungeons/Water Temple/Compass": {
+  "hash": "0x2e82c8fe",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Water Temple",
+  "title": "Compass"
+ },
+ "quests/Songs/Epona's Song": {
+  "hash": "0xb492ac33",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Epona's Song"
+ },
+ "dungeons/Final Battle Field/Boss key": {
+  "hash": "0x6d0fea11",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Final Battle Field",
+  "title": "Boss key"
+ },
+ "dungeons/Inside Ganon Castle/Map": {
+  "hash": "0x9bbc0c4a",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Ganon Castle",
+  "title": "Map"
+ },
+ "dungeons/Spirit Temple/Map": {
+  "hash": "0xb85002ba",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Spirit Temple",
+  "title": "Map"
+ },
+ "quests/Songs/Requiem of Spirit": {
+  "hash": "0x802a36a8",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Requiem of Spirit"
+ },
+ "quests/Quest items/Spirit Medallion": {
+  "hash": "0xe269df38",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Spirit Medallion"
+ },
+ "quests/Quest items/Goron's Ruby": {
+  "hash": "0x8908d6ad",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Goron's Ruby"
+ },
+ "inventory/Bottles/Bottle B available": {
+  "hash": "0x000ff6ea",
+  "type": "Bool",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle B available"
+ },
+ "inventory/Bottles/Bottle D available": {
+  "hash": "0xb7f052ce",
+  "type": "Bool",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle D available"
+ },
+ "dungeons/Inside Jabu Jabu Belly/Compass": {
+  "hash": "0x9a2218db",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Jabu Jabu Belly",
+  "title": "Compass"
+ },
+ "dungeons/Inside The Deku Tree/Boss key": {
+  "hash": "0xf6995cee",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside The Deku Tree",
+  "title": "Boss key"
+ },
+ "dungeons/Dodongo Cavern/Compass": {
+  "hash": "0x8b93edf9",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Dodongo Cavern",
+  "title": "Compass"
+ },
+ "quests/Songs/Song of Storms": {
+  "hash": "0x2b39dd4f",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Song of Storms"
+ },
+ "dungeons/Gerudo Fortress/Compass": {
+  "hash": "0x5eb80679",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Fortress",
+  "title": "Compass"
+ },
+ "dungeons/Forest Temple/Map": {
+  "hash": "0xe704f9b4",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Forest Temple",
+  "title": "Map"
+ },
+ "dungeons/Gerudo Training Ground/Boss key": {
+  "hash": "0x6d155841",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Training Ground",
+  "title": "Boss key"
+ },
+ "dungeons/Bottom Of The Well/Map": {
+  "hash": "0x77c47ec9",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Bottom Of The Well",
+  "title": "Map"
+ },
+ "inventory/Items/Kokiri Tunic adult": {
+  "hash": "0x6f631388",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Kokiri Tunic adult"
+ },
+ "inventory/Items/Bottle E": {
+  "hash": "0xc92b16be",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Bottle E"
+ },
+ "inventory/Items/Bottle A": {
+  "hash": "0xd53ce3a7",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Bottle A"
+ },
+ "inventory/Items/Shadow Medallion": {
+  "hash": "0x204d2063",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Shadow Medallion"
+ },
+ "inventory/Items/Zora's Sapphire": {
+  "hash": "0xb8e3bf45",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Zora's Sapphire"
+ },
+ "link/Abilities/Strength": {
+  "hash": "0x59979321",
+  "type": "Enum",
+  "category": "link",
+  "group": "Abilities",
+  "title": "Strength",
+  "choices": [
+   [
+    3069107721,
+    "None"
+   ],
+   [
+    3655598229,
+    "Low"
+   ],
+   [
+    3064057055,
+    "Middle"
+   ],
+   [
+    375060617,
+    "High"
+   ]
+  ]
+ },
+ "inventory/Bottles/Bottle E available": {
+  "hash": "0xe27b136d",
+  "type": "Bool",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle E available"
+ },
+ "dungeons/Inside The Deku Tree/Map": {
+  "hash": "0x89787395",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside The Deku Tree",
+  "title": "Map"
+ },
+ "dungeons/Spirit Temple/Boss key": {
+  "hash": "0x1984c03f",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Spirit Temple",
+  "title": "Boss key"
+ },
+ "inventory/Bottles/Bottle A available": {
+  "hash": "0xf39ce410",
+  "type": "Bool",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle A available"
+ },
+ "quests/Quest items/Light Medallion": {
+  "hash": "0x9026c187",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Light Medallion"
+ },
+ "dungeons/Forest Temple/Boss key": {
+  "hash": "0x427333a0",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Forest Temple",
+  "title": "Boss key"
+ },
+ "dungeons/Ice Cavern/Compass": {
+  "hash": "0xea1846e6",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Ice Cavern",
+  "title": "Compass"
+ },
+ "quests/Songs/Sun's Song": {
+  "hash": "0x165dd1ad",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Sun's Song"
+ },
+ "dungeons/Final Battle Field/Map": {
+  "hash": "0xb3b65c1a",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Final Battle Field",
+  "title": "Map"
+ },
+ "quests/Songs/Nocturne of Shadow": {
+  "hash": "0xc2fb95f4",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Nocturne of Shadow"
+ },
+ "inventory/Items/Forest Medallion": {
+  "hash": "0x692d57cb",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Forest Medallion"
+ },
+ "inventory/Items/Wallet Small": {
+  "hash": "0x1d74617e",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Wallet Small"
+ },
+ "inventory/Bottles/Bottle C available": {
+  "hash": "0xf63b1194",
+  "type": "Bool",
+  "category": "inventory",
+  "group": "Bottles",
+  "title": "Bottle C available"
+ },
+ "dungeons/Bottom Of The Well/Boss key": {
+  "hash": "0x9402715c",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Bottom Of The Well",
+  "title": "Boss key"
+ },
+ "dungeons/Shadow Temple/Compass": {
+  "hash": "0x1e2feec5",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Shadow Temple",
+  "title": "Compass"
+ },
+ "dungeons/Gerudo Training Ground/Map": {
+  "hash": "0x4b36041e",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Gerudo Training Ground",
+  "title": "Map"
+ },
+ "quests/Quest items/Zora's Sapphire": {
+  "hash": "0xeec383f5",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Zora's Sapphire"
+ },
+ "inventory/Items/Kokiri's Emerald": {
+  "hash": "0xcbd1e58c",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Kokiri's Emerald"
+ },
+ "dungeons/Inside Ganon Castle/Boss key": {
+  "hash": "0x2fd59293",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Inside Ganon Castle",
+  "title": "Boss key"
+ },
+ "quests/Songs/Scarecrow's Song": {
+  "hash": "0x5e86fb4d",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Songs",
+  "title": "Scarecrow's Song"
+ },
+ "inventory/Items/Bottle C": {
+  "hash": "0x893216a1",
+  "type": "Int",
+  "category": "inventory",
+  "group": "Items",
+  "title": "Bottle C"
+ },
+ "quests/Quest items/Fire Medallion": {
+  "hash": "0x103a0dc7",
+  "type": "Bool",
+  "category": "quests",
+  "group": "Quest items",
+  "title": "Fire Medallion"
+ },
+ "dungeons/Fire Temple/Compass": {
+  "hash": "0x0aa068b6",
+  "type": "Bool",
+  "category": "dungeons",
+  "group": "Fire Temple",
+  "title": "Compass"
+ }
+}

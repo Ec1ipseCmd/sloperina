@@ -1,0 +1,1624 @@
+{
+ "0x518ec74b": {
+  "category": "inventory",
+  "title": "Arrows",
+  "type": "Int"
+ },
+ "0x12d63a97": {
+  "category": "link",
+  "title": "Magic capacity",
+  "type": "Int"
+ },
+ "0xa77921d7": {
+  "category": "link",
+  "title": "Rupees",
+  "type": "Int"
+ },
+ "0xdf7c517a": {
+  "category": "inventory",
+  "title": "Bombchus",
+  "type": "Int"
+ },
+ "0x600e29eb": {
+  "category": "inventory",
+  "title": "Scrub Business Seed",
+  "type": "Int"
+ },
+ "0xe753508b": {
+  "category": "inventory",
+  "title": "Bomb capacity",
+  "type": "Int"
+ },
+ "0xf30d9f54": {
+  "category": "inventory",
+  "title": "Deku nuts",
+  "type": "Int"
+ },
+ "0x457616b0": {
+  "category": "inventory",
+  "title": "Deku Stick capacity",
+  "type": "Int"
+ },
+ "0x735b00f7": {
+  "category": "inventory",
+  "title": "Deku Nut capacity",
+  "type": "Int"
+ },
+ "0xdb1bcd4f": {
+  "category": "inventory",
+  "title": "Bombs",
+  "type": "Int"
+ },
+ "0x5fadf7fc": {
+  "category": "inventory",
+  "title": "Deku seeds",
+  "type": "Int"
+ },
+ "0xe0010a50": {
+  "category": "link",
+  "title": "Wallet capacity",
+  "type": "Int"
+ },
+ "0xb003124d": {
+  "category": "inventory",
+  "title": "Magic Bean",
+  "type": "Int"
+ },
+ "0x76b18200": {
+  "category": "link",
+  "title": "Current magic",
+  "type": "Int"
+ },
+ "0x418db791": {
+  "category": "inventory",
+  "title": "Arrow capacity",
+  "type": "Int"
+ },
+ "0x04735978": {
+  "category": "inventory",
+  "title": "Gold Skulltula tokens",
+  "type": "Int"
+ },
+ "0xb9494411": {
+  "category": "inventory",
+  "title": "Deku sticks",
+  "type": "Int"
+ },
+ "0xae8cc742": {
+  "category": "inventory",
+  "title": "Deku Seed capacity",
+  "type": "Int"
+ },
+ "0x8573d2cd": {
+  "category": "inventory",
+  "title": "Hookshot",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x396a5c02": {
+  "category": "equipment",
+  "title": "Giant’s Knife",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x80d34ce9": {
+  "category": "inventory",
+  "title": "Fairy Slingshot",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x2bad189a": {
+  "category": "equipment",
+  "title": "Iron Boots",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x54e2a3d1": {
+  "category": "equipment",
+  "title": "Ocarina of Time",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x8499ea34": {
+  "category": "inventory",
+  "title": "Longshot",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xfeb4d56b": {
+  "category": "inventory",
+  "title": "Gerudo membership card",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xb0b3e399": {
+  "category": "equipment",
+  "title": "Biggoron’s Sword",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x7ca64f23": {
+  "category": "equipment",
+  "title": "Deku Shield",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x5e529ab9": {
+  "category": "inventory",
+  "title": "Arrow Fire",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xf1c45294": {
+  "category": "equipment",
+  "title": "Master Sword",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0xc9220366": {
+  "category": "equipment",
+  "title": "Hover Boots",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0xbfb285c8": {
+  "category": "inventory",
+  "title": "Arrow Light",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xb796c16d": {
+  "category": "inventory",
+  "title": "Din’s Fire",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xb7df60f1": {
+  "category": "equipment",
+  "title": "Fairy Ocarina",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0xf0828cd0": {
+  "category": "inventory",
+  "title": "Nayru’s Love",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xf58e0e2f": {
+  "category": "equipment",
+  "title": "Mirror Shield",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x08befd3a": {
+  "category": "equipment",
+  "title": "Hylian Shield",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x40735a8d": {
+  "category": "inventory",
+  "title": "Arrow Ice",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x1aafdb66": {
+  "category": "inventory",
+  "title": "Hammer",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x938d56bf": {
+  "category": "inventory",
+  "title": "Fairy Bow",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x49d1c374": {
+  "category": "inventory",
+  "title": "Lens of Truth",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xb816af94": {
+  "category": "equipment",
+  "title": "Zora Tunic",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x21ecbd19": {
+  "category": "equipment",
+  "title": "Goron Tunic",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0xa1d76d31": {
+  "category": "inventory",
+  "title": "Boomerang",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0xeeb495b9": {
+  "category": "equipment",
+  "title": "Kokiri Sword",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x47f2ca87": {
+  "category": "inventory",
+  "title": "Farore’s Wind",
+  "type": "Int",
+  "max": 1,
+  "group": "Items"
+ },
+ "0x8d02f5ea": {
+  "category": "equipment",
+  "title": "Broken Giant’s Knife",
+  "type": "Int",
+  "max": 1,
+  "group": "Owned gear"
+ },
+ "0x79eeec8e": {
+  "category": "dungeons",
+  "title": "Spirit Temple small keys",
+  "type": "Int"
+ },
+ "0x1df11487": {
+  "category": "dungeons",
+  "title": "Fire Temple small keys",
+  "type": "Int"
+ },
+ "0x877bdcee": {
+  "category": "dungeons",
+  "title": "Water Temple small keys",
+  "type": "Int"
+ },
+ "0x5edda9e3": {
+  "category": "dungeons",
+  "title": "Shadow Temple small keys",
+  "type": "Int"
+ },
+ "0xfbfd2910": {
+  "category": "dungeons",
+  "title": "Inside Ganon Castle small keys",
+  "type": "Int"
+ },
+ "0xea9786f5": {
+  "category": "dungeons",
+  "title": "Gerudo Training Ground small keys",
+  "type": "Int"
+ },
+ "0x90237092": {
+  "category": "dungeons",
+  "title": "Forest Temple small keys",
+  "type": "Int"
+ },
+ "0x7dd79d10": {
+  "category": "dungeons",
+  "title": "Bottom Of The Well small keys",
+  "type": "Int"
+ },
+ "0xcfe1a634": {
+  "category": "equipment",
+  "title": "Odd Powder",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xc7ecb4a1": {
+  "category": "equipment",
+  "title": "Bombs",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x9a5bef3e": {
+  "category": "equipment",
+  "title": "Hammer",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xc98ed673": {
+  "category": "equipment",
+  "title": "Arrow Ice",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x4301162b": {
+  "category": "equipment",
+  "title": "Deku nuts",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x83b3eaa3": {
+  "category": "equipment",
+  "title": "Eyeball Frog",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x956aed56": {
+  "category": "equipment",
+  "title": "Bottle A",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x642ffd7f": {
+  "category": "equipment",
+  "title": "Nayru’s Love",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xaf5154ab": {
+  "category": "equipment",
+  "title": "Longshot",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xaeeb7554": {
+  "category": "equipment",
+  "title": "Claim Check",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xcba88c4f": {
+  "category": "equipment",
+  "title": "Fairy Slingshot",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x4ad60f93": {
+  "category": "equipment",
+  "title": "Bottle C",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xad3ff9c8": {
+  "category": "equipment",
+  "title": "Din’s Fire",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x549ee15c": {
+  "category": "equipment",
+  "title": "Pouch Amiibo",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x99b98ae4": {
+  "category": "equipment",
+  "title": "Bottle E",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xf2e7d892": {
+  "category": "equipment",
+  "title": "Alarm Cucco",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xf78f00bc": {
+  "category": "equipment",
+  "title": "Pouch Range Bow And Arrow Ice",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xe9a087b5": {
+  "category": "equipment",
+  "title": "Arrows",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x438c1f7b": {
+  "category": "equipment",
+  "title": "Pocket Cucco",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xe7ee66d6": {
+  "category": "equipment",
+  "title": "Weird Egg",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xe97874a7": {
+  "category": "equipment",
+  "title": "Prescription",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xf038e577": {
+  "category": "equipment",
+  "title": "Pocket Egg",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x58c854bc": {
+  "category": "equipment",
+  "title": "Hookshot",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x22c20fa9": {
+  "category": "equipment",
+  "title": "Broken Sword",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xe66b92b8": {
+  "category": "equipment",
+  "title": "Pouch Range Bow And Arrow Light",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x73666cdf": {
+  "category": "equipment",
+  "title": "Arrow Fire",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x7c7c2880": {
+  "category": "equipment",
+  "title": "Fairy Bow",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xdb070fb9": {
+  "category": "equipment",
+  "title": "Bottle B",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xf2ffd542": {
+  "category": "equipment",
+  "title": "Bombchus",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x6a1e2459": {
+  "category": "equipment",
+  "title": "Deku sticks",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x56573d03": {
+  "category": "equipment",
+  "title": "Odd Mushroom",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xa6c38c34": {
+  "category": "equipment",
+  "title": "Zelda Letter",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x961a120b": {
+  "category": "equipment",
+  "title": "Bottle D",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xecffd2a6": {
+  "category": "equipment",
+  "title": "Arrow Light",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x3b9434e0": {
+  "category": "equipment",
+  "title": "Magic Bean",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xcbab442d": {
+  "category": "equipment",
+  "title": "Pouch Range Bow And Arrow Fire",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x3e70dbc1": {
+  "category": "equipment",
+  "title": "Eye Drop",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xc7025e0a": {
+  "category": "equipment",
+  "title": "Farore’s Wind",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x117375f7": {
+  "category": "equipment",
+  "title": "Scrub Business Seed",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xdd3baa0b": {
+  "category": "equipment",
+  "title": "Boomerang",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0xaab858a4": {
+  "category": "equipment",
+  "title": "Cojiro Cucco",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x55f6470d": {
+  "category": "equipment",
+  "title": "Poacher Saw",
+  "group": "Assignment order",
+  "type": "UInt"
+ },
+ "0x8b36ffa1": {
+  "category": "inventory",
+  "title": "Shop Arrow Bundle 03",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb1fc4c1d": {
+  "category": "inventory",
+  "title": "Child Mask Gerudo",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x87e58de3": {
+  "category": "inventory",
+  "title": "Adult Gauntlet Silver",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x22892eb4": {
+  "category": "inventory",
+  "title": "Shop Deku Nut Bundle 02",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf31a8caf": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 06",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x42bd296f": {
+  "category": "inventory",
+  "title": "Fairy Ocarina",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x75e94e42": {
+  "category": "inventory",
+  "title": "Mirror Shield",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xaf176ab2": {
+  "category": "inventory",
+  "title": "Hat Fishing Pond Owner",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x2bedd82e": {
+  "category": "inventory",
+  "title": "Nut Bag Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7017ee2f": {
+  "category": "inventory",
+  "title": "Rupee Gold",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xec9c3136": {
+  "category": "inventory",
+  "title": "Pocket Egg",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x38aea3bb": {
+  "category": "inventory",
+  "title": "Longshot",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xeea74f29": {
+  "category": "inventory",
+  "title": "Base",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xfb4442de": {
+  "category": "inventory",
+  "title": "Cojiro Cucco",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x14fcc563": {
+  "category": "inventory",
+  "title": "Dungeon Compass",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe43215db": {
+  "category": "inventory",
+  "title": "Bombchu Bundle Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x14909166": {
+  "category": "inventory",
+  "title": "Alarm Cucco",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x2f817d54": {
+  "category": "inventory",
+  "title": "Hylian Shield",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x21985b09": {
+  "category": "inventory",
+  "title": "Quiver Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xcbd7852a": {
+  "category": "inventory",
+  "title": "Odd Mushroom",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8d073dca": {
+  "category": "inventory",
+  "title": "Arrow Bundle Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4506012d": {
+  "category": "inventory",
+  "title": "Animal Insect",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8e02d1ca": {
+  "category": "inventory",
+  "title": "Eyeball Frog",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x170b5df2": {
+  "category": "inventory",
+  "title": "Bottle Letter",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf9fe4ffc": {
+  "category": "inventory",
+  "title": "Pouch Range Bow And Arrow Fire",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x124c4d3a": {
+  "category": "inventory",
+  "title": "Bottle Fairy",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb5031190": {
+  "category": "inventory",
+  "title": "Wallet Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x96835f39": {
+  "category": "inventory",
+  "title": "Rupee Silver",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x551d74fa": {
+  "category": "inventory",
+  "title": "Fairy Spirit",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xff98ed58": {
+  "category": "inventory",
+  "title": "Hookshot",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x944b78be": {
+  "category": "inventory",
+  "title": "Fairy Bless Defense Double",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf22a7811": {
+  "category": "inventory",
+  "title": "T Box Deku Nut Bundle",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf400dafb": {
+  "category": "inventory",
+  "title": "Item Base",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x5ab49c8e": {
+  "category": "inventory",
+  "title": "Bombchus",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xfa04e611": {
+  "category": "inventory",
+  "title": "Din’s Fire",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x29888e1e": {
+  "category": "inventory",
+  "title": "Deku seeds",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xbb4e20c9": {
+  "category": "inventory",
+  "title": "Heart Container",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4f5a929c": {
+  "category": "inventory",
+  "title": "Zora Tunic",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x35c60e1d": {
+  "category": "inventory",
+  "title": "Child Mask Keaton",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x198e75f0": {
+  "category": "inventory",
+  "title": "Spirit Poe Flat",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4ca4e4d9": {
+  "category": "inventory",
+  "title": "Shop Arrow Bundle 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x03463ab6": {
+  "category": "inventory",
+  "title": "Bottle Big Poe",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf2001cfd": {
+  "category": "inventory",
+  "title": "Bottle Poe",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x75abc14b": {
+  "category": "inventory",
+  "title": "Bottle Green Potion",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf19393b5": {
+  "category": "inventory",
+  "title": "Zelda Letter",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x9a5db0b6": {
+  "category": "inventory",
+  "title": "Nut Bag Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x488ca1be": {
+  "category": "inventory",
+  "title": "Bullet Bag Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7f967a10": {
+  "category": "inventory",
+  "title": "Spirit Poe",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4db7eae0": {
+  "category": "inventory",
+  "title": "Arrow Fire",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0a550531": {
+  "category": "inventory",
+  "title": "Quiver Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4f50f7b9": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 08",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8286c23f": {
+  "category": "inventory",
+  "title": "Bomb Bundle Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x1e824efa": {
+  "category": "inventory",
+  "title": "Giant’s Knife",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x9880707e": {
+  "category": "inventory",
+  "title": "Child Gauntlet Goron",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xea1484d6": {
+  "category": "inventory",
+  "title": "Magic Jar Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x154ef588": {
+  "category": "inventory",
+  "title": "Dungeon Small Key",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xde2389d4": {
+  "category": "inventory",
+  "title": "Stick Bag Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x6d39c600": {
+  "category": "inventory",
+  "title": "Magic Bean",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xfb777163": {
+  "category": "inventory",
+  "title": "Deku Stick Bundle Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xc635dd5b": {
+  "category": "inventory",
+  "title": "Blue Fire A 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb669f025": {
+  "category": "inventory",
+  "title": "Bullet Bag Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8637bab4": {
+  "category": "inventory",
+  "title": "Arrow Light",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7ae38e5b": {
+  "category": "inventory",
+  "title": "Master Sword",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x405d8a0f": {
+  "category": "inventory",
+  "title": "Kokiri Sword",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0731d7c1": {
+  "category": "inventory",
+  "title": "Shop Bomb Bundle 02",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4d779571": {
+  "category": "inventory",
+  "title": "Deku Seed",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x09df9d25": {
+  "category": "inventory",
+  "title": "Child Mask Amiibo1",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8c3ac4c3": {
+  "category": "inventory",
+  "title": "Shop Deku Seed Bundle 02",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd60acfc5": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 02",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xa10f2dcf": {
+  "category": "inventory",
+  "title": "Stick Bag Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x888d5059": {
+  "category": "inventory",
+  "title": "Poacher Saw",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x280eb00e": {
+  "category": "inventory",
+  "title": "Child Mask Zora",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb03ae135": {
+  "category": "inventory",
+  "title": "Pouch Range Bow And Arrow Light",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xea0729fe": {
+  "category": "inventory",
+  "title": "Bottle Blue Potion",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x720df203": {
+  "category": "inventory",
+  "title": "Broken Giant’s Knife",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x10c5b9bf": {
+  "category": "inventory",
+  "title": "Fishing Rod",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x87ca4826": {
+  "category": "inventory",
+  "title": "Fairy Bless MP Double",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xa5060f08": {
+  "category": "inventory",
+  "title": "Shop Heart Bundle",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb2c478da": {
+  "category": "inventory",
+  "title": "Bomb Bag Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x1208fb3e": {
+  "category": "inventory",
+  "title": "Scale Silver",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe31e56fa": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 04",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xc0cf68a7": {
+  "category": "inventory",
+  "title": "Child Mask Spooky",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7f4ce38d": {
+  "category": "inventory",
+  "title": "Boomerang",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x4e172ee0": {
+  "category": "inventory",
+  "title": "Shop Bomb Bundle 04",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x50c65358": {
+  "category": "inventory",
+  "title": "Rupee Purple",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb24c3bcf": {
+  "category": "inventory",
+  "title": "Adult Default Head",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xae5611af": {
+  "category": "inventory",
+  "title": "Goron Tunic",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x690da0dd": {
+  "category": "inventory",
+  "title": "Shop Deku Stick Bundle Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x65aebe17": {
+  "category": "inventory",
+  "title": "Child Mask Bunny",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x3ef15ec4": {
+  "category": "inventory",
+  "title": "Adult Gauntlet Gold",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x3d6caa5c": {
+  "category": "inventory",
+  "title": "Bombchu Bundle Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x778416bd": {
+  "category": "inventory",
+  "title": "Magic Jar Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb46a0394": {
+  "category": "inventory",
+  "title": "Bottle Fish",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd097482a": {
+  "category": "inventory",
+  "title": "Child Mask Skull",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xcfbb16f6": {
+  "category": "inventory",
+  "title": "Scrub Business Seed",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x597fca19": {
+  "category": "inventory",
+  "title": "Fairy",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xc83ec0d7": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf1232980": {
+  "category": "inventory",
+  "title": "Bottle Milk",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xcbf00480": {
+  "category": "inventory",
+  "title": "Stick Bag Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8f7916a0": {
+  "category": "inventory",
+  "title": "Mini Game Small Key",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe15586a1": {
+  "category": "inventory",
+  "title": "Arrow Bundle Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x44ab1487": {
+  "category": "inventory",
+  "title": "Weird Egg",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x1109c920": {
+  "category": "inventory",
+  "title": "Hover Boots",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xffe25805": {
+  "category": "inventory",
+  "title": "Dungeon Map",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7215060c": {
+  "category": "inventory",
+  "title": "Kokiri Boots",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x5217da1e": {
+  "category": "inventory",
+  "title": "Deku Shield",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x809787e7": {
+  "category": "inventory",
+  "title": "Child Default Head",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x31b8cfe3": {
+  "category": "inventory",
+  "title": "Heart",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd8f1521e": {
+  "category": "inventory",
+  "title": "Prescription",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x75b6ccfe": {
+  "category": "inventory",
+  "title": "T Box Deku Seed Bundle",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xffabf058": {
+  "category": "inventory",
+  "title": "Farore’s Wind",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7fe2a5b2": {
+  "category": "inventory",
+  "title": "Lens of Truth",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x26171e2f": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 05",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x16cdcb17": {
+  "category": "inventory",
+  "title": "Shop Deku Nut Bundle 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x968a5a79": {
+  "category": "inventory",
+  "title": "Bomb Bag Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb75acaad": {
+  "category": "inventory",
+  "title": "Odd Powder",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x818e5801": {
+  "category": "inventory",
+  "title": "Rupee Blue",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x960820db": {
+  "category": "inventory",
+  "title": "Nut Bag Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x2bb00768": {
+  "category": "inventory",
+  "title": "Bombs",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x645a8175": {
+  "category": "inventory",
+  "title": "Broken Sword",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x34078e23": {
+  "category": "inventory",
+  "title": "Spirit Poe Big",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xc4e21ac2": {
+  "category": "inventory",
+  "title": "Deku sticks",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x69ec28be": {
+  "category": "inventory",
+  "title": "Fairy Bow",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x8b54e680": {
+  "category": "inventory",
+  "title": "Claim Check",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x572701ea": {
+  "category": "inventory",
+  "title": "Arrows",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x53db16a6": {
+  "category": "inventory",
+  "title": "Bottle Blue Fire",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xcebaf02f": {
+  "category": "inventory",
+  "title": "Shop Bomb Bundle 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x6ba394fe": {
+  "category": "inventory",
+  "title": "Gold Skulltula tokens",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x40b68073": {
+  "category": "inventory",
+  "title": "Animal Fish Blue",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x3506a557": {
+  "category": "inventory",
+  "title": "Pouch Amiibo",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7637800a": {
+  "category": "inventory",
+  "title": "Rupee Red",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb6e096ae": {
+  "category": "inventory",
+  "title": "Mask Base",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0989e62d": {
+  "category": "inventory",
+  "title": "Pouch Range Bow And Arrow Ice",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf77eb960": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 03",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x24570b07": {
+  "category": "inventory",
+  "title": "Dark Link Shield Shield",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x9b844298": {
+  "category": "inventory",
+  "title": "Shop Arrow Bundle 02",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xa63f1e2d": {
+  "category": "inventory",
+  "title": "Bomb Bag Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xae1a944a": {
+  "category": "inventory",
+  "title": "Rupee Green",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x1106b082": {
+  "category": "inventory",
+  "title": "Bottle",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe6cd55d2": {
+  "category": "inventory",
+  "title": "Bullet Bag Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xdd587ed8": {
+  "category": "inventory",
+  "title": "Agony Stone",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x5c8f3099": {
+  "category": "inventory",
+  "title": "Arrow Ice",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x6ac27606": {
+  "category": "inventory",
+  "title": "Dungeon Boss Key",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb1309073": {
+  "category": "inventory",
+  "title": "Fairy Bless MP",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe6aaab65": {
+  "category": "inventory",
+  "title": "Heart Piece",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb680b8e3": {
+  "category": "inventory",
+  "title": "Shop Deku Seed Bundle 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0e6264c7": {
+  "category": "inventory",
+  "title": "Gerudo membership card",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x3644577a": {
+  "category": "inventory",
+  "title": "Spirit Poe Sharp",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x1da2c511": {
+  "category": "inventory",
+  "title": "Ocarina of Time",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd1360de8": {
+  "category": "inventory",
+  "title": "Wallet Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x21fe9ffa": {
+  "category": "inventory",
+  "title": "Bottle Half Milk",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xadfccd91": {
+  "category": "inventory",
+  "title": "Child Mask Goron",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xb7bdd577": {
+  "category": "inventory",
+  "title": "Eye Drop",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xa54698c9": {
+  "category": "inventory",
+  "title": "Sword Dark Link Sword",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd8ffafd1": {
+  "category": "inventory",
+  "title": "Bottle Red Potion",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x7227efd8": {
+  "category": "inventory",
+  "title": "Hammer",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xccc1909a": {
+  "category": "inventory",
+  "title": "Scale Gold",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe01518e8": {
+  "category": "inventory",
+  "title": "Bombchu Bundle Small",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe044b44f": {
+  "category": "inventory",
+  "title": "Lure",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0ef99e5b": {
+  "category": "inventory",
+  "title": "Shop Bombchu Bundle 07",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xf7d5bd9c": {
+  "category": "inventory",
+  "title": "Child Mask Truth",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xd6168ea8": {
+  "category": "inventory",
+  "title": "Arrow Bundle Large",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe82e6413": {
+  "category": "inventory",
+  "title": "Pocket Cucco",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x00b44241": {
+  "category": "inventory",
+  "title": "Nayru’s Love",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x33466812": {
+  "category": "inventory",
+  "title": "Biggoron’s Sword",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x6f6dc253": {
+  "category": "inventory",
+  "title": "Zora Domain Diving Game A 01",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x06f13bb2": {
+  "category": "inventory",
+  "title": "Child Mask Amiibo0",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xe3eb54da": {
+  "category": "inventory",
+  "title": "Shop Bomb Bundle 03",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x0ec22ee1": {
+  "category": "inventory",
+  "title": "Fairy Slingshot",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x5fa190e6": {
+  "category": "inventory",
+  "title": "Iron Boots",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x474f9eb9": {
+  "category": "inventory",
+  "title": "Sinking Lure",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0xcf2d3db4": {
+  "category": "inventory",
+  "title": "Bottle Bug",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x00c2ee37": {
+  "category": "inventory",
+  "title": "Deku nuts",
+  "group": "Acquisition history",
+  "type": "Bool"
+ },
+ "0x9d872202": {
+  "category": "inventory",
+  "title": "Quiver Medium",
+  "group": "Acquisition history",
+  "type": "Bool"
+ }
+}

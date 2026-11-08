@@ -1,0 +1,589 @@
+{
+ "quests": {
+  "0x003694b5": {
+   "name": "Step_AllSage",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step01_00",
+    "Step01_00_01",
+    "Step01_00_02",
+    "Step01_00_03",
+    "Step01_01",
+    "Step01_02",
+    "Step02",
+    "Complete"
+   ]
+  },
+  "0x746f47c0": {
+   "name": "Step_Defeat_Ganon",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step06",
+    "Step07",
+    "Step08",
+    "Step09",
+    "Complete"
+   ]
+  },
+  "0x378913ca": {
+   "name": "Step_DoorOfTime",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step2_1",
+    "Srep2_1_1",
+    "Step2_2",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step06",
+    "Complete"
+   ]
+  },
+  "0x4661f050": {
+   "name": "Step_EscapeFromCrumblingGanonCastle",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Reset",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step06",
+    "Step07",
+    "Step08",
+    "Step09",
+    "Step10",
+    "Step11",
+    "Step12",
+    "Step13",
+    "Complete"
+   ]
+  },
+  "0x8c5e9f84": {
+   "name": "Step_GatheringTokenGold",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "CollectToken",
+    "Finish",
+    "Complete"
+   ]
+  },
+  "0x92431c55": {
+   "name": "Step_Get_Epona",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "GuideToLonLonRanch",
+    "GuideToLonLonRanchAdult",
+    "ReadyForGetEponaSong",
+    "AfterGetEponaSong",
+    "ReadyForGambleRace",
+    "AfterTalkMalon",
+    "GambleRacePlaying",
+    "AfterWonGambleRace",
+    "Complete"
+   ]
+  },
+  "0x1002b466": {
+   "name": "Step_Get_StoneOfFire",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "KakarikoVillageNpc",
+    "KakarikoVillageLetter",
+    "DeathMtTrailIn",
+    "DeathMtTrailNpc",
+    "GoronCityIn",
+    "GoronCityDarniaroomNpcTalk01",
+    "GoronCityDarniaroomOpen",
+    "GoronCityDarniaTalk",
+    "DarniaRoomKokiriTalk",
+    "KokiriForestNPCTalk",
+    "KokiriForestFire",
+    "KokiriForestIn",
+    "SariaMelodyGet",
+    "SariaMelodyPlay",
+    "DodongoCavernOpne",
+    "DungeonStart",
+    "BossBattle",
+    "EscapeDungeon",
+    "Complete"
+   ]
+  },
+  "0x7d776b61": {
+   "name": "Step_Get_StoneOfForest",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "GoInside",
+    "MeetBoss",
+    "GoToBossRoom",
+    "DefeatBoss",
+    "GoToWarpPoint",
+    "Complete"
+   ]
+  },
+  "0x5bca02a6": {
+   "name": "Step_Get_StoneOfWater",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Step03_Impa",
+    "Step04",
+    "Step05",
+    "Step05_01",
+    "Step06",
+    "Step07",
+    "Step08",
+    "Step09",
+    "Step10",
+    "Step11",
+    "Step12",
+    "Step13",
+    "Step13_01",
+    "Step14",
+    "Complete"
+   ]
+  },
+  "0xdb89c1a9": {
+   "name": "Step_Goto_HyruleCastle",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step02_01",
+    "Step03",
+    "Step03_01",
+    "Step03_02",
+    "Step04",
+    "Complete"
+   ]
+  },
+  "0x3372689b": {
+   "name": "Step_Meet_DekuTree",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Complete"
+   ]
+  },
+  "0x682d1169": {
+   "name": "Step_Meet_GreatFairy",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "GoToTopOfMountain",
+    "GoToFountain",
+    "GetFairyBreath",
+    "GoToHyruleCastle",
+    "Complete"
+   ]
+  },
+  "0x7a6d0096": {
+   "name": "Step_MiniGame_BombchuBowling",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Retry",
+    "Playing",
+    "Finish",
+    "Complete"
+   ]
+  },
+  "0xe73daf62": {
+   "name": "Step_MiniGame_DampeRace",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Playing",
+    "PlayingSecond",
+    "Finish",
+    "FinishAfterTalk",
+    "Dropout",
+    "Courseout",
+    "RetryCheck",
+    "Complete"
+   ]
+  },
+  "0xa4ed3902": {
+   "name": "Step_MiniGame_Diving",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Complete"
+   ]
+  },
+  "0x3e7d10c0": {
+   "name": "Step_Minigame_FindOutCucco",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Retry",
+    "Playing",
+    "GetReady",
+    "Finish",
+    "Complete"
+   ]
+  },
+  "0xf6e99816": {
+   "name": "Step_MiniGame_Fishing",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Complete"
+   ]
+  },
+  "0xa3404532": {
+   "name": "Step_MiniGame_HitTarget",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Retry",
+    "Playing",
+    "Finish",
+    "Complete"
+   ]
+  },
+  "0xd601ee20": {
+   "name": "Step_MiniGame_HorseRace",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Playing",
+    "Complete"
+   ]
+  },
+  "0x474f4ca5": {
+   "name": "Step_Minigame_SkullKidSession",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Playing",
+    "Complete"
+   ]
+  },
+  "0xeea87aec": {
+   "name": "Step_SageOfFire",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "StopDaruniaJr",
+    "TalkDaruniaJr",
+    "MoveStatue",
+    "EnterCrater",
+    "MeetSheik",
+    "EnterTemple",
+    "MeetDarunia",
+    "GetBossKey",
+    "MeetBoss",
+    "DefeatBoss",
+    "GoToWarpPoint",
+    "Complete"
+   ]
+  },
+  "0xa9632cca": {
+   "name": "Step_SageOfForest",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step06",
+    "Step06_1_0",
+    "Step06_1_1",
+    "Step06_1_2",
+    "Step06_2",
+    "Step07",
+    "Step08",
+    "Step09",
+    "Complete"
+   ]
+  },
+  "0x7a91dbd5": {
+   "name": "Step_SageOfShadow",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "GoToDungeon",
+    "GotGlassTruth",
+    "GetGlassTruth",
+    "MeetBoss",
+    "BattleOnShip",
+    "BeforeBossRoom",
+    "DefeatBoss",
+    "GoToWarpPoint",
+    "Complete"
+   ]
+  },
+  "0x19189e9d": {
+   "name": "Step_SageOfSpirit",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step05_01",
+    "Step05_02",
+    "Step05_03",
+    "Step06",
+    "Step07",
+    "Step07_pre00",
+    "Step07_00",
+    "Step08",
+    "Step08_01",
+    "Step09",
+    "Step09_01",
+    "Step10",
+    "Complete"
+   ]
+  },
+  "0x560a64af": {
+   "name": "Step_SageOfWater",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step00",
+    "Step01",
+    "Step03",
+    "Step04",
+    "Step05",
+    "Step06",
+    "Step07",
+    "Step07_00",
+    "Step07_1",
+    "Step07_1_Safety",
+    "Step07_2",
+    "Step08",
+    "Complete"
+   ]
+  },
+  "0xbe19d91a": {
+   "name": "Step_SubEvent_AllBossBattle",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Retry",
+    "Playing",
+    "Finish",
+    "Complete"
+   ]
+  },
+  "0x93e84ee3": {
+   "name": "Step_SubEvent_FindRichard",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Complete"
+   ]
+  },
+  "0x110f26e4": {
+   "name": "Step_SubEvent_GetFireArrow",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step01",
+    "Step02",
+    "Step03",
+    "Complete"
+   ]
+  },
+  "0xf7176a52": {
+   "name": "Step_SubEvent_GetIceArrow",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Step00",
+    "Step01",
+    "Complete"
+   ]
+  },
+  "0x9472302b": {
+   "name": "Step_SubEvent_GetScarecrow",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "MeetPierre",
+    "MeetBonooru",
+    "IntoThePast",
+    "PlayScarecrowSong",
+    "IntoTheFuture",
+    "Complete"
+   ]
+  },
+  "0x7a5b9537": {
+   "name": "Step_SubEvent_GetStormSong",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "ReadyForGetStormSong",
+    "step02",
+    "step03",
+    "BeforeBossRoom",
+    "step04",
+    "step05",
+    "Complete"
+   ]
+  },
+  "0x26a2e01c": {
+   "name": "Step_SubEvent_GetSwordBigGoron",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "StartSubEvent",
+    "WaitEggHatch",
+    "EggHatched",
+    "Step01",
+    "Step01_01",
+    "Step02",
+    "Step03",
+    "Step03_01",
+    "Step03_02",
+    "Step03_03",
+    "Step04",
+    "Step05",
+    "Step05_01",
+    "Step06",
+    "Step06_01",
+    "Step06_02",
+    "Step06_03",
+    "Step07",
+    "Step08",
+    "Step08_01",
+    "Step09",
+    "Step09_01",
+    "Step10",
+    "Step11",
+    "Complete"
+   ]
+  },
+  "0x6e9b2539": {
+   "name": "Step_SubEvent_GhostShop",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Playing",
+    "Complete"
+   ]
+  },
+  "0xea010310": {
+   "name": "Step_SubEvent_MaskSalesman",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "UntilRentMaskOfKeaton",
+    "Step01_Hint",
+    "Step01",
+    "Step02",
+    "UntilRentMaskOfSkull",
+    "Step03_Hint",
+    "Step03",
+    "Step04",
+    "UntilRentMaskOfSpooky",
+    "Step05_Hint",
+    "Step05",
+    "Step06",
+    "UntilRentMaskOfBunny",
+    "Step07_Hint",
+    "Step07",
+    "Step08",
+    "Complete"
+   ]
+  },
+  "0xf6eb33a1": {
+   "name": "Step_SubEvent_RunningRace",
+   "stages": [
+    "NotReady",
+    "Ready",
+    "Playing",
+    "Complete"
+   ]
+  }
+ },
+ "action_guides": {
+  "ActivationAmiibo": "0x4d77f1cb",
+  "AgonyStone": "0xb366350a",
+  "AlarmCucco": "0x0501b2c9",
+  "Amiibo": "0xa70a6528",
+  "Backflip": "0xb5c475d9",
+  "Bomb": "0xfced7932",
+  "Bombchu": "0x6de63df3",
+  "Boomerang": "0x6d5aadb3",
+  "BootShortcut": "0x894c4537",
+  "Bottle": "0xe43af7e0",
+  "Bow": "0x4f1b84c3",
+  "DekuNut": "0x802fab91",
+  "DekuStick": "0x329fb269",
+  "DinFire": "0xabfdd2a7",
+  "EquipmentMenu": "0x061b75bc",
+  "EquipmentMenuForBoot": "0x1ac6bbab",
+  "EquipmentMenuForHeadArmor": "0xf9a9def1",
+  "FaroreWind": "0x43ecd8bb",
+  "FireArrow": "0x8bdbdb9e",
+  "FishingRod": "0x1eb081e4",
+  "GoronGauntlet": "0x0bf185b8",
+  "Hammer": "0x66814f6a",
+  "HeadShortcut": "0xa3cb9e23",
+  "Hookshot": "0x987c6ce8",
+  "HorizontalSlash": "0x7802e3f9",
+  "IceArrow": "0x6f3f3429",
+  "ItemMenu": "0x3695ee8e",
+  "ItemShortcut": "0xf10322f6",
+  "JumpSlash": "0xe77132e8",
+  "LightArrow": "0x3433a5ce",
+  "LockOn": "0x6076b0c4",
+  "LockOnShield": "0xc4e08c98",
+  "LockOnSideMove": "0x9ed2497f",
+  "Longshot": "0x176efc93",
+  "MagicBean": "0x51362667",
+  "Navi": "0x7be57cb0",
+  "NayruLove": "0xfa7eba98",
+  "Ocarina": "0xda41879d",
+  "OcarinaSongEstimate": "0xc0f73567",
+  "RollAttack": "0x7f007dd5",
+  "RotarySlash": "0x113566c8",
+  "Save": "0xc5a76ad6",
+  "ScrubBusinessSeed": "0x832bffde",
+  "SideJump": "0x4c41f51f",
+  "SinkingLure": "0x786cf7e0",
+  "SlingShot": "0x066b5169",
+  "SystemMinus": "0x308503d8",
+  "Thrust": "0x4579d8a8",
+  "TimeTrail": "0x2d6c0796",
+  "VerticalSlash": "0xc5125480",
+  "Weapon_Shield_Hylian": "0xcd86f584",
+  "Weapon_Shield_Mirror": "0x70cd6fa0",
+  "ZeldaLetter": "0x33556b8f"
+ }
+}

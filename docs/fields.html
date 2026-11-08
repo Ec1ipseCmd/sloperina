@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Save fields</title><link rel="stylesheet" href="style.css"></head>
+<body><nav><a href="index.html">overview</a><a href="fields.html">save fields</a><a href="quests.html">quests</a><a href="guides.html">tutorials</a></nav>
+<main>
+<h1>Save fields</h1>
+<p>Every field in the game's <code>GameDataList</code> (romfs <code>GameData/GameDataList.Product.110.byml.zs</code>).
+Each field is keyed by the MurmurHash3 (seed 0) of its name. <b>Name</b> is the game's own name, recovered by
+hashing strings found in the game's scripts; <b>editor title</b> comes from the onif save editor where known.
+Fields with 64-bit keys (Bool64bitKey) aren't listed.</p>
+<div class="controls">
+  <input id="q" type="search" placeholder="search name, title or hash (e.g. ocarina, StoneOfForest, 76b18200)" autofocus>
+  <select id="type"><option value="">all types</option></select>
+  <label><input id="named" type="checkbox" checked> named only</label>
+  <span id="count" class="dim"></span>
+</div>
+<div class="table-wrap"><table><thead><tr><th>hash</th><th>type</th><th>name</th><th>editor title</th><th>default</th></tr></thead>
+<tbody id="rows"></tbody></table></div>
+<p id="more" class="dim"></p>
+</main>
+<script src="fields.js"></script>
+<script>
+const F = window.FIELDS || [], LIMIT = 500;
+const q = document.getElementById("q"), type = document.getElementById("type"), named = document.getElementById("named");
+[...new Set(F.map(f => f.t))].sort().forEach(t => type.add(new Option(t, t)));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function render() {
+  const words = q.value.toLowerCase().split(/\s+/).filter(Boolean), t = type.value;
+  const hits = F.filter(f => (!t || f.t === t) && (!named.checked || f.n || f.e) &&
+    words.every(w => (f.n + " " + f.g + " " + f.e + " " + f.h + " " + (f.v || []).join(" ")).toLowerCase().includes(w)));
+  document.getElementById("count").textContent = hits.length + " of " + F.length;
+  document.getElementById("rows").innerHTML = hits.slice(0, LIMIT).map(f => {
+    let d = f.v ? f.v.join(" · ") : (f.m != null ? f.m + " members" : f.d);
+    return `<tr><td><code>${f.h}</code></td><td>${f.t}</td><td>${esc(f.n)}</td>` +
+           `<td>${f.g ? `<span class=dim>${esc(f.g)}:</span> ` : ""}${esc(f.e)}</td><td>${esc(d)}</td></tr>`;
+  }).join("");
+  document.getElementById("more").textContent = hits.length > LIMIT ? `showing the first ${LIMIT}; refine the search to see more` : "";
+}
+[q, type, named].forEach(el => el.addEventListener("input", render));
+render();
+</script>
+</body></html>

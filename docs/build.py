@@ -1,0 +1,72 @@
+"""Rebuild the HTML docs from ootmenu's data files.
+
+    python docs/build.py
+
+Inputs (in ootmenu/): gamedata_fields.json, story.json. Outputs (in docs/): fields.js, quests.html,
+guides.html. index.html, fields.html and style.css are hand-written and only read the generated data.
+"""
+import html
+import json
+import re
+from pathlib import Path
+
+DOCS = Path(__file__).resolve().parent
+ROOT = DOCS.parent
+
+
+def page(title, body):
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title><link rel="stylesheet" href="style.css"></head>
+<body><nav><a href="index.html">overview</a><a href="fields.html">save fields</a><a href="quests.html">quests</a><a href="guides.html">tutorials</a></nav>
+<main>{body}</main></body></html>
+"""
+
+
+def quest_label(name):
+    n = re.sub(r"^Step_", "", name).replace("_", " ")
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", n)
+
+
+def main():
+    fields = json.loads((ROOT / "gamedata_fields.json").read_text(encoding="utf-8"))
+    (DOCS / "fields.js").write_text("window.FIELDS=" + json.dumps(fields, ensure_ascii=False, separators=(",", ":")) + ";",
+                                    encoding="utf-8")
+
+    story = json.loads((ROOT / "story.json").read_text(encoding="utf-8"))
+    rows = []
+    for h, q in sorted(story["quests"].items(), key=lambda x: x[1]["name"]):
+        stages = " &rarr; ".join(f"<code>{html.escape(s)}</code>" for s in q["stages"])
+        rows.append(f"<tr><td>{html.escape(quest_label(q['name']))}</td><td><code>{html.escape(q['name'])}</code>"
+                    f"<br><span class=dim>0x{int(h, 16):08x}</span></td><td>{stages}</td></tr>")
+    unnamed = [f for f in fields if f["t"] == "Enum" and "Complete" in (f.get("v") or []) and not f["n"]]
+    for f in unnamed:
+        stages = " &rarr; ".join(f"<code>{html.escape(s)}</code>" for s in f["v"])
+        rows.append(f"<tr><td class=dim>(name not recovered)</td><td><span class=dim>0x{f['h']}</span></td><td>{stages}</td></tr>")
+    (DOCS / "quests.html").write_text(page("Quest stages", f"""
+<h1>Quest stages</h1>
+<p>Story progress is not a set of flags: each quest is one <b>Enum</b> save field whose value is the
+MurmurHash3 of the current stage name. The game checks progress with expressions such as
+<code>Get_StoneOfForest_IsCompleted_Exp</code> (stage == <code>Complete</code>) and
+<code>..._IsAfter_DefeatBoss_Exp</code> (stage &ge; <code>DefeatBoss</code>), so setting a quest's
+stage is what makes the world react. Changes show after a loading zone.</p>
+<p>In ootmenu: <b>story</b> page, one selector per quest.</p>
+<table><thead><tr><th>quest</th><th>field</th><th>stages, in order</th></tr></thead><tbody>
+{''.join(rows)}</tbody></table>"""), encoding="utf-8")
+
+    grows = "".join(f"<tr><td>{html.escape(n)}</td><td><code>{h}</code></td></tr>"
+                    for n, h in sorted(story["action_guides"].items()))
+    (DOCS / "guides.html").write_text(page("Tutorial guides", f"""
+<h1>Tutorial guides (ActionGuide_IsEnd)</h1>
+<p>The game records which tutorial screens ("action guides") the player has seen in the struct
+<code>ActionGuide_IsEnd</code>: one Bool field per guide type. Some features stay hidden until their guide
+has been seen. Example: the D-pad (Navi, item shortcuts, ocarina) only appears once the <b>Navi</b> guide,
+normally shown on entering the Deku Tree, is marked seen.</p>
+<p>In ootmenu: <b>story &rarr; all tutorials seen</b>.</p>
+<table><thead><tr><th>guide type</th><th>Bool field</th></tr></thead><tbody>{grows}</tbody></table>"""),
+                                    encoding="utf-8")
+    print(f"docs: {len(fields)} fields, {len(story['quests'])} quests, {len(story['action_guides'])} guides")
+
+
+if __name__ == "__main__":
+    main()
