@@ -91,6 +91,14 @@ field name (`gamedata.murmur3`). "The patch" is ootmenu's code patch (`patch.py`
 - Event scripts `Event/EventFlow/*.bfevfl` (format v0.4) decode with the `evfl` Python package;
   `tools/evdump.py` lists what each flow sets and checks. **This is the fastest way to learn how the game itself
   does something** (e.g. which node and parameters a cutscene uses to give an item).
+- **Pause screen layout:** `romfs/UI/Pouch/PouchTable/PouchTable.game__ui__PouchTable.bgyml` (BYML) lists every
+  slot of the item, equipment and collection screens with its pouch items: `ItemArray` (item screen, `Pa_ItemIcon_00`
+  onward: sticks, slingshot, boomerang, nuts, bombs, bombchus, hammer, hookshot/longshot, bow, fire/ice/light arrows,
+  beans, Din's/Farore's/Nayru's, 5 bottles, scrub seed, one trade-item slot, amiibo), `EquipmentArray` (swords,
+  shields, tunics, Stone of Agony, Lens of Truth, masks, boots), `CollectArray` (Skulltula tokens, Gerudo card, magic,
+  double defense, gauntlets, scale, wallet and bags), `OcarinaArray`, `StoneArray`, `MedalArray`, `NoDisplayArray`
+  (deku seeds, heart pieces). Slots holding an upgrade chain list it highest first. ootmenu's items list follows
+  `ItemArray`.
 - `tools/re64.py` does static analysis on a dump of main (`main.bin` = raw image from main's base, `main.base` = its
   load address in hex): string/function cross-references (`xref`), disassembly with field names (`dis`, `func`).
 
@@ -129,6 +137,12 @@ value = 0x0CA7 << 16 | 0x7F                                         call request
   are passed in the other message scratch Ints (written immediately before the request).
 - `patch.ITEMS` is the name table baked into the patch; **its order is the item numbering**, so changing it means a
   new patch version and a game restart.
+- **Timing:** there is one request slot, and a request only runs while the game runs (the menu pauses the
+  emulator). So every multi-step job goes through one worker, `patch.submit(key, fn, ...)`, which runs jobs in
+  order and keeps only the newest pending job per key (scrolling through wallet sizes runs just the last one).
+  `patch.wait_handled` waits as long as the game is paused and only gives up after the game has run ~4 s without
+  taking the request. Before this, overlapping jobs interleaved on the slot (e.g. two wallet changes removing each
+  other's items) and steps were abandoned after 10 s with the menu open.
 - After each item request the hook also sets the `SeqOneShotResetPlayerStatus` flags (harmless, but they don't
   redraw anything, see §6).
 

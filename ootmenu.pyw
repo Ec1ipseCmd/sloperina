@@ -118,6 +118,27 @@ ITEMS = ["Fairy Slingshot", "Fairy Bow", "Arrow Fire", "Arrow Ice", "Arrow Light
 GEAR = ["Kokiri Sword", "Master Sword", "Giant’s Knife", "Broken Giant’s Knife", "Biggoron’s Sword",
         "Deku Shield", "Hylian Shield", "Mirror Shield", "Goron Tunic", "Zora Tunic",
         "Iron Boots", "Hover Boots", "Fairy Ocarina", "Ocarina of Time"]
+# One-off items given as plain pouch data: (menu label, pouch item, item-button choice name).
+TRADE_ITEMS = [("weird egg", "Item_WeirdEgg", "WeirdEgg"), ("cucco", "Item_AlarmCucco", "AlarmCucco"),
+               ("zelda's letter", "Item_ZeldaLetter", "ZeldaLetter"), ("pocket egg", "Item_PocketEgg", "PocketEgg"),
+               ("pocket cucco", "Item_PocketCucco", "PocketCucco"), ("cojiro", "Item_CojiroCucco", "CojiroCucco"),
+               ("odd mushroom", "Item_OddMushroom", "OddMushroom"), ("odd potion", "Item_OddPowder", "OddPowder"),
+               ("poacher's saw", "Item_PoacherSaw", "PoacherSaw"), ("broken sword", "Item_BrokenSword", "BrokenSword"),
+               ("prescription", "Item_Prescription", "Prescription"),
+               ("eyeball frog", "Item_EyeballFrog", "EyeballFrog"), ("eye drops", "Item_EyeDrop", "EyeDrop"),
+               ("claim check", "Item_ClaimCheck", "ClaimCheck")]
+MASKS = [(f"{m.lower()} mask", f"Armor_Child_Mask_{m}", f"{m}Mask")
+         for m in ("Keaton", "Skull", "Spooky", "Bunny", "Goron", "Zora", "Gerudo", "Truth")]
+# inventory > items, in the order of the game's item screen (PouchTable ItemArray, Pa_ItemIcon_00..23). The
+# trade items share one slot there; listed here in story order.
+ITEM_SCREEN = ([("acquired", "Deku sticks"), ("owned", "Fairy Slingshot"), ("owned", "Boomerang"),
+                ("acquired", "Deku nuts"), ("acquired", "Bombs"), ("acquired", "Bombchus"), ("owned", "Hammer"),
+                ("owned", "Hookshot"), ("owned", "Longshot"), ("owned", "Fairy Bow"), ("owned", "Arrow Fire"),
+                ("owned", "Arrow Ice"), ("owned", "Arrow Light"), ("acquired", "Magic Bean"),
+                ("owned", "Din’s Fire"), ("owned", "Farore’s Wind"), ("owned", "Nayru’s Love")]
+               + [("trade", "child"), ("trade", "adult")]
+               + [("owned", "Lens of Truth"), ("owned", "Gerudo membership card"),
+                  ("owned", "Fairy Ocarina"), ("owned", "Ocarina of Time")])
 # (menu label, count field, capacity field or fixed maximum)
 AMMO = [("deku sticks", "Deku sticks", "Deku Stick capacity"),
         ("deku nuts", "Deku nuts", "Deku Nut capacity"),
@@ -530,6 +551,7 @@ class App:
         hearts = lambda q: f"{q / 4:g}"  # noqa: E731  quarter hearts -> hearts
 
         # --- inventory / equipment editing (gz's inventory and equips menus)
+        self.gear_wanted = {}  # item -> requested state while its patch job is pending
         F = self.fields = load_fields()
         self.acquired = load_fields(ACQUIRED)
 
@@ -568,8 +590,8 @@ class App:
                             g().set_bool(int(navi, 16), True)
                     # On the game's thread once it runs: add (or remove) it through the game's own
                     # inventory code, put it on (or take it off) Link, redraw the HUD.
-                    threading.Thread(target=patch.give_gear, args=(g(), item, log),
-                                     kwargs={"remove": not v}, daemon=True).start()
+                    self.gear_wanted[item] = bool(v)
+                    patch.submit(("gear", item), patch.give_gear, g(), item, log, remove=not v)
                     self.status(f"{label_of(title)}: {'given' if v else 'removed'} when the game runs "
                                 f"(close the menu)", 4)
                     return
@@ -577,15 +599,19 @@ class App:
                 if not v and title in WORN_GEAR and self.patch_active:
                     # Unticked while Link is wearing it: take it off too (patch.unequip).
                     slot, item = WORN_GEAR[title]
-                    threading.Thread(target=patch.unequip, args=(g(), slot, item, log),
-                                     daemon=True).start()
+                    patch.submit(("unequip", item), patch.unequip, g(), slot, item, log)
                 if not v and title in BUTTON_ITEM:
                     # Unticked while it's on an item button: take it off the button too.
                     # Watches for a while: the item wheel writes its copy back when it closes.
                     threading.Thread(target=patch.clear_buttons, args=(g(), BUTTON_ITEM[title], log),
                                      kwargs={"still_removed": lambda: not self.safe(field(title))},
                                      daemon=True).start()
-            return Toggle(label_of(title), lambda: bool(self.safe(field(title))), set_)
+            def get():
+                item = GAME_GEAR.get(title)
+                if item and patch.pending(("gear", item)):
+                    return self.gear_wanted.get(item)  # what was asked for; the game applies it once it runs
+                return bool(self.safe(field(title)))
+            return Toggle(label_of(title), get, set_)
 
         # Items the player can put on an item button: menu title -> the button slots' choice name.
         BUTTON_ITEM = {"Fairy Slingshot": "SlingShot", "Fairy Bow": "Bow", "Arrow Fire": "FireArrow",
@@ -607,6 +633,61 @@ class App:
                      "Goron Tunic": ("tunic", "Armor_Adult_Goron"), "Zora Tunic": ("tunic", "Armor_Adult_Zora"),
                      "Iron Boots": ("boots", "Armor_Adult_HeavyBoot"),
                      "Hover Boots": ("boots", "Armor_Adult_HoverBoot")}
+
+        def pouch_toggle(label, item, choice):
+            """One-off items (trade items, masks): ticked = count 1 + IsGet.<item>, which is what the game's
+            item screen lists. Unticked also takes it off the item buttons (patch.clear_buttons)."""
+            from gamedata import murmur3
+            stock, isget = murmur3(f"PouchData.{item}.StockNum"), murmur3("IsGet." + item)
+
+            def set_(v):
+                g().set_field(stock, 1 if v else 0)
+                g().set_bool(isget, bool(v))
+                if not v:
+                    threading.Thread(target=patch.clear_buttons, args=(g(), choice, log),
+                                     kwargs={"still_removed": lambda: not self.safe(lambda: g().get_field(stock))},
+                                     daemon=True).start()
+            return Toggle(label, lambda: bool(self.safe(lambda: g().get_field(stock))), set_)
+
+        def trade_choice(age):
+            """The trade-item slot: one item at a time, scrolled with left/right. Choosing one takes the previous
+            one away (count, acquired flag) and gives the new one; an item button holding the old one switches to
+            the new one, as trading does in the game ("none" empties it)."""
+            from gamedata import murmur3
+            group = TRADE_ITEMS[:3] if age == "child" else TRADE_ITEMS[3:]  # child: egg, cucco, letter
+            names = ["none"] + [lbl for lbl, _, _ in group]
+            by_label = {lbl: (item, choice) for lbl, item, choice in group}
+
+            def held():
+                for lbl, item, _ in group:
+                    if g().get_field(murmur3(f"PouchData.{item}.StockNum")):
+                        return lbl
+                return "none"
+
+            def get():
+                return self.safe(held, "-")
+
+            def set_(lbl):
+                old = [(l, i, c) for l, i, c in group
+                       if g().get_field(murmur3(f"PouchData.{i}.StockNum")) and l != lbl]
+                for _, item, _ in old:
+                    g().set_field(murmur3(f"PouchData.{item}.StockNum"), 0)
+                    g().set_bool(murmur3("IsGet." + item), False)
+                new = by_label.get(lbl)
+                if new:
+                    g().set_field(murmur3(f"PouchData.{new[0]}.StockNum"), 1)
+                    g().set_bool(murmur3("IsGet." + new[0]), True)
+                # Buttons holding an old trade item now hold the new one (or nothing).
+                olds = {murmur3(c) for _, _, c in old}
+                target = murmur3(new[1] if new else "Empty")
+                changed = False
+                for s in patch.BUTTON_SLOTS:
+                    if g().get_typed("enum", s) in olds:
+                        g().set_typed("enum", s, target)
+                        changed = True
+                if changed and self.patch_active:
+                    patch.submit(("refresh", patch.HUD_VTABLE), patch.refresh_screen, g(), patch.HUD_VTABLE, log)
+            return Choice(f"{age} trade", names, get, set_)
 
         def acquired_toggle(title):
             # Sticks and nuts have no "owned" field, only counts; the acquired
@@ -631,15 +712,23 @@ class App:
             """Make the pouch hold the item(s) for this upgrade setting, through the game's own code
             (patch.set_upgrade). The game's screens and story checks look at those, not the numbers."""
             if self.patch_active:
-                threading.Thread(target=patch.set_upgrade, args=(g(), setting, value, log),
-                                 daemon=True).start()
+                patch.submit(("upgrade", setting), patch.set_upgrade, g(), setting, value, log)
 
         def capacity(title, label):
             def set_(v):
                 set_field(title)(v)
                 if title in patch.UPGRADES:
                     upgrade(title, int(v))
-            return Choice(label, CAPACITIES[title], lambda: self.safe(field(title), 0), set_)
+            def get():
+                # The upgrade item Link holds (what the game shows); the number if he holds none.
+                if title in patch.UPGRADES and self.game and self.game.ready:
+                    v = self.safe(lambda: patch.held_upgrade(g(), title))
+                    if v is not None:
+                        return v
+                    if title != "Deku Stick capacity":  # sticks hold 10 without any bag item
+                        return 0  # no bag / quiver / magic item: the game shows none
+                return self.safe(field(title), 0)
+            return Choice(label, CAPACITIES[title], get, set_)
 
         ammo = Menu("ammo", [Number(label, field(t), set_field(t), hi=limit(cap),
                                     on_select=fill(t, cap)) for label, t, cap in AMMO]
@@ -670,6 +759,10 @@ class App:
         def flag(label, keys, acq=None, setting=None, refresh=None):
             """Toggle over one or more fields (Bool, or Int 0/1), all set together."""
             def get():
+                if setting:
+                    held = self.safe(lambda: patch.held_upgrade(g(), setting))
+                    if held is not None:
+                        return bool(held)
                 k = keys[0]
                 fn = (g().get_bool if X[k]["type"] == "Bool" else g().get_field)
                 return bool(self.safe(lambda: fn(xh(k))))
@@ -686,7 +779,7 @@ class App:
                     self.mark_acquired(acq)
                 if refresh and self.patch_active:
                     # Redraw that screen the way opening it does (e.g. the map screen re-reads the flags).
-                    threading.Thread(target=patch.refresh_screen, args=(g(), refresh, log), daemon=True).start()
+                    patch.submit(("refresh", refresh), patch.refresh_screen, g(), refresh, log)
             return Toggle(label, get, set_)
 
         def bottle(letter):
@@ -717,6 +810,9 @@ class App:
             vals = [v for v, _ in X[k]["choices"]]  # None, Low, Middle, High
 
             def get():
+                held = self.safe(lambda: patch.held_upgrade(g(), "Strength"))
+                if held is not None:
+                    return held
                 v = self.safe(lambda: g().get_typed("enum", xh(k)))
                 return STRENGTH[vals.index(v)][0] if v in vals else "-"
 
@@ -733,6 +829,9 @@ class App:
             k = "link/Abilities/Diving depth"
 
             def get():
+                held = self.safe(lambda: patch.held_upgrade(g(), "Scale"))
+                if held is not None:
+                    return held
                 v = self.safe(lambda: g().get_typed("float", xh(k)))
                 return next((n for n, d, _ in SCALES if v is not None and abs(v - d) < 0.01), "-")
 
@@ -769,9 +868,11 @@ class App:
 
         if F:
             inventory = Menu("inventory", [
-                Submenu("items", Menu("items", [acquired_toggle("Deku sticks"),
-                                                acquired_toggle("Deku nuts")]
-                                      + [owned(t) for t in ITEMS + ["Fairy Ocarina", "Ocarina of Time"]])),
+                # Same order as the game's item screen (romfs UI/Pouch/PouchTable ItemArray), then what this game
+                # shows on other screens (lens: equipment, card: collection), then the ocarinas.
+                Submenu("items", Menu("items", [
+                    acquired_toggle(t) if kind == "acquired" else owned(t) if kind == "owned" else trade_choice(t)
+                    for kind, t in ITEM_SCREEN])),
                 Submenu("ammo", ammo), Submenu("capacity", caps), Submenu("magic", magic),
                 *extra,
                 Submenu("small keys", keys), Submenu("amounts", amounts),
@@ -804,7 +905,7 @@ class App:
 
         equips = Menu("equips", [Info(lambda k=k: f"{k:<9} {self.game_str(k) or 'none'}")
                                  for k in ("sword", "shield", "tunic", "boots", "arrow", "ocarina")]
-                      + ([Submenu("owned gear", Menu("owned gear", [owned(t) for t in GEAR]))]
+                      + ([Submenu("owned gear", Menu("owned gear", [owned(t) for t in GEAR] + [pouch_toggle(*m) for m in MASKS]))]
                          if F else []))
         file = Menu("file", todo("time of day", "age", "set flags", "restore skulltulas",
                                  "save", "load"))

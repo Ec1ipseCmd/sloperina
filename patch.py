@@ -111,14 +111,69 @@ EQUIP_ALL_FN = 0xF201B0    # main+: (object holding the component at +0x470, 0) 
 EQUIP_SLOT = {"Item_Ocarina_Fairy": 0xD, "Item_Ocarina_Time": 0xD}  # slot 0xd reads PlayerStatus.EquipOcarina
 
 
-def wait_handled(game, timeout=10.0):
-    """Wait until the game has taken the pending request (it only runs while unpaused)."""
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
+def wait_handled(game, timeout=4.0):
+    """Wait until the game has taken the pending request. Requests only run while the game is running (the
+    menu pauses it), so this waits as long as the game is paused and only gives up once the game has run for
+    `timeout` seconds without taking it."""
+    from_frame, ran = game.frame_count(), 0.0
+    while True:
         if game.get_field(MAILBOX) == 0:
             return True
         time.sleep(0.05)
-    return False
+        f = game.frame_count()
+        if f is None:
+            return False  # game gone
+        if f != from_frame:
+            ran += 0.05
+            from_frame = f
+            if ran > timeout:
+                return False
+
+
+# --- one worker for everything that uses the patch ---------------------------------------------
+# The patch has one request slot, and each step needs the game to run, so steps from different menu
+# changes must not interleave. submit() queues a job; if a job with the same key is still waiting
+# (e.g. scrolling through wallet sizes), only the newest one runs.
+import collections  # noqa: E402
+import threading  # noqa: E402
+
+_jobs = collections.OrderedDict()
+_jobs_cv = threading.Condition()
+_worker = None
+_running = None
+
+
+def pending(key):
+    """True while a job with this key is queued or running."""
+    with _jobs_cv:
+        return key in _jobs or key == _running
+
+
+def submit(key, fn, *args, **kwargs):
+    global _worker
+    with _jobs_cv:
+        _jobs.pop(key, None)
+        _jobs[key] = (fn, args, kwargs)
+        _jobs_cv.notify()
+        if _worker is None or not _worker.is_alive():
+            _worker = threading.Thread(target=_run_jobs, daemon=True)
+            _worker.start()
+
+
+def _run_jobs():
+    global _running
+    while True:
+        with _jobs_cv:
+            _running = None
+            while not _jobs:
+                _jobs_cv.wait()
+            _running, (fn, args, kwargs) = _jobs.popitem(last=False)
+        try:
+            fn(*args, **kwargs)
+        except Exception as e:  # keep the worker alive
+            log = kwargs.get("log") or (args[2] if len(args) > 2 and callable(args[2]) else None)
+            if log:
+                log(f"error: patch job {getattr(fn, '__name__', fn)} failed: {e!r}")
 
 
 def give_gear(game, item, log=lambda m: None, remove=False):
@@ -195,10 +250,8 @@ def clear_buttons(game, choice, log=lambda m: None, still_removed=lambda: True, 
                 game.set_typed("enum", s, empty)
             if cleared:
                 n += 1
-                screen = hud_screen(game)
-                if screen and active(game):
-                    call_function(game, HUD_REFRESH_FN, screen)
-                    wait_handled(game)
+                if active(game):
+                    submit(("refresh", HUD_VTABLE), refresh_screen, game, HUD_VTABLE, log)
                 log(f"{choice}: taken off {len(cleared)} item button(s)" + (" again" if n > 1 else ""))
         except (OSError, KeyError, TypeError):
             pass  # game data moving (loading); try again
@@ -235,6 +288,21 @@ UPGRADES = {
     "Scale": (["Item_Scale_Silver", "Item_Scale_Gold"],
               {"silver scale": ["Item_Scale_Silver"], "golden scale": ["Item_Scale_Gold"]}),
 }
+
+
+def held_upgrade(game, setting):
+    """The menu value for upgrade `setting` that matches the pouch items Link holds (what the game's screens
+    show), or None if he holds none of the setting's items (then the menu shows the number field instead)."""
+    from gamedata import murmur3
+    chain, by_value = UPGRADES[setting]
+    held = {n for n in chain if (game.get_field(murmur3(f"PouchData.{n}.StockNum")) or 0) > 0}
+    if not held:
+        return None
+    exact = [v for v, items in by_value.items() if set(items) == held]
+    if exact:
+        return exact[0]
+    best = [v for v, items in by_value.items() if set(items) <= held]  # inconsistent: biggest that fits
+    return max(best, key=lambda v: len(by_value[v])) if best else None
 
 
 def set_upgrade(game, setting, value, log=lambda m: None):
@@ -304,6 +372,7 @@ def unequip(game, slot, item, log=lambda m: None):
     return ok
 
 
+HUD_VTABLE = 0x4BEB710  # the HUD (PlayerStatus screen); its method 98 = main+0xa77ff0
 MAP_SCREEN_VTABLE = 0x4BE8300  # the pause menu's map screen; its method 98 = main+0x33e12c0 re-reads the dungeon flags
 
 
