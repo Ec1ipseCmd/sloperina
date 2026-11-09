@@ -16,9 +16,10 @@ BIN = (D / "main.bin").read_bytes()
 TEXT_END = 0x3C80000  # code ends before rodata (first strings ~0x3c8xxxx)
 W = np.frombuffer(BIN[:TEXT_END], dtype="<u4")
 NAMES = {}
-for p in (Path(__file__).resolve().parents[1] / "data" / "rom_names.json",):
+for p in (Path(__file__).resolve().parents[1] / "data" / "rom_names.json",
+          Path(__file__).resolve().parents[1] / "data" / "memory_names.json"):  # later files win
     if p.exists():
-        NAMES = {int(h, 16): s for h, (s, t) in json.loads(p.read_text()).items()}
+        NAMES.update({int(h, 16): v[0] for h, v in json.loads(p.read_text(encoding="utf-8")).items()})
 
 
 def xref(targets):
