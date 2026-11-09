@@ -16,9 +16,11 @@ BIN = (D / "main.bin").read_bytes()
 TEXT_END = 0x3C80000  # code ends before rodata (first strings ~0x3c8xxxx)
 W = np.frombuffer(BIN[:TEXT_END], dtype="<u4")  # the code as 32-bit instruction words
 NAMES = {}  # MurmurHash3 -> save field name, for naming constants in disassembly
-NAMES_FILE = Path(__file__).resolve().parents[1] / "data" / "rom_names.json"
-if NAMES_FILE.exists():
-    NAMES = {int(h, 16): name for h, (name, _type) in json.loads(NAMES_FILE.read_text()).items()}
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+for names_file in (DATA_DIR / "rom_names.json", DATA_DIR / "memory_names.json"):  # later files win
+    if names_file.exists():
+        entries = json.loads(names_file.read_text(encoding="utf-8"))
+        NAMES.update({int(h, 16): entry[0] for h, entry in entries.items()})  # entry: [name, type, ...]
 
 # AArch64 encodings: (mask, value) pairs match an instruction class
 ADRP = (0x9F000000, 0x90000000)
