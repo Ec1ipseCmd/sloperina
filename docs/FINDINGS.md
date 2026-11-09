@@ -495,6 +495,16 @@ Each of these was tried and verified not to help:
 
 ## 8. Open problems
 
+- **JS Height reset/lock (0.0.3):** the user supplied the f32 chain
+  `[[link_actor() + 0x270] + 0x358] + 0x18E8` and reported `FLT_MAX` on fresh load, with jumps/sidehops
+  replacing it with takeoff Y + 0.70. The watch reads it dynamically; optional reset writes `FLT_MAX`
+  once and lock repeats that write in `watches_frame`. Both resolve the current actor and check
+  alignment, overflow and read/write mapping before writing only four bytes. Lock is session-only,
+  defaults off, and continues independently of HUD visibility. Its interaction with the game's
+  threshold setter/check ordering has not been runtime-verified. A per-frame freeze cannot guarantee
+  suppression of a setter and check that run between mod frames; the game's setter would need separate
+  investigation if that occurs.
+
 - Warping into a dungeon doesn't register the current room, so the map screen shows "???" until you walk through a
   door.
 - Upgrades other than the wallet are wired up (§5.7) but not yet confirmed in game.

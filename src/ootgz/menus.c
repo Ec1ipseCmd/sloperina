@@ -1077,6 +1077,19 @@ static void act_timer_toggle(menu_item_t *it) { timer_toggle(); }
 static void act_timer_reset(menu_item_t *it) { timer_reset(); }
 static void act_lag_reset(menu_item_t *it) { lag_reset(); }
 
+static void act_js_height_reset(menu_item_t *it)
+{
+  gfx_notice(js_height_reset() ? "JS Height reset to maximum" : "JS Height unavailable or read-only");
+}
+
+static bool get_js_height_lock(menu_item_t *it) { return js_height_lock; }
+static void set_js_height_lock(menu_item_t *it, bool on)
+{
+  js_height_lock = on;
+  if (on && !js_height_reset())
+    gfx_notice("JS Height lock: waiting for writable player");
+}
+
 /* A row of the list, gz's buttons: the red cross (remove); the wrench (show the value in debug >
  * memory) when it has an address; the label (rename it with gz's keyboard); the type switch; then
  * the value and the arrows that move it up or down the list. d-left/right picks a button, L presses
@@ -1122,7 +1135,7 @@ static void watch_row(menu_item_t *it, char *buf, int len)
   char label[24], v[48];
   int n, cur;
   const char *const *types = watch_entry_types(e, &n, &cur);
-  watch_entry_label(e, label, sizeof(label));
+  watch_entry_display_label(e, label, sizeof(label));
   watch_entry_text(e, v, sizeof(v));
   snprintf(buf, len, "%c%c %c %-12.12s %s%-3s%s %-*.*s %c %c", e->hidden ? GFX_CHECK_OFF : GFX_CHECK_ON, GFX_WIDE_REST,
            watch_entry_has_address(e) ? GFX_ICON_WRENCH : ' ', label,
@@ -1139,7 +1152,7 @@ static bool watch_cursor(menu_item_t *it, const char *line, int *start, int *len
     case PART_WRENCH: *start = COL_WRENCH, *len = 1; return true;
     case PART_LABEL: {
       char label[24];
-      watch_entry_label(&watch_list[it->data], label, sizeof(label));
+      watch_entry_display_label(&watch_list[it->data], label, sizeof(label));
       int l = (int)strlen(label);
       *start = COL_LABEL, *len = l < 1 ? 1 : l > 12 ? 12 : l;
       return true;
@@ -1385,6 +1398,13 @@ static void fill_watches(void)
     if (on_tools)
       m_watches.selected = (int)(tools - m_watches.items), tools->part = tools_part;
   }
+  menu_add_heading(&m_watches, "JS Height");
+  menu_item_t *reset_js = menu_add_action(&m_watches, "Reset JS Height", act_js_height_reset, 0);
+  if (reset_js)
+    reset_js->hint = "L: set the threshold to maximum once";
+  menu_item_t *lock_js = menu_add_check(&m_watches, "Lock JS Height", get_js_height_lock, set_js_height_lock, 0);
+  if (lock_js)
+    lock_js->hint = "Keep maximum height each frame; off after restarting";
   menu_add_heading(&m_watches, "timer");
   menu_add_action(&m_watches, "start/stop timer", act_timer_toggle, 0);
   menu_add_action(&m_watches, "reset timer", act_timer_reset, 0);
@@ -1405,7 +1425,7 @@ void watches_sync(void)
 
 static void build_watches(void)
 {
-  menu_init(&m_watches, "watches", WATCH_ROWS + 16);
+  menu_init(&m_watches, "watches", WATCH_ROWS + 19);
   fill_watches();
   menu_init(&m_watch_add, "known watches", W_COUNT + 1);
   m_watch_add.parent = &m_watches; /* opened from the folder button */

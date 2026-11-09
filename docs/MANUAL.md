@@ -190,6 +190,24 @@ rows of keys (D-pad picks a key, **L** types it) and a row of **shift**, **space
 
 Memory watches aren't saved (addresses change every time the game starts); everything else is.
 
+**JS Height** is the seventh default watch. It resolves the current player's jumpslash height
+threshold on each read, showing an f32 with nine significant digits, **Max** for `FLT_MAX`, or **N/A**
+if unavailable. A padlock beside its name in the HUD and Watches list indicates that **Lock JS Height**
+is enabled. Custom names are preserved; long names are shortened on screen to leave room for the icon.
+
+Under the watch list, the **JS Height** controls change that threshold:
+
+- **Reset JS Height** writes `FLT_MAX` (about `3.40282347e+38`) once. A later jump may change it again.
+- **Lock JS Height** keeps writing `FLT_MAX` on each mod frame, including while the watch or menu is
+  hidden. It follows the current player across scene changes and skips unavailable or read-only memory.
+  The lock is off at each game launch and is not saved. Turn it off to stop writing; the game can then
+  update the threshold normally on a later jump. Turning it off does not restore an old value.
+
+These controls modify live gameplay memory. The watch itself still only reads it. This is a per-frame
+freeze, not a patch of the game's setter: writes and checks within a single game frame may still happen
+before the mod runs. Build and host tests do not establish whether this prevents every launch restriction
+in-game; test normal jumps, sidehops, jumpslashes, scene changes, and restarts on the supported game version.
+
 ### 2.9 Debug
 
 #### 2.9.1 Heap

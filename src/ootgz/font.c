@@ -1,5 +1,6 @@
 /* Press Start 2P by codeman38 (SIL Open Font License 1.1), the default gz font,
- * converted from gz/res/gz/pressstart2p.png: 8x8, MSB = left pixel, characters 33..126. */
+ * converted from gz/res/gz/pressstart2p.png: 8x8, MSB = left pixel, characters 33..126.
+ * Character 127 is our single-cell padlock icon. */
 #include "font.h"
 
 const uint8_t font_8x8[FONT_COUNT][8] = {
@@ -97,4 +98,5 @@ const uint8_t font_8x8[FONT_COUNT][8] = {
   { 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00 }, /* '|' */
   { 0x60, 0x30, 0x30, 0x18, 0x30, 0x30, 0x60, 0x00 }, /* '}' */
   { 0x00, 0x00, 0x70, 0xba, 0x1c, 0x00, 0x00, 0x00 }, /* '~' */
+  { 0x3c, 0x66, 0x42, 0x7e, 0x7e, 0x66, 0x7e, 0x00 }, /* padlock */
 };

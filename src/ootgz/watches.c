@@ -1,5 +1,7 @@
 #include "watches.h"
 
+#include <float.h>
+
 #include "airwall.h"
 #include "gamedata.h"
 #include "gfx.h"
@@ -280,24 +282,41 @@ static bool camera_look(float pos[3], float at[3])
   return true;
 }
 
-/* Read-only: resolve both 64-bit pointers afresh, including after scene changes.
- * sys_ptr/sys_read32 check alignment and readable mappings before dereferencing.
+/* Resolve both 64-bit pointers afresh, including after scene changes.
+ * sys_ptr checks alignment and readable mappings before dereferencing.
  * Guard the offset additions too, so a corrupt pointer cannot wrap to another mapping. */
-static bool js_height(float *out)
+static uintptr_t js_height_address(void)
 {
   uintptr_t p = link_actor();
   if (!p || p > UINTPTR_MAX - 0x270)
-    return false;
+    return 0;
   p = sys_ptr(p + 0x270);
   if (!p || p > UINTPTR_MAX - 0x358)
-    return false;
+    return 0;
   p = sys_ptr(p + 0x358);
   if (!p || p > UINTPTR_MAX - 0x18E8)
-    return false;
+    return 0;
+  return p + 0x18E8;
+}
+
+static bool js_height(float *out)
+{
+  uintptr_t addr = js_height_address();
   uint32_t bits;
-  if (!sys_read32(p + 0x18E8, &bits))
+  if (!addr || !sys_read32(addr, &bits))
     return false;
   memcpy(out, &bits, sizeof(*out));
+  return true;
+}
+
+bool js_height_lock; /* opt-in for this session; never enabled by loading settings */
+
+bool js_height_reset(void)
+{
+  uintptr_t addr = js_height_address();
+  if (!addr || (addr & 3) || !sys_mapped(addr, sizeof(float), SYS_PERM_R | SYS_PERM_W))
+    return false;
+  *(volatile float *)addr = FLT_MAX;
   return true;
 }
 
@@ -480,9 +499,12 @@ void watch_text(watch_t w, char *buf, int len)
       break;
     case W_JS_HEIGHT: {
       float height;
-      if (js_height(&height))
-        snprintf(buf, len, "%.9g", (double)height); /* full f32 precision, compact even at FLT_MAX */
-      else
+      if (js_height(&height)) {
+        if (height == FLT_MAX)
+          snprintf(buf, len, "%s", T("Max"));
+        else
+          snprintf(buf, len, "%.9g", (double)height);
+      } else
         snprintf(buf, len, "N/A");
       break;
     }
@@ -501,6 +523,17 @@ void watch_entry_label(const watch_entry_t *e, char *buf, int len)
     snprintf(buf, len, "%010lx", (unsigned long)e->addr);
   else
     snprintf(buf, len, "%s", T(watch_labels[e->id]));
+}
+
+/* Keep status decorations out of the editable/saved name. Fit the existing 12-cell column. */
+void watch_entry_display_label(const watch_entry_t *e, char *buf, int len)
+{
+  char label[24];
+  watch_entry_label(e, label, sizeof(label));
+  if (e->id == W_JS_HEIGHT && js_height_lock)
+    snprintf(buf, len, "%.10s %c", label, GFX_ICON_LOCK);
+  else
+    snprintf(buf, len, "%s", label);
 }
 
 /* gz's watch: the value at the address, as its type; "-" if it isn't readable */
@@ -631,6 +664,10 @@ void watch_set_label(int index, const char *label)
 
 void watches_frame(bool menu_open)
 {
+  /* A frame-level freeze, not a patch of the game's threshold setter. Keep it independent
+   * of watch visibility. Invalid chains are skipped and retried on the next frame. */
+  if (js_height_lock)
+    js_height_reset();
   input_display_frame(menu_open);
   measure_motion();
   if (!lag_started) {
@@ -662,7 +699,7 @@ void watches_frame(bool menu_open)
     char label[24];
     if (watch_list[i].hidden)
       continue;
-    watch_entry_label(&watch_list[i], label, sizeof(label));
+    watch_entry_display_label(&watch_list[i], label, sizeof(label));
     watch_entry_text(&watch_list[i], val, sizeof(val));
     snprintf(line, sizeof(line), "%-12.12s %.40s", label, val);
     gfx_hud((gfx_corner_t)watches_corner, row++, GFX_NORMAL, line);

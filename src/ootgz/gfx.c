@@ -220,7 +220,7 @@ static void log_menu(const gfx_panel_t *s)
     for (int c = 0; c < GFX_COLS; c++) {
       char ch = s->ch[r][c];
       line[c + 2] = ch == GFX_CHECK_OFF ? 'o' : ch == GFX_CHECK_ON ? 'x' : ch == GFX_ICON_REMOVE ? '-'
-                  : ch == GFX_ICON_FOLDER ? '+' : ch == GFX_ICON_WRENCH ? '*' : ch == GFX_ICON_UP ? '^' : ch == GFX_ICON_DOWN ? 'v' : ch == GFX_ICON_ADD ? '+' : ch == GFX_ICON_LEFT ? '<' : ch == GFX_ICON_RIGHT ? '>' : !ch || ch == GFX_WIDE_REST ? ' ' : ch;
+                  : ch == GFX_ICON_FOLDER ? '+' : ch == GFX_ICON_WRENCH ? '*' : ch == GFX_ICON_UP ? '^' : ch == GFX_ICON_DOWN ? 'v' : ch == GFX_ICON_ADD ? '+' : ch == GFX_ICON_LOCK ? 'L' : ch == GFX_ICON_LEFT ? '<' : ch == GFX_ICON_RIGHT ? '>' : !ch || ch == GFX_WIDE_REST ? ' ' : ch;
       selected |= s->style[r][c] == GFX_SELECTED;
     }
     line[0] = selected ? '>' : ' ';

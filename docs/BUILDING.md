@@ -31,6 +31,14 @@ and sdk are known to export). A function we call but forgot to define would othe
 import and only fail when the game loads the module. Add a symbol there only after checking that
 main or sdk exports it.
 
+### JS Height host tests
+
+`python tests/run_js_height.py --cc C:/msys64/mingw64/bin/gcc.exe` runs the watch, settings, and
+HUD code on a 64-bit Windows host. With GCC on PATH, use `python tests/run_js_height.py` instead.
+It checks the pointer chain and f32 formatting, compatibility with old settings, HUD visibility,
+one-shot reset, lock/unlock, read-only/unavailable targets, exact four-byte writes, and relocation.
+The game and SD filesystem are mocked; this does not verify the game's setter/check ordering.
+
 
 ## Layout
 
