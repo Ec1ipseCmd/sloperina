@@ -12,7 +12,8 @@
  * held keeps the height, the left stick moves him relative to the camera. Walls: the game pushes
  * Link back out of them between our writes; a push-back is a move against his heading (after he has
  * held it for a moment, or the momentum of a turn looks like one), and it marks the wall for a
- * moment so we stop pushing into it (FINDINGS §5.10). "through walls" skips all of that.
+ * moment so we stop pushing into it (FINDINGS §5.10). "through walls" skips horizontal
+ * push-back only; upward physics corrections are kept so we do not undo floor support.
  *
  * 2x speed: while Link walks or runs on the stick, add the distance the game moved him this frame
  * again (the game's collision still pushes him back out of walls). */
@@ -380,6 +381,12 @@ static void float_step(double dt, bool menu_open)
                drawn.y != last_drawn.y || drawn.z != last_drawn.z;
   frozen = moved ? 0 : frozen + 1;
   last_drawn = drawn;
+  /* The game may have lifted the physics record out of a floor or onto a rising platform.
+   * Keep that correction even in through-walls mode, before adding our own rise. Ignoring
+   * downward drift still holds the hover height; x/z remain independent of floor support.
+   * This relies on the game's collision response, not a floor query or a collision-mask patch. */
+  if (cy > py)
+    py = cy;
   if (trace < 40) { /* what the game did with our last write */
     const volatile double *n = (const volatile double *)(record + 24);
     double fx = 0, fz = 0;

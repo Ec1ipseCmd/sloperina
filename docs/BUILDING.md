@@ -40,6 +40,13 @@ one-shot reset, lock/unlock, read-only/unavailable targets, exact four-byte writ
 It also draws a real menu and checks that invisible panel-sizing markers do not become lock icons.
 The game and SD filesystem are mocked; this does not verify the game's setter/check ordering.
 
+### Levitation host tests
+
+`python tests/run_levitate.py --cc C:/msys64/mingw64/bin/gcc.exe` runs the real levitation step/frame
+logic with a simulated physics record. It checks upward floor corrections, downward drift, wall
+passage versus push-back, rising platforms, rise/hold/menu/drop and record loss/restart. These tests
+do not simulate the game's collision solver; verify surfaces and transitions in-game separately.
+
 
 ## Layout
 

@@ -256,10 +256,16 @@ gz's input display, at the bottom left (hidden while the menu is open).
 | Item | What it does |
 |---|---|
 | **enabled** | **L3** starts floating, **L3** again drops Link (no fall damage); hold **R3** to stay at your height; the left stick moves him. The game doesn't see L3 while this is on. |
-| **through walls** | Float through walls instead of being stopped by them. |
+| **through walls** | Float through walls while retaining upward floor corrections from the game's physics. |
 | **rise speed**, **move speed** | How fast he rises and moves, in units per second. |
 
 The status line under **return** shows what levitate is doing.
+
+While floating, levitation keeps your height against downward drift and accepts upward corrections
+from the game, including floor support and rising platforms. Hold **R3** to move horizontally at that
+height. **L3** again stops floating and returns to normal falling/collision. This does not add missing
+floor geometry or query the floor ahead of each move; thin surfaces, large steps and timing between
+physics updates still need in-game testing.
 
 #### 2.10.3 Frame advance
 

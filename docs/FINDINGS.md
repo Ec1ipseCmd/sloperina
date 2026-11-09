@@ -501,6 +501,15 @@ Each of these was tried and verified not to help:
 
 ## 8. Open problems
 
+- **Levitation floor support (fork 0.0.5):** `float_step` read the game's current y but then wrote
+  its own accumulated y back, discarding upward physics corrections even while passing through walls.
+  It now retains the higher of those heights before adding the requested rise. Horizontal wall
+  push-back remains controlled by the existing option; downward drift does not lower the hover.
+  Host tests exercise floor corrections, rising platforms, both wall modes, pause/drop and record loss.
+  This is not a floor raycast or a change to collision masks: an upward change can also be an impulse,
+  and missing geometry or a floor crossed between physics updates cannot be detected here. Actual
+  wall/floor behavior, slopes and moving platforms still need in-game verification.
+
 - **JS Height reset/lock (0.0.3):** the user supplied the f32 chain
   `[[link_actor() + 0x270] + 0x358] + 0x18E8` and reported `FLT_MAX` on fresh load, with jumps/sidehops
   replacing it with takeoff Y + 0.70. The watch reads it dynamically; optional reset writes `FLT_MAX`
