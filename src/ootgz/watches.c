@@ -17,7 +17,7 @@ float hypotf(float x, float y);
 
 const char *const watch_labels[W_COUNT] = {
   "x", "y", "z", "facing", "move angle", "speed", "y speed", "camera angle", "camera pitch",
-  "camera dist", "input", "stick", "lag", "timer", "frame", "map", "air wall",
+  "camera dist", "input", "stick", "lag", "timer", "frame", "map", "air wall", "JS Height",
 };
 const char *const watches_corner_names[GFX_NPLACES] = { "top-left", "top-right", "bottom-left", "bottom-right",
                                                        "top-centre", "bottom-centre", "custom" };
@@ -25,8 +25,9 @@ const char *const watches_corner_names[GFX_NPLACES] = { "top-left", "top-right",
 bool watches_shown = true;
 watch_entry_t watch_list[WATCH_MAX] = {
   { .id = W_X }, { .id = W_Y }, { .id = W_Z }, { .id = W_FACING }, { .id = W_SPEED }, { .id = W_CAMERA_ANGLE },
+  { .id = W_JS_HEIGHT },
 };
-int watch_count = 6;
+int watch_count = 7;
 uint32_t watch_version;
 
 const char *const memory_type_names[MW_NTYPES] = { "u8", "s8", "x8", "u16", "s16", "x16", "u32", "s32",
@@ -78,6 +79,9 @@ void watch_set_list(const watch_t *list, int n)
   for (int i = 0; i < n && watch_count < WATCH_MAX; i++)
     if (list[i] >= 0 && list[i] < W_COUNT && !watch_has(list[i]))
       watch_list[watch_count++] = (watch_entry_t){ .id = (int16_t)list[i] };
+  /* Permanent built-in, including for old settings. Existing entries keep their order;
+   * settings.c restores labels/visibility afterwards. Hide it to keep it off across boots. */
+  watch_add(W_JS_HEIGHT);
   watch_version++;
 }
 
@@ -356,6 +360,27 @@ static bool camera_look(float pos[3], float at[3])
   return true;
 }
 
+/* Read-only: resolve both 64-bit pointers afresh, including after scene changes.
+ * sys_ptr/sys_read32 check alignment and readable mappings before dereferencing.
+ * Guard the offset additions too, so a corrupt pointer cannot wrap to another mapping. */
+static bool js_height(float *out)
+{
+  uintptr_t p = link_actor();
+  if (!p || p > UINTPTR_MAX - 0x270)
+    return false;
+  p = sys_ptr(p + 0x270);
+  if (!p || p > UINTPTR_MAX - 0x358)
+    return false;
+  p = sys_ptr(p + 0x358);
+  if (!p || p > UINTPTR_MAX - 0x18E8)
+    return false;
+  uint32_t bits;
+  if (!sys_read32(p + 0x18E8, &bits))
+    return false;
+  memcpy(out, &bits, sizeof(*out));
+  return true;
+}
+
 static const struct { uint32_t bit; const char *name; } button_names[] = {
   { BTN_A, "A" }, { BTN_B, "B" }, { BTN_X, "X" }, { BTN_Y, "Y" }, { BTN_L, "L" }, { BTN_R, "R" },
   { BTN_ZL, "ZL" }, { BTN_ZR, "ZR" }, { BTN_PLUS, "+" }, { BTN_MINUS, "-" }, { BTN_LSTICK, "L3" },
@@ -364,13 +389,14 @@ static const struct { uint32_t bit; const char *name; } button_names[] = {
 
 /* --- display types (gz's watch types, per watch: what suits its value) ---------------------- */
 
-typedef enum { DK_TEXT, DK_FLOAT, DK_ANGLE, DK_COUNT, DK_TIMER, DK_STICK } dkind_t;
+typedef enum { DK_TEXT, DK_FLOAT, DK_ANGLE, DK_COUNT, DK_TIMER, DK_STICK, DK_F32 } dkind_t;
 
 static const dkind_t kind_of[W_COUNT] = {
   [W_X] = DK_FLOAT, [W_Y] = DK_FLOAT, [W_Z] = DK_FLOAT, [W_FACING] = DK_ANGLE, [W_MOVE_ANGLE] = DK_ANGLE,
   [W_SPEED] = DK_FLOAT, [W_Y_SPEED] = DK_FLOAT, [W_CAMERA_ANGLE] = DK_ANGLE, [W_CAMERA_PITCH] = DK_ANGLE,
   [W_CAMERA_DIST] = DK_FLOAT, [W_INPUT] = DK_TEXT, [W_STICK] = DK_STICK, [W_LAG] = DK_COUNT,
   [W_TIMER] = DK_TIMER, [W_FRAME] = DK_COUNT, [W_MAP] = DK_TEXT, [W_AIRWALL] = DK_TEXT,
+  [W_JS_HEIGHT] = DK_F32,
 };
 
 /* Each kind's types, in the order of its names below. A float: decimal (f32), whole number (s32) or the
@@ -395,6 +421,7 @@ uint8_t watch_types[W_COUNT];
 const char *const *watch_type_names(watch_t watch, int *n)
 {
   switch (watch >= 0 && watch < W_COUNT ? kind_of[watch] : DK_TEXT) {
+    case DK_F32: *n = 1; return names_float; /* f32 only; FLT_MAX must not be cast to s32 */
     case DK_FLOAT: *n = N_FLOAT_TYPES; return names_float;
     case DK_ANGLE: *n = N_ANGLE_TYPES; return names_angle;
     case DK_COUNT: *n = N_COUNT_TYPES; return names_count;
@@ -567,6 +594,14 @@ void watch_text(watch_t watch, char *buf, int len)
     case W_AIRWALL:
       airwall_link_text(buf, len);
       break;
+    case W_JS_HEIGHT: {
+      float height;
+      if (js_height(&height))
+        snprintf(buf, len, "%.9g", (double)height); /* full f32 precision, compact even at FLT_MAX */
+      else
+        snprintf(buf, len, "N/A");
+      break;
+    }
     default:
       break;
   }
