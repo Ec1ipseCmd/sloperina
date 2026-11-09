@@ -92,6 +92,14 @@
 #define Z64HD_CAMERA_PTR        0x4E98068   /* [*+0x68] = camera: +0x38 pos, +0x44 look-at */
 #define Z64HD_FRAME_COUNTER     0x4E84BA0   /* u32, +1 per update; runs in the pause menus too */
 
+/* Character controller: verified against the game scripts' native nodes and live
+ * object vtables. See FINDINGS, "Native collision bypass". */
+#define Z64HD_VT_CCT_PROPERTY   0x4C34F10
+#define Z64HD_VT_CCT_BODY       0x4C34658
+#define Z64HD_CCT_FORCE_NO_HIT  0x158D40    /* void (body, bool): queued, preserves filter state */
+#define Z64HD_CCT_SET_POSITION  0x6B2530    /* void (property, const vec3f_t *): updates attached bodies */
+#define Z64HD_CCT_SET_VELOCITY  0x12DBE0   /* void (body, const vec3f_t *): queues linear velocity */
+
 /* (main+a) -> +b -> Link's actor, tried in order */
 #define Z64HD_LINKOBJ_PTRS \
   { { 0x4E371D0, 0x480 }, { 0x4E94858, 0x2E0 }, { 0x4E935B8, 0xEF8 }, \

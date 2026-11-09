@@ -13,14 +13,16 @@
  * relative to the camera. Walls: the game pushes
  * Link back out of them between our writes; a push-back is a move against his heading (after he has
  * held it for a moment, or the momentum of a turn looks like one), and it marks the wall for a
- * moment so we stop pushing into it (FINDINGS §5.10). "through walls" skips horizontal
- * push-back only; upward physics corrections are kept except during intentional B descent.
+ * moment so we stop pushing into it (FINDINGS §5.10). "through walls" now requests the
+ * controller's ForceNoHit mode and sets position through its own API (cct.c), rather
+ * than only undoing push-back. Other movement retains the floor/wall correction logic.
  *
  * 2x speed: while Link walks or runs on the stick, add the distance the game moved him this frame
  * again (the game's collision still pushes him back out of walls). */
 #include "levitate.h"
 
 #include "cheats.h"
+#include "cct.h"
 #include "gfx.h"
 #include "input.h"
 #include "link.h"
@@ -39,7 +41,6 @@ int levitate_move_speed = 6;  /* stick, units/s */
 #define TEST_LIFT 0.6
 #define TEST_FRAMES 6
 #define RETRY_FRAMES 150        /* after a failed search */
-#define HEAL_FRAMES 90          /* after dropping: give back health lost landing */
 #define RISE_RAMP 0.35          /* s to reach the rise speed (game.py LEV_RISE_RAMP) */
 #define MOVE_RAMP 0.15
 #define PUSHBACK_MIN 0.01       /* units: a push-back this big marks a wall */
@@ -61,8 +62,7 @@ static uintptr_t record;
  * finds they're more position doubles, and writing motion state over them crashed the game */
 static bool record_motion;
 static bool quiet_search; /* started by the speed cheat: no notices */
-static int fail_wait, heal_frames;
-static int32_t heal_to;
+static int fail_wait;
 static uint64_t last_tick;
 
 static double absd(double v) { return v < 0 ? -v : v; }
@@ -332,6 +332,7 @@ static bool camera_forward(double *fx, double *fz)
 
 static bool floating, writing; /* floating: L3 turned it on; writing: we're moving Link */
 static double px, py, pz, vx, vy, vz;               /* our position and velocity */
+static double controller_y_offset;                 /* physics capsule centre -> drawn feet */
 static double head_x, head_z;                       /* last direction he moved in */
 static double wall_x, wall_z, wall_until;           /* a wall last pushed him this way, until */
 static double refs[2][2], steady_at;                /* headings a moment ago */
@@ -340,17 +341,28 @@ static double last_r[3];
 static vec3f_t last_drawn;
 static int frozen;
 static int trace; /* frames of float logged (diagnostics) */
+static uintptr_t float_actor, landing_actor;
+static unsigned landed_frames;
 static bool facing(double *fx, double *fz);
 
 static void drop(void)
 {
-  if (!floating)
+  if (!floating) {
+    cct_noclip_end();
     return;
+  }
   floating = false;
   if (writing) {
+    bool reset = cct_reset_vertical_velocity(float_actor);
+    cct_clear_fall_distance(float_actor);
+    landing_actor = float_actor;
+    landed_frames = 0;
+    log_printf("levitate: release controller velocity reset %s; landing protection on",
+               reset ? "queued" : "unavailable");
     /* Holding the position does not clear the game's falling velocity. Start release
-     * from rest once, then let normal gravity take over. Touch only the two documented
-     * vertical velocity fields, never the position, horizontal motion or full WAKE state.
+     * from rest once, then let normal gravity take over. Also clear the legacy
+     * record's two vertical fields; the controller API above is essential.
+     * Never change position, horizontal motion or the full WAKE state here.
      * Revalidate here: L3 is handled before this frame's normal record-loss check. */
     bool zero;
     if (state == L_READY && record_motion && record_follows_link() &&
@@ -359,14 +371,15 @@ static void drop(void)
       *(volatile float *)(record + 0x44) = 0; /* post-collision y velocity */
     }
     writing = false;
-    int32_t *cur, *max;
-    if (link_health(&cur, &max))
-      heal_to = *cur, heal_frames = HEAL_FRAMES;
   }
+  cct_noclip_end(); /* Restore collision only after requesting the velocity reset. */
 }
 
 static void float_start(void)
 {
+  float_actor = link_actor();
+  landing_actor = 0;
+  landed_frames = 0;
   volatile double *r = (volatile double *)record;
   px = r[0], py = r[1], pz = r[2];
   vx = vy = vz = head_x = head_z = wall_x = wall_z = 0;
@@ -374,6 +387,7 @@ static void float_start(void)
   memset(refs, 0, sizeof(refs));
   frozen = 0;
   link_drawn_pos(&last_drawn);
+  controller_y_offset = py - last_drawn.y;
   last_r[0] = px, last_r[1] = py, last_r[2] = pz;
   writing = true;
   trace = 0;
@@ -399,7 +413,7 @@ static void float_step(double dt, bool menu_open)
    * Keep that correction even in through-walls mode, before adding our own rise. Ignoring
    * downward drift still holds the hover height; x/z remain independent of floor support.
    * This relies on the game's collision response, not a floor query or a collision-mask patch. */
-  if (cy > py && !descend_through_floor)
+  if (cy > py && !descend_through_floor && !cct_noclip_active())
     py = cy;
   if (trace < 40) { /* what the game did with our last write */
     const volatile double *n = (const volatile double *)(record + 24);
@@ -457,12 +471,25 @@ static void float_step(double dt, bool menu_open)
   px += vx * dt, pz += vz * dt;
   if (hypotf((float)vx, (float)vz) > 0.05)
     head_x = vx, head_z = vz;
+  if (cct_noclip_active()) {
+    vec3f_t position = { (float)px, (float)(py - controller_y_offset), (float)pz };
+    if (!cct_noclip_move(&position)) {
+      drop();
+      gfx_notice("levitate: controller unavailable; stopped");
+      return;
+    }
+  }
   /* Position every frame; the motion state only when the game has cleared it (it ignores the
    * position then), as game.py did. Rewriting all of it every frame kept Link spinning. */
   bool cleared = true;
   for (int i = 0; i < 12; i++)
     cleared &= ((volatile uint32_t *)(record + 24))[i] == 0;
   write_record(record, px, py, pz, (float)vx, (float)vy, (float)vz, record_motion && cleared);
+  if (!cct_reset_vertical_velocity(float_actor) || !cct_clear_fall_distance(float_actor)) {
+    drop();
+    gfx_notice("levitate: fall protection unavailable; stopped");
+    return;
+  }
   last_r[0] = px, last_r[1] = py, last_r[2] = pz;
 }
 
@@ -505,11 +532,22 @@ static void frame(bool menu_open)
   if (dt > 0.1)
     dt = 0.1;
 
-  if (heal_frames > 0) {
-    heal_frames--;
-    int32_t *cur, *max;
-    if (link_health(&cur, &max) && *cur < heal_to)
-      *cur = heal_to;
+  if (landing_actor) {
+    uintptr_t actor = link_actor();
+    if (actor && actor != landing_actor) {
+      landing_actor = 0; /* A reload/replacement must not protect a different actor. */
+    } else if (cct_clear_fall_distance(landing_actor)) {
+      bool grounded;
+      if (cct_on_ground(landing_actor, &grounded)) {
+        landed_frames = grounded ? landed_frames + !menu_open : 0;
+        if (landed_frames >= 6) {
+          landing_actor = 0;
+          log_printf("levitate: landed; normal fall damage restored");
+        }
+      } else {
+        landed_frames = 0;
+      }
+    }
   }
 
   /* L3: start / stop */
@@ -542,7 +580,8 @@ static void frame(bool menu_open)
   if (state == L_FAILED && --fail_wait <= 0)
     state = L_IDLE;
 
-  if (state == L_READY && !record_follows_link() && !(writing && frozen)) {
+  if (state == L_READY && (!sys_mapped(record, 72, SYS_PERM_R | SYS_PERM_W) ||
+                          (!record_follows_link() && !(writing && frozen)))) {
     log_printf("levitate: lost Link's record (new area?)");
     record = 0;
     state = L_IDLE;
@@ -559,6 +598,19 @@ static void frame(bool menu_open)
     return;
   }
   if (floating) {
+    if (levitate_through_walls) {
+      if (!cct_noclip_begin()) {
+        drop();
+        gfx_notice("levitate: controller unavailable; stopped");
+        return;
+      }
+    } else {
+      cct_noclip_end();
+      if (cct_noclip_active()) {
+        drop();
+        return;
+      }
+    }
     if (!writing)
       float_start();
     float_step(dt, menu_open);
@@ -573,6 +625,8 @@ static void frame(bool menu_open)
 void levitate_frame(bool menu_open)
 {
   frame(menu_open);
+  if (!floating)
+    cct_noclip_end();
   /* Update after toggles, failed searches and scene changes as well as normal steps.
    * Our input reads remain raw; only the game's HID wrappers mask these buttons. */
   input_hide_from_game = (levitate_enabled ? BTN_LSTICK : 0) |

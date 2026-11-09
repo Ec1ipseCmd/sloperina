@@ -6,15 +6,27 @@
 #include "../src/ootgz/levitate.c"
 
 static double physics[9];
+static unsigned char actor_memory[1024];
 static float cam[24];
 static vec3f_t drawn_pos;
 static uint32_t held, pressed;
 static int32_t stick_x;
 static bool mapped = true;
+static bool controller_active, controller_available = true;
+static int controller_moves, controller_restores;
+static int velocity_resets, distance_resets;
+static bool on_ground;
+bool cct_reset_vertical_velocity(uintptr_t a) { (void)a; velocity_resets++; return controller_available; }
+bool cct_clear_fall_distance(uintptr_t a) { (void)a; distance_resets++; return controller_available; }
+bool cct_on_ground(uintptr_t a, bool *grounded) { (void)a; *grounded = on_ground; return controller_available; }
+bool cct_noclip_begin(void) { return controller_active = controller_available; }
+bool cct_noclip_active(void) { return controller_active; }
+bool cct_noclip_move(const vec3f_t *p) { (void)p; controller_moves++; return controller_available; }
+void cct_noclip_end(void) { if (controller_active) controller_restores++; controller_active = false; }
 bool cheats[CHEAT_COUNT];
 uint32_t input_hide_from_game;
 
-uintptr_t link_actor(void) { return 0; }
+uintptr_t link_actor(void) { return (uintptr_t)actor_memory; }
 uintptr_t camera(void) { return (uintptr_t)cam; }
 bool link_drawn_pos(vec3f_t *p) { *p = drawn_pos; return true; }
 bool link_health(int32_t **cur, int32_t **max) { (void)cur; (void)max; return false; }
@@ -48,6 +60,11 @@ static void start(bool walls)
   physics[1] = 100;
   cam[0x44 / 4 + 2] = -1; /* camera forward -z, right +x */
   mapped = levitate_enabled = floating = true;
+  controller_active = false;
+  controller_available = true;
+  controller_moves = controller_restores = 0;
+  velocity_resets = distance_resets = 0;
+  on_ground = false;
   levitate_through_walls = walls;
   levitate_speed = 4;
   levitate_move_speed = 6;
@@ -84,6 +101,7 @@ static void test_release(void)
     else pressed = BTN_LSTICK;
     levitate_frame(false);
     assert(!floating && !writing);
+    assert(velocity_resets == 1 && landing_actor == link_actor());
     assert(!memcmp(physics, expected, sizeof(expected))); /* no position or horizontal writes */
     pressed = 0;
     motion[(0x2C - 24) / 4] = motion[(0x44 - 24) / 4] = -1;
@@ -93,6 +111,15 @@ static void test_release(void)
     memcpy(expected, physics, sizeof(expected));
     levitate_frame(false);
     assert(!memcmp(physics, expected, sizeof(expected))); /* no continued velocity clamp */
+    assert(velocity_resets == 1);
+    for (int i = 0; i < 300; i++) levitate_frame(false);
+    assert(landing_actor == link_actor()); /* Long drops do not outlast a healing timer. */
+    on_ground = true;
+    for (int i = 0; i < 6; i++) levitate_frame(false);
+    assert(!landing_actor && velocity_resets == 1);
+    int saved_resets = distance_resets;
+    levitate_frame(false);
+    assert(distance_resets == saved_resets); /* Later ordinary falls are unchanged. */
   }
   for (int invalid = 0; invalid < 4; invalid++) {
     start(true);
@@ -110,7 +137,7 @@ static void test_release(void)
     levitate_frame(false);
     assert(!floating && !writing && !memcmp(before, physics, sizeof(before)));
   }
-  puts("PASS: L3/disable clears only two vertical velocities once; invalid/stale records untouched");
+  puts("PASS: L3 controller reset once, long-drop landing protection, no later clamp; invalid records untouched");
 }
 
 static void test_vertical_controls(void)
@@ -183,6 +210,38 @@ static void test_vertical_controls(void)
   levitate_frame(false);
   assert(!floating && input_hide_from_game == BTN_LSTICK);
   puts("PASS: X/B ascent/descent, hover, reversal, both/hold/menu, floor bypass and button masking");
+}
+
+static void test_controller_path(void)
+{
+  start(true);
+  held = BTN_X;
+  levitate_frame(false);
+  assert(controller_active && controller_moves == 1);
+  double height = physics[1];
+  physics[1] += 0.5; /* Ignore leftover collision corrections in actual noclip. */
+  held = 0;
+  levitate_frame(false);
+  assert(physics[1] == height);
+  pressed = BTN_LSTICK;
+  levitate_frame(false);
+  assert(!controller_active && controller_restores == 1 && !floating);
+
+  start(true);
+  levitate_frame(false);
+  levitate_through_walls = false;
+  levitate_frame(false);
+  assert(!controller_active && controller_restores == 1);
+  start(true);
+  controller_available = false;
+  levitate_frame(false);
+  assert(!floating && !controller_active && controller_moves == 0 && physics[1] == 100);
+  start(true);
+  levitate_frame(false);
+  mapped = false;
+  levitate_frame(false);
+  assert(!floating && !controller_active && controller_restores == 1);
+  puts("PASS: controller move/restore, mode change, invalid controller and record loss");
 }
 
 int main(void)
@@ -279,5 +338,6 @@ int main(void)
   puts("PASS: rising platforms, rise/hold/menu/drop, invalid record and fresh-scene height");
   test_release();
   test_vertical_controls();
+  test_controller_path();
   return 0;
 }

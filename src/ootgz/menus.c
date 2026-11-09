@@ -1614,7 +1614,7 @@ static void build_settings(void)
     lv->hint = "L3: toggle   X: up   B: down   release: hover", lv->log_label = "levitate";
   menu_item_t *walls = menu_add_check(&m_levitate, "through walls", get_walls, set_walls, 0);
   if (walls)
-    walls->hint = "Bypass push-back; held B also bypasses floor support";
+    walls->hint = "Disable Link collision while floating; B descends through floors";
   menu_item_t *rise = menu_add_option(&m_levitate, "vertical speed", 7, lev_speed_names, get_lev_speed, set_lev_speed, 0);
   if (rise)
     rise->hint = "X/B speed; legacy 0 uses 4. Release to hover";

@@ -107,10 +107,11 @@ to add it. Or open **debug > memory**, find the value, edit the row (**L**) and 
 
 **...float around?**
 Turn on **settings > levitate > enabled**, close the menu, press **L3**. Push the left stick to move; hold **X** to rise or **B** to descend. Release both to hover.
-With **through walls** enabled, held B also bypasses the mod's floor-height correction.
+With **through walls** enabled, Link can pass through walls and ceilings;
+held B commands descent through floors. Exit geometry before toggling floating off.
 **vertical speed** controls both directions; an old saved value of 0 uses 4 units/s for X/B.
-**L3** stops floating. Wall/ceiling collision and the fast fall after L3 remain unresolved;
-this is a position override, not complete collision disabling.
+**L3** stops floating, restores collision and starts the fall with zero vertical speed. Normal
+gravity resumes, with fall-distance protection through the first landing. Void triggers still apply.
 
 **...look at a trick frame by frame?**
 Frame advance is on from the start (**settings > frame advance > enabled**). In the game, tap **L** to pause, tap **L** for one frame or hold it

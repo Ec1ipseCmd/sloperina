@@ -46,8 +46,15 @@ The game and SD filesystem are mocked; this does not verify the game's setter/ch
 logic with a simulated physics record. It checks upward floor corrections, downward drift, wall
 push-back handling, hover, rising platforms, X/B ascent/descent, direction reversal, both-button/R3
 hold, manual descent past upward floor corrections, button masking, menu/drop and record loss/restart.
-Release tests verify only the two vertical velocity fields are cleared once and invalid records are skipped. These tests
+Release tests cover the controller velocity reset, guarded fall-history reset, protection through long drops,
+and ending protection after supported landing. Invalid records are skipped. These tests
 do not simulate the game's collision solver; verify surfaces and transitions in-game separately.
+
+The same command also runs `tests/cct.c`: dynamic controller resolution, exact object types,
+queued collision state, preserving an existing no-hit mode, restoration/retry, replacement,
+invalid lists and non-finite positions. Its game API calls are mocked. The user confirmed the 0.0.9 test build passes a previously blocking wall
+and test2 gives a gentle L3 fall with no landing damage. Logs show the queued velocity reset and
+protection ending after landing. Other surfaces, events and scene transitions need broader testing.
 
 
 ## Layout

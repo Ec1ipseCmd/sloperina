@@ -257,7 +257,7 @@ gz's input display, at the bottom left (hidden while the menu is open).
 | Item | What it does |
 |---|---|
 | **enabled** | **L3** toggles floating. Hold **X** to rise, **B** to descend; release both to hover. The left stick moves horizontally. X/B/R3 are hidden from the game while floating; L3 is reserved while enabled. |
-| **through walls** | Bypass the mod's horizontal push-back handling. While B alone is held, also bypass upward floor corrections. The game's collision solver remains active. |
+| **through walls** | Use the character controller's temporary collision bypass and position setter while floating. L3/off restores its previous collision mode. Held B commands descent through floors. |
 | **vertical speed** | X/B speed in units per second, replacing the old rise-speed label. Existing saved settings remain compatible; a saved **0** uses 4 units/s for manual movement. |
 | **move speed** | Horizontal speed in units per second. |
 
@@ -267,16 +267,18 @@ No X/B input means hover at any vertical-speed setting. Both held together also 
 overrides either button to hold height. Releasing or reversing the buttons clears the previous
 vertical movement immediately. The mod menu suspends intentional movement.
 
-With **through walls** on, held B commands downward movement even if the game's floor response
-pushes Link up. Releasing B restores upward floor corrections; releasing inside a surface may
-therefore push Link out. This does not disable the game's collision solver or guarantee passage
-through every wall, floor or ceiling. The reported blocking/sticking and camera-follow issues
-remain unresolved. The stationary-position pause heuristic may also block movement in some states.
+With **through walls** on, Link can pass through walls and ceilings; hold **B** to descend
+through floors. Exit geometry before stopping levitation, since normal collision resumes then.
+With through walls off, normal floor/wall correction remains active.
 
-**L3** stops position overrides and clears two known vertical physics velocities once. The user
-confirmed that this did **not** fix the fast fall in 0.0.7. The underlying stored velocity or
-collision behavior still needs investigation; X/B controls do not fix that release problem.
-Host checks simulate physics feedback; no in-game verification of these controls was performed.
+**L3** ends levitation with zero vertical velocity. Normal gravity then accelerates the fall,
+and landing protection prevents fall-distance damage through the first landing. Later ordinary
+falls are unchanged. The old short health-refund timer has been removed.
+
+The user confirmed traversal through a previously blocking wall, followed by a gentle L3 fall
+and no landing damage. This does not establish behavior at every surface or during every event.
+Void protection and a void-trigger viewer are not included. Camera-follow and stationary-position
+pause behavior have not been separately fixed.
 
 #### 2.10.3 Frame advance
 
