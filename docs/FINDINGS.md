@@ -501,6 +501,13 @@ Each of these was tried and verified not to help:
 
 ## 8. Open problems
 
+- **Zero-rise hover (fork 0.0.6):** rise speed previously offered a minimum of 2, and settings
+  rejected 0. The menu now offers 0 and settings retain it. At zero rise, vertical levitation velocity
+  is explicitly cleared: simply adding 0 to the options would leave a previous upward velocity
+  unchanged because the acceleration step is also 0. Host tests verify stationary hover without R3,
+  horizontal wall passage at fixed height, switching from positive rise to 0 and back, and persistence.
+  Floor corrections from 0.0.5 still apply; the game's runtime behavior remains to be tested.
+
 - **Levitation floor support (fork 0.0.5):** `float_step` read the game's current y but then wrote
   its own accumulated y back, discarding upward physics corrections even while passing through walls.
   It now retains the higher of those heights before adding the requested rise. Horizontal wall

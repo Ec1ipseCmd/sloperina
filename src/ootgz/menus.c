@@ -1496,11 +1496,11 @@ static void set_opacity(menu_item_t *it, int i) { gfx_opacity = i * 10; }
 
 static bool get_levitate(menu_item_t *it) { return levitate_enabled; }
 static void set_levitate(menu_item_t *it, bool on) { levitate_enabled = on; }
-static const char *const lev_speed_names[] = { "2", "4", "6", "8", "12", "20" };
-static const int lev_speeds[] = { 2, 4, 6, 8, 12, 20 };
+static const char *const lev_speed_names[] = { "0", "2", "4", "6", "8", "12", "20" };
+static const int lev_speeds[] = { 0, 2, 4, 6, 8, 12, 20 };
 static int get_lev_speed(menu_item_t *it)
 {
-  for (int i = 0; i < 6; i++)
+  for (int i = 0; i < 7; i++)
     if (lev_speeds[i] == levitate_speed)
       return i;
   return -1;
@@ -1615,7 +1615,9 @@ static void build_settings(void)
   menu_item_t *walls = menu_add_check(&m_levitate, "through walls", get_walls, set_walls, 0);
   if (walls)
     walls->hint = "Pass through walls while keeping floor support";
-  menu_add_option(&m_levitate, "rise speed", 6, lev_speed_names, get_lev_speed, set_lev_speed, 0);
+  menu_item_t *rise = menu_add_option(&m_levitate, "rise speed", 7, lev_speed_names, get_lev_speed, set_lev_speed, 0);
+  if (rise)
+    rise->hint = "0: hold height without holding R3";
   menu_add_option(&m_levitate, "move speed", 7, lev_move_names, get_lev_move, set_lev_move, 0);
   menu_end_group(&m_levitate);
   menu_add_return(&m_levitate);

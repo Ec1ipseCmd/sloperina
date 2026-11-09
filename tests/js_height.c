@@ -215,6 +215,22 @@ static void test_settings(void)
   assert(watch_count == 1 && watch_list[0].id == W_JS_HEIGHT);
   assert(watch_add_memory(0x10000, MW_F32) && watch_list[1].id == W_MEMORY);
   assert(!watch_add_memory(0x10000, MW_X32));
+  snprintf(settings, sizeof(settings), "levitate_speed=0\n");
+  levitate_speed = 4;
+  settings_load();
+  assert(levitate_speed == 0);
+  watch_set_label(0, "save hover"); /* trigger settings save */
+  for (int i = 0; i < 60; i++) settings_frame(false);
+  assert(strstr(settings, "levitate_speed=0\n"));
+  levitate_speed = 4;
+  settings_load();
+  assert(levitate_speed == 0);
+  snprintf(settings, sizeof(settings), "levitate_speed=-1\n");
+  settings_load();
+  assert(levitate_speed == 0); /* invalid negative speed is ignored */
+  snprintf(settings, sizeof(settings), "levitate_speed=4\n");
+  settings_load();
+  assert(levitate_speed == 4); /* existing positive settings still work */
   sd_available = false;
   settings_load();
   assert(watch_has(W_JS_HEIGHT));

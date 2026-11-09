@@ -67,6 +67,34 @@ static void step(void)
 
 int main(void)
 {
+  start(true);
+  levitate_speed = 0;
+  held = 0; /* no R3: zero rise must hover by itself */
+  for (int i = 0; i < 60; i++) {
+    physics[1] -= 0.1; /* simulated gravity */
+    step();
+    assert(physics[1] == 100 && physics[0] == 0 && physics[2] == 0 && vy == 0);
+  }
+  stick_x = 32767;
+  for (int i = 0; i < 30; i++) {
+    physics[0] -= 0.2; /* wall push-back still bypassed at zero rise */
+    physics[1] -= 0.1;
+    step();
+  }
+  assert(physics[0] > 5 && physics[1] == 100);
+  start(true);
+  held = 0;
+  step();
+  assert(vy > 0);
+  double rising_height = physics[1];
+  levitate_speed = 0;
+  step();
+  assert(vy == 0 && physics[1] == rising_height);
+  levitate_speed = 4;
+  step();
+  assert(vy > 0 && physics[1] > rising_height);
+  puts("PASS: zero rise hovers without R3, allows horizontal wall passage, cancels ascent and resumes rising");
+
   for (int walls = 0; walls <= 1; walls++) {
     start(walls);
     physics[1] += 0.4; /* game lifts Link out of a floor */

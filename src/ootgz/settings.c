@@ -126,7 +126,7 @@ static void apply(const snapshot_t *s)
     gfx_opacity = s->opacity / 10 * 10;
   warp_arrival_cutscenes = s->arrival_cutscenes != 0;
   levitate_enabled = s->levitate != 0;
-  if (s->levitate_speed > 0 && s->levitate_speed <= 50)
+  if (s->levitate_speed >= 0 && s->levitate_speed <= 50)
     levitate_speed = s->levitate_speed;
   if (s->levitate_move > 0 && s->levitate_move <= 50)
     levitate_move_speed = s->levitate_move;

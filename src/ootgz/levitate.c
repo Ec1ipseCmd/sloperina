@@ -402,7 +402,9 @@ static void float_step(double dt, bool menu_open)
     clock += dt;
     bool hold = input_held() & BTN_RSTICK;
     double rise = levitate_speed, move = levitate_move_speed;
-    vy = approach(vy, hold ? 0 : rise, rise / (hold ? STOP_RAMP : RISE_RAMP) * dt);
+    /* Zero rise is a stationary hover, including when selected while already rising.
+     * A zero-sized ramp step would otherwise leave the previous upward velocity intact. */
+    vy = rise == 0 ? 0 : approach(vy, hold ? 0 : rise, rise / (hold ? STOP_RAMP : RISE_RAMP) * dt);
     double sx, sy, fx, fz, tx = 0, tz = 0;
     stick(&sx, &sy);
     if ((sx || sy) && camera_forward(&fx, &fz)) {

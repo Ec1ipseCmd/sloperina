@@ -8,7 +8,7 @@
 
 extern bool levitate_enabled;
 extern bool levitate_through_walls;
-extern int levitate_speed;        /* rise, units per second */
+extern int levitate_speed;        /* rise, units per second; 0 holds height without R3 */
 extern int levitate_move_speed;   /* left stick, units per second */
 
 void levitate_frame(bool menu_open);
