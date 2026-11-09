@@ -113,6 +113,78 @@ static void test_release(void)
   puts("PASS: L3/disable clears only two vertical velocities once; invalid/stale records untouched");
 }
 
+static void test_vertical_controls(void)
+{
+  for (int speed = 0; speed <= 4; speed += 4) {
+    start(true);
+    levitate_speed = speed;
+    held = BTN_X;
+    step();
+    assert(vy > 0 && physics[1] > 100);
+    held = 0;
+    double height = physics[1];
+    step();
+    assert(vy == 0 && physics[1] == height);
+    held = BTN_B;
+    stick_x = 32767;
+    for (int i = 0; i < 30; i++) {
+      physics[1] = 101; /* floor keeps trying to push Link up */
+      physics[0] -= 0.2; /* simultaneous wall push-back */
+      step();
+    }
+    assert(physics[1] < 97 && physics[0] > 5 && vy < 0);
+    held = 0;
+    height = physics[1];
+    step();
+    assert(physics[1] == height && vy == 0);
+    physics[1] += 0.5; /* floor support resumes after releasing B */
+    step();
+    assert(physics[1] == height + 0.5);
+
+    held = BTN_X;
+    step();
+    assert(vy > 0);
+    held = BTN_B;
+    step();
+    assert(vy < 0); /* no remaining upward momentum on reversal */
+    held = BTN_X;
+    step();
+    assert(vy > 0);
+    height = physics[1];
+    held = BTN_X | BTN_B;
+    step();
+    assert(vy == 0 && physics[1] == height);
+    held = BTN_B | BTN_RSTICK;
+    step();
+    assert(vy == 0 && physics[1] == height);
+    held = BTN_B;
+    float_step(1.0 / 30.0, true);
+    assert(vy == 0 && physics[1] == height);
+  }
+  start(false);
+  held = BTN_B;
+  physics[1] = 101;
+  step();
+  assert(physics[1] > 100.9); /* collision mode retains the floor correction */
+
+  start(true);
+  floating = writing = false;
+  held = BTN_X;
+  pressed = BTN_LSTICK;
+  levitate_frame(false);
+  assert(floating && input_hide_from_game == (BTN_LSTICK | BTN_RSTICK | BTN_X | BTN_B));
+  levitate_frame(false); /* second L3 press turns it off in the same frame */
+  assert(!floating && input_hide_from_game == BTN_LSTICK);
+  levitate_enabled = false;
+  levitate_frame(false);
+  assert(input_hide_from_game == 0);
+  start(true);
+  mapped = false;
+  levitate_frame(false);
+  assert(!floating && input_hide_from_game == BTN_LSTICK);
+  puts("PASS: X/B ascent/descent, hover, reversal, both/hold/menu, floor bypass and button masking");
+}
+
 int main(void)
 {
   start(true);
@@ -131,17 +203,19 @@ int main(void)
   }
   assert(physics[0] > 5 && physics[1] == 100);
   start(true);
-  held = 0;
+  held = BTN_X;
   step();
   assert(vy > 0);
   double rising_height = physics[1];
   levitate_speed = 0;
+  held = 0;
   step();
   assert(vy == 0 && physics[1] == rising_height);
   levitate_speed = 4;
+  held = BTN_X;
   step();
   assert(vy > 0 && physics[1] > rising_height);
-  puts("PASS: zero rise hovers without R3, allows horizontal wall passage, cancels ascent and resumes rising");
+  puts("PASS: hover with zero legacy speed, horizontal push-back bypass, stop and resume ascent");
 
   for (int walls = 0; walls <= 1; walls++) {
     start(walls);
@@ -178,7 +252,7 @@ int main(void)
   assert(fabs(physics[0] + 0.2) < 1e-6 && fabs(physics[1] - 100.4) < 1e-9);
 
   start(true);
-  held = 0; /* rise still works above corrected floor */
+  held = BTN_X; /* rise still works above corrected floor */
   physics[1] = 100.4;
   step();
   assert(physics[1] > 100.4);
@@ -204,5 +278,6 @@ int main(void)
   puts("PASS: levitation keeps upward floor corrections, rejects downward drift, passes walls only when enabled");
   puts("PASS: rising platforms, rise/hold/menu/drop, invalid record and fresh-scene height");
   test_release();
+  test_vertical_controls();
   return 0;
 }

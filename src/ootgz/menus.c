@@ -1611,13 +1611,13 @@ static void build_settings(void)
   menu_add_heading(&m_levitate, "levitation options");
   menu_item_t *lv = menu_add_check(&m_levitate, "enabled", get_levitate, set_levitate, 0);
   if (lv)
-    lv->hint = "L3: start/stop floating   R3: hold height", lv->log_label = "levitate";
+    lv->hint = "L3: toggle   X: up   B: down   release: hover", lv->log_label = "levitate";
   menu_item_t *walls = menu_add_check(&m_levitate, "through walls", get_walls, set_walls, 0);
   if (walls)
-    walls->hint = "Pass through walls while keeping floor support";
-  menu_item_t *rise = menu_add_option(&m_levitate, "rise speed", 7, lev_speed_names, get_lev_speed, set_lev_speed, 0);
+    walls->hint = "Bypass push-back; held B also bypasses floor support";
+  menu_item_t *rise = menu_add_option(&m_levitate, "vertical speed", 7, lev_speed_names, get_lev_speed, set_lev_speed, 0);
   if (rise)
-    rise->hint = "0: hold height without holding R3";
+    rise->hint = "X/B speed; legacy 0 uses 4. Release to hover";
   menu_add_option(&m_levitate, "move speed", 7, lev_move_names, get_lev_move, set_lev_move, 0);
   menu_end_group(&m_levitate);
   menu_add_return(&m_levitate);

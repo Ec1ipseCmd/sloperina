@@ -501,6 +501,16 @@ Each of these was tried and verified not to help:
 
 ## 8. Open problems
 
+- **Manual vertical controls (fork 0.0.8):** X commands ascent, B commands descent, neither/both
+  hold height; R3 overrides both. At a legacy saved speed of 0, manual movement uses 4 units/s.
+  With through-walls enabled, B descent bypasses the mod's upward floor correction, which would
+  otherwise undo downward movement every frame. X/B/R3 are masked from the game only while floating.
+  Host tests verify direction/release/reversal, floor feedback, simultaneous horizontal movement,
+  menus, legacy zero speed and mask cleanup. This is not a collision-mask change: wall/ceiling
+  blocking, camera follow and the stationary-position pause heuristic remain unresolved. No game
+  runtime verification of the controls has been performed.
+
+
 - **Fast fall after L3 release (fork 0.0.7):** the user reports a very fast fall when stopping
   levitation. Previously `drop()` stopped position writes without clearing any physics velocity.
   Stored falling velocity is a suspected cause, not runtime-confirmed. Release now clears only the
@@ -508,7 +518,8 @@ Each of these was tried and verified not to help:
   the record still follows Link, is readable/writable and has plausible motion state. It does not
   change position, horizontal velocity or gravity. Host tests cover the exact writes, L3/disable,
   invalid records and no further writes after release. The game may have additional momentum state;
-  the resulting in-game fall still requires testing.
+  the user has now confirmed that 0.0.7 still drops too fast. Clearing these fields is insufficient;
+  the underlying controller/collision state remains unresolved. Do not describe this as a verified fix.
 
 - **Zero-rise hover (fork 0.0.6):** rise speed previously offered a minimum of 2, and settings
   rejected 0. The menu now offers 0 and settings retain it. At zero rise, vertical levitation velocity

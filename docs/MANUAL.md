@@ -69,7 +69,8 @@ With the menu closed:
 | **R + B + D-pad left** | Reset the timer |
 | **R + B + D-pad right** | Reset the lag counter |
 | **L3** | Levitate on / off (if enabled, [2.10.2](#2102-levitate)) |
-| **R3** held | Levitate: hold your height |
+| **X / B** held | Levitate up / down; release to hover |
+| **R3** held | Levitate: hold height even if X/B is held |
 | **L** or **R** (your choice) | Frame advance (if enabled, [2.10.3](#2103-frame-advance)) |
 
 ## 2 Menus
@@ -255,22 +256,27 @@ gz's input display, at the bottom left (hidden while the menu is open).
 
 | Item | What it does |
 |---|---|
-| **enabled** | **L3** starts floating, **L3** again drops Link (no fall damage); hold **R3** to stay at your height; the left stick moves him. The game doesn't see L3 while this is on. |
-| **through walls** | Float through walls while retaining upward floor corrections from the game's physics. |
-| **rise speed** | Upward speed in units per second. **0** holds height without holding R3, including when changed while already rising. |
+| **enabled** | **L3** toggles floating. Hold **X** to rise, **B** to descend; release both to hover. The left stick moves horizontally. X/B/R3 are hidden from the game while floating; L3 is reserved while enabled. |
+| **through walls** | Bypass the mod's horizontal push-back handling. While B alone is held, also bypass upward floor corrections. The game's collision solver remains active. |
+| **vertical speed** | X/B speed in units per second, replacing the old rise-speed label. Existing saved settings remain compatible; a saved **0** uses 4 units/s for manual movement. |
 | **move speed** | Horizontal speed in units per second. |
 
 The status line under **return** shows what levitate is doing.
 
-While floating, levitation keeps your height against downward drift and accepts upward corrections
-from the game, including floor support and rising platforms. Hold **R3** to move horizontally at that
-height, or select **rise speed 0** to do so without holding R3. Combine this with **through walls**
-to move through walls without automatic ascent. The zero setting is saved across restarts.
-**L3** again stops floating, clears the two known vertical physics velocities once, and lets the
-game apply gravity normally. This avoids deliberately handing off stored downward velocity;
-the in-game fall speed still needs verification. This does not add missing
-floor geometry or query the floor ahead of each move; thin surfaces, large steps and timing between
-physics updates still need in-game testing.
+No X/B input means hover at any vertical-speed setting. Both held together also hover; **R3**
+overrides either button to hold height. Releasing or reversing the buttons clears the previous
+vertical movement immediately. The mod menu suspends intentional movement.
+
+With **through walls** on, held B commands downward movement even if the game's floor response
+pushes Link up. Releasing B restores upward floor corrections; releasing inside a surface may
+therefore push Link out. This does not disable the game's collision solver or guarantee passage
+through every wall, floor or ceiling. The reported blocking/sticking and camera-follow issues
+remain unresolved. The stationary-position pause heuristic may also block movement in some states.
+
+**L3** stops position overrides and clears two known vertical physics velocities once. The user
+confirmed that this did **not** fix the fast fall in 0.0.7. The underlying stored velocity or
+collision behavior still needs investigation; X/B controls do not fix that release problem.
+Host checks simulate physics feedback; no in-game verification of these controls was performed.
 
 #### 2.10.3 Frame advance
 

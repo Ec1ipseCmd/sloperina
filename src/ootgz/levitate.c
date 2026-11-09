@@ -9,11 +9,12 @@
  * one that works is logged, so a later version can go straight to it.
  *
  * Levitate (as ootmenu, game.py _float, once per frame): L3 starts floating, L3 again drops him, R3
- * held keeps the height, the left stick moves him relative to the camera. Walls: the game pushes
+ * held keeps the height; X rises, B descends, neither hovers. The left stick moves him
+ * relative to the camera. Walls: the game pushes
  * Link back out of them between our writes; a push-back is a move against his heading (after he has
  * held it for a moment, or the momentum of a turn looks like one), and it marks the wall for a
  * moment so we stop pushing into it (FINDINGS §5.10). "through walls" skips horizontal
- * push-back only; upward physics corrections are kept so we do not undo floor support.
+ * push-back only; upward physics corrections are kept except during intentional B descent.
  *
  * 2x speed: while Link walks or runs on the stick, add the distance the game moved him this frame
  * again (the game's collision still pushes him back out of walls). */
@@ -30,7 +31,7 @@ float hypotf(float x, float y); /* from sdk */
 
 bool levitate_enabled;
 bool levitate_through_walls = true;
-int levitate_speed = 4;       /* rise, units/s */
+int levitate_speed = 4;       /* manual ascent/descent, units/s; legacy 0 uses 4 */
 int levitate_move_speed = 6;  /* stick, units/s */
 
 #define PHYS_Y 0.585
@@ -40,7 +41,6 @@ int levitate_move_speed = 6;  /* stick, units/s */
 #define RETRY_FRAMES 150        /* after a failed search */
 #define HEAL_FRAMES 90          /* after dropping: give back health lost landing */
 #define RISE_RAMP 0.35          /* s to reach the rise speed (game.py LEV_RISE_RAMP) */
-#define STOP_RAMP 0.08
 #define MOVE_RAMP 0.15
 #define PUSHBACK_MIN 0.01       /* units: a push-back this big marks a wall */
 #define WALL_MEMORY 0.15        /* s a wall stays marked */
@@ -385,6 +385,10 @@ static void float_step(double dt, bool menu_open)
   double cx = r[0], cy = r[1], cz = r[2];
   vec3f_t drawn;
   link_drawn_pos(&drawn);
+  uint32_t buttons = input_held();
+  bool hold = buttons & BTN_RSTICK;
+  int vertical = hold ? 0 : !!(buttons & BTN_X) - !!(buttons & BTN_B);
+  bool descend_through_floor = !menu_open && levitate_through_walls && vertical < 0;
   /* Gameplay frozen (pause screen, item menus; the frame counter keeps going there): neither the
    * record has moved off what we wrote nor Link been redrawn (game.py LEV_PAUSED_AFTER). */
   bool moved = cx != last_r[0] || cy != last_r[1] || cz != last_r[2] || drawn.x != last_drawn.x ||
@@ -395,7 +399,7 @@ static void float_step(double dt, bool menu_open)
    * Keep that correction even in through-walls mode, before adding our own rise. Ignoring
    * downward drift still holds the hover height; x/z remain independent of floor support.
    * This relies on the game's collision response, not a floor query or a collision-mask patch. */
-  if (cy > py)
+  if (cy > py && !descend_through_floor)
     py = cy;
   if (trace < 40) { /* what the game did with our last write */
     const volatile double *n = (const volatile double *)(record + 24);
@@ -410,11 +414,14 @@ static void float_step(double dt, bool menu_open)
     vx = vy = vz = 0;
   } else {
     clock += dt;
-    bool hold = input_held() & BTN_RSTICK;
-    double rise = levitate_speed, move = levitate_move_speed;
-    /* Zero rise is a stationary hover, including when selected while already rising.
-     * A zero-sized ramp step would otherwise leave the previous upward velocity intact. */
-    vy = rise == 0 ? 0 : approach(vy, hold ? 0 : rise, rise / (hold ? STOP_RAMP : RISE_RAMP) * dt);
+    double rise = levitate_speed > 0 ? levitate_speed : 4, move = levitate_move_speed;
+    /* No vertical input (or both buttons): stop immediately at this height. Do not
+     * carry ascent into descent or descent into ascent. Old saved zero-rise settings
+     * still hover at rest, with a usable manual speed for X/B. */
+    if (!vertical || vy * vertical < 0)
+      vy = 0;
+    if (vertical)
+      vy = approach(vy, vertical * rise, rise / RISE_RAMP * dt);
     double sx, sy, fx, fz, tx = 0, tz = 0;
     stick(&sx, &sy);
     if ((sx || sy) && camera_forward(&fx, &fz)) {
@@ -490,9 +497,8 @@ static void speed_step(void)
 
 /* --- frame --------------------------------------------------------------------------------------- */
 
-void levitate_frame(bool menu_open)
+static void frame(bool menu_open)
 {
-  input_hide_from_game = (levitate_enabled ? BTN_LSTICK : 0) | (floating ? BTN_RSTICK : 0);
   uint64_t now = sys_tick();
   double dt = last_tick ? (double)(now - last_tick) / (double)sys_tick_freq() : 0;
   last_tick = now;
@@ -562,6 +568,15 @@ void levitate_frame(bool menu_open)
   } else {
     speed_known = false;
   }
+}
+
+void levitate_frame(bool menu_open)
+{
+  frame(menu_open);
+  /* Update after toggles, failed searches and scene changes as well as normal steps.
+   * Our input reads remain raw; only the game's HID wrappers mask these buttons. */
+  input_hide_from_game = (levitate_enabled ? BTN_LSTICK : 0) |
+                         (floating ? BTN_RSTICK | BTN_X | BTN_B : 0);
 }
 
 const char *levitate_state(void)
