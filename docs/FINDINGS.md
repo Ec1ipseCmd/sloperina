@@ -455,6 +455,12 @@ Objects:
 
 ## 6. Things that do not work
 
+- **Using character 0x7F for an icon:** menu, log, splash, and input panels already use it as an
+  invisible sizing marker. The 0.0.3 JS Height padlock made those markers visible throughout the UI.
+  In 0.0.4 the 0x7F glyph is blank and the padlock uses 0x80. The real menu layout and font are covered
+  by a host regression test that checks sizing markers stay blank; the menu and watch were also
+  rendered headlessly. In-game verification of the correction is still pending.
+
 Each of these was tried and verified not to help:
 - `SeqOneShotResetPlayerStatus` flags (HUD screen `+0x384 = -1`, `+0x388 = 1`): consumed, but no redraw.
 - `main+0xe35440(screen)` (the "event end in" routine): no redraw.

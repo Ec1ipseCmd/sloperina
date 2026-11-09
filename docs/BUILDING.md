@@ -37,6 +37,7 @@ main or sdk exports it.
 HUD code on a 64-bit Windows host. With GCC on PATH, use `python tests/run_js_height.py` instead.
 It checks the pointer chain and f32 formatting, compatibility with old settings, HUD visibility,
 one-shot reset, lock/unlock, read-only/unavailable targets, exact four-byte writes, and relocation.
+It also draws a real menu and checks that invisible panel-sizing markers do not become lock icons.
 The game and SD filesystem are mocked; this does not verify the game's setter/check ordering.
 
 

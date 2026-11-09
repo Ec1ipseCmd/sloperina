@@ -1,5 +1,6 @@
 /* Host regression tests: real watches/settings/HUD, mocked game memory and SD I/O. */
 #include <assert.h>
+#include "menu.h"
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,6 +91,9 @@ uint32_t frame_counter(void) { return 0; }
 uint64_t sys_tick(void) { return 1; }
 uint64_t sys_tick_freq(void) { return 1000; }
 uint32_t input_held(void) { return 0; }
+uint32_t input_pressed(void) { return 0; }
+bool input_repeat(uint32_t button) { (void)button; return false; }
+bool input_block_game;
 bool input_combo(uint32_t mask) { (void)mask; return false; }
 void input_sticks(int32_t *a, int32_t *b, int32_t *c, int32_t *d) { *a = *b = *c = *d = 0; }
 const char *gd_get_str(int field) { (void)field; return "test"; }
@@ -217,6 +221,25 @@ static void test_settings(void)
   puts("PASS: old/current settings, IDs, order, labels, visibility, restart, memory watches, no SD");
 }
 
+static void render_panel(const gfx_panel_t *p, const char *image)
+{
+  if (image) { /* rasterise the real HUD text with the project's font, headlessly */
+    FILE *f = fopen(image, "wb");
+    assert(f);
+    int w = (p->cols + 2) * 8, h = (p->rows + 2) * 8;
+    fprintf(f, "P6\n%d %d\n255\n", w, h);
+    for (int y = 0; y < h; y++)
+      for (int x = 0; x < w; x++) {
+        unsigned char ch = x >= 8 && x < w - 8 ? (unsigned char)p->ch[y >= 8 && y / 8 - 1 < p->rows ? y / 8 - 1 : 0][x / 8 - 1] : 0;
+        bool on = y >= 8 && y < (p->rows + 1) * 8 && ch >= FONT_FIRST && ch < FONT_FIRST + FONT_COUNT &&
+                  (font_8x8[ch - FONT_FIRST][y % 8] & (0x80 >> (x % 8)));
+        unsigned char rgb[3] = { on ? 255 : 24, on ? 255 : 24, on ? 255 : 24 };
+        fwrite(rgb, 1, 3, f);
+      }
+    fclose(f);
+  }
+}
+
 static void test_hud(const char *image)
 {
   watch_set_list(NULL, 0);
@@ -232,30 +255,16 @@ static void test_hud(const char *image)
   watches_frame(false);
   gfx_frame();
   p = &gfx_published()->panel[1];
-  assert(!strncmp(p->ch[0], "JS Height \x7F  Max", 16));
+  assert(!strncmp(p->ch[0], "JS Height \x80  Max", 16));
   char label[24];
   watch_entry_label(&watch_list[0], label, sizeof(label));
   assert(!strcmp(label, "JS Height")); /* status must not enter the rename field */
   watch_set_label(0, "abcdefghijkl");
   watch_entry_display_label(&watch_list[0], label, sizeof(label));
-  assert(!strcmp(label, "abcdefghij \x7F"));
+  assert(!strcmp(label, "abcdefghij \x80"));
   assert(!strcmp(watch_list[0].label, "abcdefghijkl"));
   watch_set_label(0, "");
-  if (image) { /* rasterise the real HUD text with the project's font, headlessly */
-    FILE *f = fopen(image, "wb");
-    assert(f);
-    int w = (p->cols + 2) * 8, h = 24;
-    fprintf(f, "P6\n%d %d\n255\n", w, h);
-    for (int y = 0; y < h; y++)
-      for (int x = 0; x < w; x++) {
-        unsigned char ch = x >= 8 && x < w - 8 ? (unsigned char)p->ch[0][x / 8 - 1] : 0;
-        bool on = y >= 8 && y < 16 && ch >= FONT_FIRST && ch < FONT_FIRST + FONT_COUNT &&
-                  (font_8x8[ch - FONT_FIRST][y - 8] & (0x80 >> (x % 8)));
-        unsigned char rgb[3] = { on ? 255 : 24, on ? 255 : 24, on ? 255 : 24 };
-        fwrite(rgb, 1, 3, f);
-      }
-    fclose(f);
-  }
+  render_panel(p, image);
   js_height_lock = false;
   watches_frame(false);
   gfx_frame();
@@ -272,6 +281,36 @@ static void test_hud(const char *image)
   s = gfx_published();
   assert(!s || !s->panel[1].rows);
   puts("PASS: real HUD label/value rendering and individual/global visibility");
+}
+
+static void test_menu_filler(const char *image)
+{
+  /* Exercise real menu layout: its invisible sizing cells must remain blank. */
+  menu_item_t items[] = {
+    { .kind = MI_ACTION, .label = "watches" },
+    { .kind = MI_ACTION, .label = "settings", .hint = "A longer hint reserves room around the menu" },
+  };
+  menu_t m = { .title = "sloperinaGZ", .items = items, .n_items = 2 };
+  menu_current = &m;
+  menu_draw();
+  gfx_frame();
+  const gfx_panel_t *p = &gfx_published()->panel[0];
+  int fillers = 0;
+  for (int r = 0; r < p->rows; r++)
+    for (int c = 0; c < p->cols; c++) {
+      unsigned char ch = (unsigned char)p->ch[r][c];
+      assert(ch != (unsigned char)GFX_ICON_LOCK);
+      if (ch == 0x7F) {
+        fillers++;
+        for (int y = 0; y < FONT_H; y++)
+          assert(font_8x8[ch - FONT_FIRST][y] == 0);
+      }
+    }
+  assert(fillers > 0);
+  render_panel(p, image);
+  menu_current = NULL;
+  gfx_clear();
+  puts("PASS: real menu sizing fillers remain invisible; no unintended lock icons");
 }
 
 static void test_reset_lock(void)
@@ -352,6 +391,7 @@ int main(int argc, char **argv)
   test_values();
   test_settings();
   test_hud(argc > 1 ? argv[1] : NULL);
+  test_menu_filler(argc > 2 ? argv[2] : NULL);
   test_reset_lock();
   return 0;
 }
