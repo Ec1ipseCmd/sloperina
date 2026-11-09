@@ -501,3 +501,5 @@ Each of these was tried and verified not to help:
 - Count items (sticks, nuts, bombs, bombchus, beans), bottles and masks aren't cleared from item buttons when
   removed.
 - Unticking an ocarina leaves `ActionGuide_IsEnd.Navi` set (the D-pad stays, empty).
+- Collision view (gz's): shelved. The collision files are decoded (`tools/phive.py`); the plan, costs and format
+  are in [COLLISION.md](COLLISION.md).

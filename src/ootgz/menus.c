@@ -1450,10 +1450,10 @@ static void build_scene(void)
   menu_add_heading(&m_collision, "air walls");
   menu_item_t *sh = menu_add_check(&m_collision, "show", get_aw_shown, set_aw_shown, 0);
   if (sh)
-    sh->hint = "cyan: stop Link   red: he's inside it   violet: other kinds";
+    sh->hint = "cyan: stop Link   red: he's inside it   violet: other kinds", sh->log_label = "air walls:";
   menu_item_t *al = menu_add_check(&m_collision, "all kinds", get_aw_all, set_aw_all, 0);
   if (al)
-    al->hint = "also the walls for enemies, NPCs and objects";
+    al->hint = "also the walls for enemies, NPCs and objects", al->log_label = "all kinds:";
   menu_add_text(&m_collision, text_aw_summary, 0);
   menu_add_text(&m_collision, text_aw_link, 0);
   menu_add_return(&m_collision);
@@ -1530,8 +1530,8 @@ static void set_input_buttons(menu_item_t *it, bool on) { input_show_buttons = o
 
 static void build_settings(void)
 {
-  menu_init(&m_settings, "settings", 9);
-  menu_add_heading(&m_settings, "menu");
+  menu_init(&m_settings, "settings", 10);
+  menu_add_heading(&m_settings, "menu settings");
   menu_item_t *lg = menu_add_option(&m_settings, "language", 1, lang_names(), get_lang, set_lang, 0);
   if (lg)
     lg->hint = "files in sd:/ootgz/lang (see lang/template.json)";
@@ -1542,22 +1542,25 @@ static void build_settings(void)
   if (op)
     op->hint = "below 100%: costs some speed, and what's behind lags 2 frames";
   menu_end_group(&m_settings);
+  menu_add_heading(&m_settings, "other settings");
   menu_add_submenu(&m_settings, "input display", &m_input_display);
   menu_add_submenu(&m_settings, "levitate", &m_levitate);
   menu_add_submenu(&m_settings, "frame advance", &m_frame_advance);
+  menu_end_group(&m_settings);
   menu_add_return(&m_settings);
 
   menu_init(&m_frame_advance, "frame advance", 5);
   menu_add_heading(&m_frame_advance, "frame advance options");
   menu_item_t *fa = menu_add_check(&m_frame_advance, "enabled", get_fa, set_fa, 0);
   if (fa)
-    fa->hint = "in game, tap the button: pause; tap: a frame; button + L3: run";
-  menu_item_t *fb = menu_add_option(&m_frame_advance, "button", 2, fa_button_names, get_fa_button, set_fa_button, 0);
-  if (fb)
-    fb->hint = "the button for frame advance (the game no longer sees it while it's on)";
+    fa->hint = "in game, tap the button: pause; tap: a frame; button + L3: run", fa->log_label = "frame advance";
   menu_item_t *pd = menu_add_check(&m_frame_advance, "pause icon", get_pause_display, set_pause_display, 0);
   if (pd)
     pd->hint = "gz's pause display at the top left while paused";
+  menu_item_t *fb = menu_add_option(&m_frame_advance, "button", 2, fa_button_names, get_fa_button, set_fa_button, 0);
+  if (fb)
+    fb->hint = "the button for frame advance (the game no longer sees it while it's on)",
+    fb->log_label = "frame advance button";
   menu_end_group(&m_frame_advance);
   menu_add_return(&m_frame_advance);
 
@@ -1565,7 +1568,8 @@ static void build_settings(void)
   menu_add_heading(&m_input_display, "display options");
   menu_item_t *id = menu_add_check(&m_input_display, "show", get_input_display, set_input_display, 0);
   if (id)
-    id->hint = "the sticks and the buttons held, at the bottom left (hidden while the menu is open)";
+    id->hint = "the sticks and the buttons held, at the bottom left (hidden while the menu is open)",
+    id->log_label = "input display";
   menu_item_t *ib = menu_add_check(&m_input_display, "background", get_input_bg, set_input_bg, 0);
   if (ib)
     ib->hint = "behind the whole input display, as the watches have";
@@ -1574,10 +1578,12 @@ static void build_settings(void)
   menu_add_check(&m_input_display, "buttons", get_input_buttons, set_input_buttons, 0);
   menu_item_t *st = menu_add_option(&m_input_display, "style", 2, input_style_names, get_input_style, set_input_style, 0);
   if (st)
-    st->hint = "row: gz's line   controller: a Switch 2 Pro Controller, the sticks' values under it";
+    st->hint = "row: gz's line   controller: a Switch 2 Pro Controller, the sticks' values under it",
+    st->log_label = "input display style";
   menu_item_t *is = menu_add_option(&m_input_display, "size", 3, input_size_names, get_input_size, set_input_size, 0);
   if (is)
-    is->hint = "small, medium, large: half, three quarters or all of the menu's text size";
+    is->hint = "small, medium, large: half, three quarters or all of the menu's text size",
+    is->log_label = "input display size";
   menu_end_group(&m_input_display);
   menu_add_return(&m_input_display);
 
@@ -1585,7 +1591,7 @@ static void build_settings(void)
   menu_add_heading(&m_levitate, "levitation options");
   menu_item_t *lv = menu_add_check(&m_levitate, "enabled", get_levitate, set_levitate, 0);
   if (lv)
-    lv->hint = "L3: start/stop floating   R3: hold height";
+    lv->hint = "L3: start/stop floating   R3: hold height", lv->log_label = "levitate";
   menu_add_check(&m_levitate, "through walls", get_walls, set_walls, 0);
   menu_add_option(&m_levitate, "rise speed", 6, lev_speed_names, get_lev_speed, set_lev_speed, 0);
   menu_add_option(&m_levitate, "move speed", 7, lev_move_names, get_lev_move, set_lev_move, 0);
@@ -1903,6 +1909,17 @@ static int get_log_filter(menu_item_t *it)
   it->n_choices = n_log_types + 2, it->choices = log_type_names;
   if (log_filter >= it->n_choices)
     log_filter = 0;
+  /* the hint: "which messages:", then what this filter shows, indented under it */
+  static char hint[160];
+  char what[100];
+  if (log_filter == 0)
+    snprintf(what, sizeof(what), "%s", T("every message, newest first (all also in sd:/sloperinaGZ/log.txt)"));
+  else if (log_filter == 1)
+    snprintf(what, sizeof(what), "%s", T("anything that couldn't be done"));
+  else
+    snprintf(what, sizeof(what), TF("messages about %s"), log_type_names[log_filter]);
+  snprintf(hint, sizeof(hint), "%s\n  %s: %s", T("which messages:"), T(log_type_names[log_filter]), what);
+  it->hint = hint;
   return log_filter;
 }
 static void set_log_filter(menu_item_t *it, int f) { log_filter = f, log_top = 0; }
@@ -1970,9 +1987,7 @@ void menus_build(void)
 
   menu_init(&m_log, "log", LOG_ROWS + 5);
   /* the filter on the heading's line: "log history  < all >" */
-  menu_item_t *lf = menu_add_option(&m_log, "log history", 1, log_type_names, get_log_filter, set_log_filter, 0);
-  if (lf)
-    lf->hint = "which messages: all, problems, or one kind (newest first; all in sd:/sloperinaGZ/log.txt)";
+  menu_add_option(&m_log, "log history", 1, log_type_names, get_log_filter, set_log_filter, 0);
   menu_item_t *la = menu_add_action(&m_log, "", 0, 0);
   if (la)
     la->text = log_arrows, la->cursor = log_arrows_cursor, la->press = log_scroll, la->press_repeat = true,

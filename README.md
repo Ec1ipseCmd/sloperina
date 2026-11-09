@@ -15,6 +15,8 @@ Source: [github.com/PracticeROM/sloperina](https://github.com/PracticeROM/sloper
 - [`docs/BUILDING.md`](docs/BUILDING.md): building it, how it loads, what's verified.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md): how the game's data works and every problem solved so far (cause, fix,
   how it was found) and the approaches that don't work. **Start here if you want to work on it.**
+- [`docs/COLLISION.md`](docs/COLLISION.md): the collision view (shelved): the plan, its cost, and the decoded
+  collision file format.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the build and test routine. [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and
   [`THANKS.md`](THANKS.md): who made it and special thanks (both shown in the about menu, read at build time).
 
@@ -48,7 +50,7 @@ goes back.
 - `data/`: the game's field names, hashes and types, story stages, warp and spawn points, air walls (derived from
   the game; inputs of `tools/gendata.py` and `tools/build_docs.py`; see `docs/FINDINGS.md` §1).
 - `lang/`: the translation template (`tools/lang_template.py`).
-- `docs/`: [`FINDINGS.md`](docs/FINDINGS.md), [`BUILDING.md`](docs/BUILDING.md),
+- `docs/`: [`FINDINGS.md`](docs/FINDINGS.md), [`BUILDING.md`](docs/BUILDING.md), [`COLLISION.md`](docs/COLLISION.md),
   [`INSTALLATION.md`](INSTALLATION.md), and `reference/`, a browsable field / quest / tutorial reference
   (`reference/index.html`; rebuilt by `tools/build_docs.py`).
 - `tools/`: development tools in Python (not needed to play; `tools/requirements.txt` lists what they need):
@@ -56,7 +58,7 @@ goes back.
     for translators; `build_docs.py` regenerates `docs/reference/`.
   - Reading the game's files from a dump (set `OOTMENU_NUP` to the `.nup`): `nupfs.py`, `byml.py`,
     `gamefiles.py`, `airwalls.py` (→ `data/airwalls.json`), `spawnstarters.py` (→ `data/spawn_starters.json`),
-    `evdump.py` (event flows).
+    `evdump.py` (event flows), `phive.py` (collision; see `docs/COLLISION.md`).
   - `re64.py`: static analysis of a dump of main (cross-references, disassembly with field names).
 - `bin/`, `obj/`, `dist/`: build output (not in git).
 

@@ -64,6 +64,12 @@ static bool fa_paused, fa_down, fa_dirty;
 #define FA_REPEAT_MS 66
 static uint64_t fa_down_at, fa_last_step;
 static bool fa_repeating;
+/* The menu uses the button too (L selects; a warp closes the menu on the same press): while the menu is
+ * open, on the frame it closes, until the button is let go and for FA_AFTER_MENU_MS after, it isn't
+ * frame advance's. */
+#define FA_AFTER_MENU_MS 250
+static bool fa_menu_was_open, fa_blocked;
+static uint64_t fa_menu_closed_at;
 
 static uint32_t fa_bit(void) { return frame_advance_button ? BTN_R : BTN_L; }
 
@@ -71,9 +77,15 @@ static uint32_t fa_bit(void) { return frame_advance_button ? BTN_R : BTN_L; }
 static int fa_button(void)
 {
   uint32_t b = fa_bit(), pressed = input_pressed(), held = input_held();
-  if (menu_current) {
-    fa_down = false;
+  uint64_t ms = sys_tick_freq() / 1000, now = sys_tick();
+  if (menu_current || fa_menu_was_open) {
+    fa_down = false, fa_blocked = true, fa_menu_closed_at = now;
     return 0;
+  }
+  if (fa_blocked) {
+    if ((held & b) || now - fa_menu_closed_at < FA_AFTER_MENU_MS * ms)
+      return 0;
+    fa_blocked = false;
   }
   if (pressed & b)
     fa_down = true, fa_dirty = (held & ~b) != 0, fa_down_at = sys_tick(), fa_repeating = false;
@@ -91,7 +103,6 @@ static int fa_button(void)
     return tap ? 1 : 0;
   }
   /* held: after FA_HOLD_MS, a frame every FA_REPEAT_MS (only while paused: fa_hold) */
-  uint64_t ms = sys_tick_freq() / 1000, now = sys_tick();
   if (fa_paused && !fa_dirty && now - fa_down_at >= FA_HOLD_MS * ms &&
       (!fa_repeating || now - fa_last_step >= FA_REPEAT_MS * ms)) {
     fa_repeating = true, fa_last_step = now;
@@ -222,6 +233,7 @@ static void frame(void)
   frames++;
   input_update();
 
+  fa_menu_was_open = menu_current != 0; /* an L that closes the menu isn't frame advance's */
   menu_controls();
   if (menu_current) {
     watches_sync();

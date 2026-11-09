@@ -202,10 +202,11 @@ static void log_item(menu_item_t *it, uint32_t logged_before)
 {
   if (gfx_log_count != logged_before || !it->label || !it->label[0])
     return;
+  const char *name = T(it->log_label ? it->log_label : it->label);
   char val[64] = "";
   switch (it->kind) {
     case MI_CHECK:
-      gfx_logf("%s %s", T(it->label), T(it->get_check(it) ? "on" : "off"));
+      gfx_logf("%s %s", name, T(it->get_check(it) ? "on" : "off"));
       break;
     case MI_OPTION: {
       int c = it->get_option(it);
@@ -214,13 +215,13 @@ static void log_item(menu_item_t *it, uint32_t logged_before)
           snprintf(val, sizeof(val), "%s", T(it->choices[c]));
         else if (it->choice_text)
           it->choice_text(it, c, val, sizeof(val));
-        gfx_logf("%s: %s", T(it->label), val);
+        gfx_logf("%s: %s", name, val);
       }
       break;
     }
     case MI_ACTION:
       if (it->action)
-        gfx_logf("%s", T(it->label));
+        gfx_logf("%s", name);
       break;
     default:
       break;
@@ -458,6 +459,54 @@ static const char *hint_raw(const menu_item_t *it)
 
 /* items (and the hint) start here: column 0 has the ^ / v scroll marks, then a blank column */
 #define ITEM_COL 2
+#define HINT_MIN_W 36 /* hints wrap at the panel's width, but at least this wide */
+#define HINT_MAX_ROWS 4
+
+/* Word-wraps s (lines split at '\n' too) to w columns into out; a wrapped line keeps the indent its
+ * line started with. Returns the lines (at least 1); *longest: the longest one. */
+static int wrap_text(const char *s, int w, char out[][GFX_COLS + 1], int max, int *longest)
+{
+  int n = 0;
+  if (longest)
+    *longest = 0;
+  if (!s)
+    s = "";
+  while (n < max) {
+    const char *e = s;
+    while (*e && *e != '\n')
+      e++;
+    int lead = 0;
+    while (s + lead < e && s[lead] == ' ')
+      lead++;
+    const char *p = s;
+    bool first = true;
+    do {
+      int ind = first ? 0 : lead;
+      if (!first)
+        while (p < e && *p == ' ')
+          p++;
+      int room = w - ind < 8 ? 8 : w - ind;
+      const char *brk = e - p > room ? p + room : e;
+      if (brk < e) { /* back to the last space, if there's one */
+        const char *b = brk;
+        while (b > p + (first ? lead : 0) && *b != ' ')
+          b--;
+        if (b > p + (first ? lead : 0))
+          brk = b;
+      }
+      int len = (int)(brk - p);
+      snprintf(out[n], GFX_COLS + 1, "%*s%.*s", ind, "", len, p);
+      int l = ind + len;
+      if (longest && l > *longest)
+        *longest = l;
+      n++, p = brk, first = false;
+    } while (p < e && n < max);
+    if (!*e)
+      break;
+    s = e + 1;
+  }
+  return n ? n : 1;
+}
 
 void menu_draw(void)
 {
@@ -477,7 +526,39 @@ void menu_draw(void)
     gfx_end();
     return;
   }
-  int visible = gfx_menu_rows - 4; /* always room for the hint, so the list doesn't jump */
+  /* the items' width; hints wrap to it (at least HINT_MIN_W), and take as many rows as this menu's
+   * longest hint, so the panel keeps one size while in the menu */
+  char line[GFX_COLS * 2];
+  int items_w = 0;
+  for (int i = 0; i < m->n_items; i++) {
+    menu_item_line(&m->items[i], line, sizeof(line));
+    int lw = ITEM_COL + m->items[i].indent * MENU_INDENT + (int)strlen(line);
+    items_w = lw > items_w ? lw : items_w;
+  }
+  int wrap_w = items_w - ITEM_COL < HINT_MIN_W ? HINT_MIN_W : items_w - ITEM_COL;
+  if (wrap_w > GFX_COLS - ITEM_COL)
+    wrap_w = GFX_COLS - ITEM_COL;
+  static char hl[HINT_MAX_ROWS][GFX_COLS + 1];
+  int hint_rows = 1, hint_w = 0, l;
+  for (int i = 0; i <= m->n_items; i++) {
+    const char *hs[2 + 8] = { 0 };
+    int nh = 0;
+    if (i == m->n_items)
+      hs[nh++] = hint;
+    else {
+      hs[nh++] = hint_of(&m->items[i]), hs[nh++] = T(m->items[i].edit_hint);
+      for (int k = 0; m->items[i].part_hints && k < m->items[i].n_parts && nh < 10; k++)
+        hs[nh++] = T(m->items[i].part_hints[k]);
+    }
+    for (int k = 0; k < nh; k++) {
+      if (!hs[k])
+        continue;
+      int r = wrap_text(hs[k], wrap_w, hl, HINT_MAX_ROWS, &l);
+      hint_rows = r > hint_rows ? r : hint_rows;
+      hint_w = l > hint_w ? l : hint_w;
+    }
+  }
+  int visible = gfx_menu_rows - 3 - hint_rows; /* always room for the hint, so the list doesn't jump */
   if (visible < 3)
     visible = 3;
   /* the first `pinned` items stay at the top; the rest scroll under them in `visible` rows */
@@ -502,7 +583,6 @@ void menu_draw(void)
     m->scroll = m->n_items - visible > 0 ? m->n_items - visible : 0;
   if (m->scroll < pin)
     m->scroll = pin;
-  char line[GFX_COLS * 2];
   gfx_begin();
   /* breadcrumb: root > ... > this menu; long paths keep their end */
   const menu_t *path[16];
@@ -567,23 +647,14 @@ void menu_draw(void)
    * ones. FILL is drawn as nothing but counts as content. */
   static const char fill[2] = { 0x7F, 0 };
   int n_shown = pin + (m->n_items - m->scroll < visible ? m->n_items - m->scroll : visible);
-  gfx_text(ITEM_COL, 2 + n_shown + 1, GFX_DIM, hint ? hint : fill);
+  int nh = wrap_text(hint, wrap_w, hl, HINT_MAX_ROWS, 0);
+  for (int k = 0; k < nh; k++)
+    gfx_text(ITEM_COL, 2 + n_shown + 1 + k, GFX_DIM, hl[k][0] ? hl[k] : fill);
+  if (nh < hint_rows) /* the rows the longest hint takes stay the panel's */
+    gfx_text(ITEM_COL, 2 + n_shown + hint_rows, GFX_DIM, fill);
   int width = title_len;
-  for (int i = 0; i < m->n_items; i++) {
-    const char *h = hint_of(&m->items[i]), *eh = T(m->items[i].edit_hint);
-    int w = ITEM_COL + (int)strlen(h ? h : "");
-    if (eh && ITEM_COL + (int)strlen(eh) > w)
-      w = ITEM_COL + (int)strlen(eh);
-    for (int k = 0; m->items[i].part_hints && k < m->items[i].n_parts; k++)
-      if (m->items[i].part_hints[k] && ITEM_COL + (int)strlen(T(m->items[i].part_hints[k])) > w)
-        w = ITEM_COL + (int)strlen(T(m->items[i].part_hints[k]));
-    menu_item_line(&m->items[i], line, sizeof(line));
-    int lw = ITEM_COL + m->items[i].indent * MENU_INDENT + (int)strlen(line);
-    if (lw > w)
-      w = lw;
-    if (w > width)
-      width = w;
-  }
+  width = items_w > width ? items_w : width;
+  width = ITEM_COL + hint_w > width ? ITEM_COL + hint_w : width;
   if (width > GFX_COLS)
     width = GFX_COLS;
   gfx_text(width - 1, 1, GFX_DIM, fill);

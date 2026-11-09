@@ -33,6 +33,8 @@ struct menu_item {
   int32_t num_min;
   void (*text)(menu_item_t *it, char *buf, int len); /* MI_TEXT line, or the value shown */
   const char *hint;                                  /* shown under the menu while selected (NULL: default) */
+  const char *log_label;                             /* the name in the log when it changes (NULL: label);
+                                                        a checkbox's can end in ':' ("air walls: on") */
   intptr_t data, data2;
   uint8_t indent;                                    /* under a heading: drawn MENU_INDENT columns in */
   char icon;                                         /* a GFX_ICON_* shown before the line, or 0 */

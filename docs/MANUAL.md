@@ -216,8 +216,10 @@ The game's own pause state, for development: values you can watch, change and lo
 
 ### 2.10 Settings
 
-**menu**: **language** ([6](#6-languages)), **size** (auto, small 2x, medium 2.5x, large 3x: the menu, watches
+**menu settings**: **language** ([6](#6-languages)), **size** (auto, small 2x, medium 2.5x, large 3x: the menu, watches
 and log) and **background opacity** (0 to 100%; below 100% the game shows through, slightly behind).
+
+**other settings**: the **input display**, **levitate** and **frame advance** menus below.
 
 #### 2.10.1 Input display
 
@@ -246,8 +248,8 @@ The status line under **return** shows what levitate is doing.
 | Item | What it does |
 |---|---|
 | **enabled** | Turns frame advance on ([4](#4-about-frame-advance)). |
-| **button** | **L** or **R**. The game doesn't see that button while frame advance is on. |
 | **pause icon** | gz's pause icon at the top left while paused. |
+| **button** | **L** or **R**. The game doesn't see that button while frame advance is on. |
 
 ### 2.11 Log
 
