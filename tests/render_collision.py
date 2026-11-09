@@ -1,0 +1,122 @@
+"""Render the actual collision menu construction using the host menu backend."""
+import argparse
+import os
+from pathlib import Path
+import subprocess
+from render_enemy_health import function
+
+root = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--cc", default=os.environ.get("CC", "gcc"))
+args = parser.parse_args()
+out = root / "obj/tests"
+out.mkdir(parents=True, exist_ok=True)
+source = (root / "src/ootgz/menus.c").read_text(encoding="utf-8")
+callbacks = source[source.index("static bool get_air_walls_shown"):source.index("static void build_scene")]
+start = source.index('  menu_init(&m_surfaces,')
+end = source.index('\n}', start)
+construction = source[start:end]
+harness = r'''
+#define main watch_test_main
+#include "../../tests/js_height.c"
+#undef main
+#include "voids.h"
+#include "collision.h"
+static menu_t m_collision,m_surfaces;
+int voids_mode;
+const char *const voids_mode_names[]={"normal","off while levitating","off"};
+void voids_summary(char *b,int n) { snprintf(b,n,"no identified void sensors in loaded area"); }
+void collision_summary(char *b,int n) { snprintf(b,n,"463 triangles, 1 tiles"); }
+void airwall_summary(char *b,int n) { snprintf(b,n,"12 walls here, 3 within 60"); }
+'''
+harness += callbacks + "\nint main(void) {\n" + construction + r'''
+  collision_shown=true;
+  assert(m_surfaces.n_items==9 && m_collision.n_items==11);
+  for (int kind=0;kind<4;kind++) {
+    menu_item_t *it=&m_surfaces.items[kind+1];
+    int previous=collision_kinds;
+    set_surface_kind(it,false);assert(!get_surface_kind(it));
+    assert((collision_kinds&~(1<<kind))==(previous&~(1<<kind)));
+    set_surface_kind(it,true);assert(get_surface_kind(it));
+  }
+  set_surface_range(NULL,3);assert(collision_radius==20);
+  set_surface_detail(NULL,2);assert(get_surface_detail(NULL)==2);
+  for (int page=0;page<2;page++) {
+    menu_current=page?&m_surfaces:&m_collision;
+    menu_current->selected=page?2:0;
+    menu_draw();gfx_frame();
+    render_panel(&gfx_published()->panel[0],page?"obj/tests/surfaces-menu.ppm":"obj/tests/collision-menu.ppm");
+    gfx_clear();
+  }
+  puts("PASS: production collision menus, independent filters, range and headless rendering");
+  return 0;
+}
+'''
+path = out / "collision_menu.c"
+path.write_text(harness, encoding="utf-8")
+env = os.environ.copy()
+env["PATH"] = str(Path(args.cc).parent) + os.pathsep + env.get("PATH", "")
+exe = out / ("collision_menu.exe" if os.name == "nt" else "collision_menu")
+flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+for cmd in ([args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
+             "-Isrc/ootgz", str(path), "src/ootgz/watches.c", "src/ootgz/settings.c", "src/ootgz/gfx.c",
+             "src/ootgz/font.c", "src/ootgz/menu.c", "-lm", "-o", str(exe)], [str(exe)]):
+    result = subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, **flags)
+    print(result.stdout, end="")
+    print(result.stderr, end="")
+    result.check_returncode()
+
+# Also exercise the production projection and NVN rectangle raster together.
+nvn = (root / "src/ootgz/nvn.c").read_text(encoding="utf-8")
+overlay = r'''
+#define main geometry_test_main
+#include "../../tests/void_geometry.c"
+#undef main
+#define SC_ONE 16
+#define DOT_COORD_MAX 65535
+#define MIN_DOT_SIZE 2
+typedef int nvn_texture_t;
+typedef struct { int x,y,w,h; } nvn_rect_t;
+static unsigned char pixels[360][640][3];
+static int clears;
+static void set_render_target(nvn_texture_t *t) { (void)t; }
+static void reset_scissor(void) {}
+static bool command_memory_low(int i) { return i>=MAX_DOTS; }
+static void clear_scissored(int x,int y,int w,int h,int height,const float rgba[4])
+{
+  assert(height==360 && x>=0 && y>=0 && x+w<=640 && y+h<=360);
+  clears++;
+  for (int j=y;j<y+h;j++) for (int i=x;i<x+w;i++)
+    for (int k=0;k<3;k++) pixels[j][i][k]=(unsigned char)(rgba[k]*255);
+}
+'''
+overlay += function(nvn, "draw_airwall_dots")
+overlay += r'''
+int main(void)
+{
+  geometry_test_main();
+  memset(pixels,30,sizeof(pixels));
+  cam_t cam={.right={1,0,0},.up={0,1,0},.forward={0,0,1},.tan_x=1,.tan_y=1};
+  aw_dot_t dots[MAX_DOTS];
+  for (int kind=0;kind<4;kind++) {
+    int n=0;surface_edges_reset();float x=-3.5f+kind*2;
+    vec3f_t v[3]={{x,-1,5},{x+1,-1,5},{x+.5f,1,5}};
+    void_draw_t draw={dots,&n,&cam};draw_surface(v,kind,&draw);draw_surface_edges(&draw);assert(n>0);
+    draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
+  }
+  assert(clears>100);
+  FILE *file=fopen("obj/tests/collision-overlay.ppm","wb");assert(file);
+  fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
+  puts("PASS: production surface projection and NVN colors/raster");
+  return 0;
+}
+'''
+path = out / "collision_overlay.c"
+path.write_text(overlay, encoding="utf-8")
+exe = out / ("collision_overlay.exe" if os.name == "nt" else "collision_overlay")
+for cmd in ([args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Isrc/ootgz", str(path),
+             "src/ootgz/world_view.c", "-lm", "-o", str(exe)], [str(exe)]):
+    result = subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, **flags)
+    print(result.stdout, end="")
+    print(result.stderr, end="")
+    result.check_returncode()

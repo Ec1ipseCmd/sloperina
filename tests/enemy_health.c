@@ -60,7 +60,7 @@ static void setup(int count)
     ptr(a + ACTOR_LIST_NODE + 8, i ? actor(i - 1) + ACTOR_LIST_NODE : sentinel);
     ptr(a + 0x270, c); ptr(c + 0x2B8, life); ptr(life + 0x1340, a);
     ptr(life + 0x1C10, param); ptr(life + 0x1C18, param + 0x20);
-    ptr(param, MAIN(Z64HD_VT_PARAM)); ptr(param + 0x20, MAIN(Z64HD_VT_PARAM));
+    ptr(param, MAIN(Z64HD_VT_ENEMY_PARAM)); ptr(param + 0x20, MAIN(Z64HD_VT_ENEMY_PARAM));
     integer(param + 8, i + 1); integer(param + 0x28, 50);
     position(a + 0x31C, 0, 0, 5 + i);
   }
@@ -83,6 +83,13 @@ int main(void)
   int32_t cur, max;
   assert(actors_each(visit, NULL) && visits == 1);
   assert(actor_health(actor(0), &cur, &max) && cur == 1 && max == 50);
+  /* Both concrete s32 parameter implementations occur in ActorLife. */
+  ptr(A(6), MAIN(Z64HD_VT_PARAM)); ptr(A(6) + 0x20, MAIN(Z64HD_VT_PARAM));
+  assert(actor_health(actor(0), &cur, &max) && cur == 1 && max == 50);
+  ptr(A(6), MAIN(Z64HD_VT_ENEMY_PARAM)); ptr(A(6) + 0x20, MAIN(Z64HD_VT_ENEMY_PARAM));
+  ptr(A(6) + 0x20, MAIN(Z64HD_VT_POSITION_CALCULATOR));
+  assert(!actor_health(actor(0), &cur, &max));
+  ptr(A(6) + 0x20, MAIN(Z64HD_VT_ENEMY_PARAM));
   assert(!actor_health(0, &cur, &max) && !actor_health(UINTPTR_MAX - 7, &cur, &max));
   assert(!actor_health(actor(0) + 1, &cur, &max));
   ptr(actor(0) + 0x270, UINTPTR_MAX - 7); assert(frame(true) == 0);

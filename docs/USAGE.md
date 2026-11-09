@@ -103,7 +103,10 @@ to add it. Or open **debug > memory**, find the value, edit the row (**L**) and 
 **watches > watches box > move**, then the D-pad (hold it to go faster). **L** when it's in place.
 
 **...see the invisible walls?**
-**scene > collision > show**. Cyan walls stop Link; red ones are walls he's inside.
+**scene > collision > show barriers**. Cyan barriers stop Link; red ones are barriers he's inside.
+For ordinary terrain, use **scene > collision > surfaces / triggers > show surfaces**, then independently
+toggle floors, walls, ceilings, and static triggers. Change range there too. The bounded preview refreshes
+over several frames; disable floors when concentrating on walls or ceilings.
 
 **...float around?**
 Turn on **settings > levitate > enabled**, close the menu, press **L3**. Push the left stick to move; hold **X** to rise or **B** to descend. Release both to hover.
@@ -112,6 +115,7 @@ held B commands descent through floors. Exit geometry before toggling floating o
 **vertical speed** controls both directions; an old saved value of 0 uses 4 units/s for X/B.
 **L3** stops floating, restores collision and starts the fall with zero vertical speed. Normal
 gravity resumes, with fall-distance protection through the first landing. Void triggers apply unless disabled under **scene > collision > void-outs**.
+Area loading automatically stops levitation. Press L3 again after arrival if you want to resume.
 
 **...look at a trick frame by frame?**
 Frame advance is on from the start (**settings > frame advance > enabled**). In the game, tap **L** to pause, tap **L** for one frame or hold it

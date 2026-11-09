@@ -107,12 +107,23 @@ and you'll come out at the chosen place. Under **return**: the **current** map a
 
 #### 2.3.1 Collision
 
-**air walls**: the map's invisible walls, drawn as outlines over the game.
+**surfaces / triggers** opens the static collision filters. Turn on **show surfaces**, then select
+**floors**, **walls**, **ceilings**, and/or **static triggers**. Green is floor, blue wall, pink ceiling,
+yellow a door/general-area sensor. The range is 4, 8, 12, or 20 world units around Link. Settings persist.
+Up to 2048 supported preview triangles are selected. Completed views remain visible between scans and
+the drawing budget is spread over all projected edges. **preview grid** defaults to **1** world unit,
+merging tiny faces for coverage; vertices can move by half that step per axis and small features can
+disappear. Choose **0.5**, **0.25**, or **exact** for finer detail. Static triggers and void bounds retain
+their original coordinates. The default range is 12; saved ranges are preserved. This preview draws through scenery.
+Static triggers are not necessarily voids. Moving actor collision and unsupported shapes are omitted.
+
+**invisible barriers** (previously called **air walls**): invisible collision placed by the game,
+separate from ordinary terrain, drawn as outlines over the game.
 
 | Item | What it does |
 |---|---|
-| **show** | Draw them. **Cyan**: walls that stop Link. **Red**: a wall Link is inside. **Violet**: other kinds. |
-| **all kinds** | Also draw the walls meant for enemies, NPCs and objects. |
+| **show barriers** | Draw them. **Cyan**: walls that stop Link. **Red**: a wall Link is inside. **Violet**: other kinds. |
+| **include other actors** | Also draw the walls meant for enemies, NPCs and objects. |
 
 The two lines under them count the walls in this map and those near you, and say whether Link is inside one
 (how deep, and which way the game will push him out). Outlines are drawn on top of everything, through scenery.
@@ -124,7 +135,9 @@ The two lines under them count the walls in this map and those near you, and say
 | **show voids** | Draw recognized player void-sensor bounds within 60 units. Amber: active logic; grey: its condition is false. Saved between launches. |
 | **void-outs** | **normal**, **off while levitating**, or **off**. Only Link's abyss messages and sand-sensor messages are filtered. Resets to normal at launch. |
 
-The summary counts recognized sensors, supported bounds and unavailable bounds. These are bounds,
+The summary counts recognized sensors, supported bounds and unavailable bounds. When none are identified,
+it says so explicitly; this does not prove the area has no voids. Areas with multiple sensor controllers
+are supported. These are bounds,
 not collision faces: curved sensors may occupy only part of a box. Areas must connect directly to a
 recognized abyss/sand node; unsupported logic links or geometry are not guessed. Object-only deletion
 areas are excluded. Scripted warps, unrelated deaths and global actor cleanup are outside this control.
@@ -289,13 +302,21 @@ vertical movement immediately. The mod menu suspends intentional movement.
 With **through walls** on, Link can pass through walls and ceilings; hold **B** to descend
 through floors. Exit geometry before stopping levitation, since normal collision resumes then.
 With through walls off, normal floor/wall correction remains active.
+Through-walls mode starts directly through the native controller, without the older movement-record
+search or test lift. The collision-respecting mode and 2x-speed cheat still use that search; a
+"movement record not ready" notice means the record could not be confirmed, not that Link's actor is
+missing. Changing through walls off while floating stops levitation; press L3 again to use the new mode.
 
 **L3** ends levitation with zero vertical velocity. Normal gravity then accelerates the fall,
 and landing protection prevents fall-distance damage through the first landing. Later ordinary
 falls are unchanged. The old short health-refund timer has been removed.
 
-The user confirmed traversal through a previously blocking wall, followed by a gentle L3 fall
-and no landing damage. This does not establish behavior at every surface or during every event.
+Loading an area, reloading the same area, or replacing Link automatically stops active levitation and
+discards the old movement state. The **enabled** setting stays on; press L3 again after arrival to resume.
+
+The user confirmed the earlier controller-plus-record path traversed a previously blocking wall,
+followed by a gentle L3 fall and no landing damage. Test3's direct-controller startup and the new
+load cancellation pass host tests but still need in-game confirmation.
 Void viewing and suppression are under **scene > collision** (see above). Camera-follow and
 stationary-position pause behavior have not been separately fixed.
 

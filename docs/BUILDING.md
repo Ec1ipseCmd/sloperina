@@ -57,7 +57,30 @@ and test2 gives a gentle L3 fall with no landing damage. Logs show the queued ve
 protection ending after landing. Other surfaces, events and scene transitions need broader testing.
 
 
-## Layout
+### Collision host checks (0.0.10-test3)
+
+`python tests/run_collision.py --cc C:/msys64/mingw64/bin/gcc.exe` checks the read-only decoder,
+bounded batches, filters, relative-offset bounds, malformed chunks, nearest-triangle selection, and
+cache invalidation on loads, changed actors/tiles, and settings. Regression cases check complete snapshots
+remain unchanged during partial refreshes, dense-mesh coverage, exact mode and unsnapped triggers.
+Fixtures are synthetic.
+`python tests/render_collision.py --cc C:/msys64/mingw64/bin/gcc.exe` renders the actual menus and
+production projection/NVN rectangle code headlessly. Images go under `obj/tests/`.
+Existing Enemy Health, JS Height/settings, levitation/CCT and void/IPS tests remain required.
+The levitation suite includes loading flags, same-map reload, map-name and actor replacement.
+It also verifies through-walls startup without heap scanning/test lifts, stationary hover/resume, native
+X/B movement, pause handling and release protection. The native-only movement path needs in-game testing.
+
+Read-only live validation identified the standard enemy health parameter type and the loaded collision
+resource chain. The C decoder matched the reference on a loaded Castle Town tile except for the
+explicitly unsupported capsule shapes; incremental and full scans matched. A running test build published
+health labels changing from `2/2` to `1/2`, and the user confirmed overhead labels appear on ReDeads.
+The user also confirmed test2 geometry appears, but reported flicker and limited coverage. Test3's
+selection replay on a captured tile reached the selected 12-unit radius with 463 simplified triangles
+(870 in exact mode); dense synthetic rendering retains distant edges within the existing dot budget.
+This is not runtime confirmation of test3, scene-transition behavior or void coverage.
+
+## Source layout
 
 Mirrors gz (`gz/src/gz`, `gz/lib`, the Makefile's version list):
 

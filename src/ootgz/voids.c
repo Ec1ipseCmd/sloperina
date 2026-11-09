@@ -122,18 +122,22 @@ static void area(uintptr_t actor, const char *name, void *ctx)
   if (!player_void(node, &active)) return;
   sensor_count++;
   uintptr_t controller = next(next(next(actor, 0x270), 0x50), 0x20);
-  uint32_t count;
-  if (!controller || !sys_read32(controller + 0x38, &count) || count != 1) {
+  uint32_t controllers;
+  uintptr_t list = next(controller, 0x40);
+  if (!controller || !sys_read32(controller + 0x38, &controllers) || !controllers || controllers > 16 ||
+      !readable(list, controllers * 8)) {
     missing_bounds++; return;
   }
-  /* QueryPhysicsGetRigidBodySensorByIndex: first sensor controller, then its
-   * array of 24-byte entries. Draw every body, not just index zero. */
-  uintptr_t pool = next(next(next(controller, 0x40), 0), 8);
-  uintptr_t entries = next(pool, 0x18);
-  if (!pool || !sys_read32(pool + 0x10, &count) || !count || count > 64 ||
-      !readable(entries, count * 0x18)) { missing_bounds++; return; }
-  for (uint32_t i = 0; i < count; i++)
-    if (!sensor_box(sys_ptr(entries + i * 0x18 + 8), active)) missing_bounds++;
+  /* Every sensor controller, then its array of 24-byte rigid-body entries. */
+  for (uint32_t c = 0; c < controllers; c++) {
+    uintptr_t pool = next(sys_ptr(list + c * 8), 8);
+    uintptr_t entries = next(pool, 0x18);
+    uint32_t count;
+    if (!pool || !sys_read32(pool + 0x10, &count) || !count || count > 64 ||
+        !readable(entries, count * 0x18)) { missing_bounds++; continue; }
+    for (uint32_t i = 0; i < count; i++)
+      if (!sensor_box(sys_ptr(entries + i * 0x18 + 8), active)) missing_bounds++;
+  }
 }
 
 void voids_frame(void)
@@ -161,6 +165,7 @@ void voids_summary(char *buf, int len)
 {
   if (!voids_shown) snprintf(buf, len, "enable show voids to inspect");
   else if (!list_ready) snprintf(buf, len, "void sensors: N/A");
+  else if (!sensor_count) snprintf(buf, len, "no identified void sensors in loaded area");
   else snprintf(buf, len, "%d sensors, %d bounds, %d unavailable", sensor_count, box_count, missing_bounds);
 }
 

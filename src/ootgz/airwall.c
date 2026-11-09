@@ -11,6 +11,7 @@
 #include "airwall.h"
 #include "world_view.h"
 #include "voids.h"
+#include "collision.h"
 
 #include "data.h"
 #include "gamedata.h"
@@ -504,6 +505,90 @@ static int sort_near_walls(const cam_t *cam)
 
 typedef struct { aw_dot_t *dots; int *n; const cam_t *cam; } void_draw_t;
 
+#define SURFACE_EDGES 6144
+static struct { vec3f_t a,b; int kind; } surface_edges[SURFACE_EDGES];
+static uint16_t surface_edge_slots[16384];
+static unsigned surface_edge_count;
+static bool same_point(vec3f_t a,vec3f_t b) { return a.x==b.x && a.y==b.y && a.z==b.z; }
+static void surface_edges_reset(void)
+{ surface_edge_count=0;memset(surface_edge_slots,0,sizeof(surface_edge_slots)); }
+static void draw_surface(const vec3f_t v[3],int kind,void *arg)
+{
+  (void)arg;
+  for (int i=0;i<3 && surface_edge_count<SURFACE_EDGES;i++) {
+    vec3f_t a=v[i],b=v[(i+1)%3];
+    if (a.x>b.x || (a.x==b.x && (a.y>b.y || (a.y==b.y && a.z>b.z)))) {
+      vec3f_t t=a;a=b;b=t;
+    }
+    uint32_t words[6],hash=2166136261u;
+    memcpy(words,&a,sizeof(a));memcpy(words+3,&b,sizeof(b));
+    for (int j=0;j<6;j++) {
+      if ((words[j]&0x7fffffffu)==0) words[j]=0;
+      hash=(hash^words[j])*16777619u;
+    }
+    hash=(hash^(unsigned)kind)*16777619u;
+    bool duplicate=false;
+    unsigned slot=0,probe;
+    for (probe=0;probe<64;probe++) {
+      slot=(hash+probe)&16383;
+      if (!surface_edge_slots[slot]) break;
+      unsigned at=surface_edge_slots[slot]-1;
+      if (surface_edges[at].kind==kind && same_point(a,surface_edges[at].a) &&
+          same_point(b,surface_edges[at].b)) { duplicate=true;break; }
+    }
+    if (duplicate) continue;
+    if (probe<64) surface_edge_slots[slot]=(uint16_t)(surface_edge_count+1);
+    surface_edges[surface_edge_count].a=a;surface_edges[surface_edge_count].b=b;
+    surface_edges[surface_edge_count++].kind=kind;
+  }
+}
+
+/* Share the rectangle budget across the whole projected view. The old early
+ * cutoff spent everything on the nearest few edges, regardless of range. */
+static void draw_surface_edges(void_draw_t *draw)
+{
+  static struct { float x,y,dx,dy; unsigned cost; uint8_t color; bool level,straight; } lines[SURFACE_EDGES];
+  unsigned nlines=0,total=0;
+  for (unsigned i=0;i<surface_edge_count;i++) {
+    vec3f_t a=surface_edges[i].a,b=surface_edges[i].b;
+    float p[3]={a.x,a.y,a.z},q[3]={b.x,b.y,b.z},va[3],vb[3];
+    to_view(draw->cam,p,va);to_view(draw->cam,q,vb);
+    if (!clip_near(va,vb)) continue;
+    float x,y,x1,y1;
+    to_screen(draw->cam,va,&x,&y);to_screen(draw->cam,vb,&x1,&y1);
+    x*=REF_WIDTH;x1*=REF_WIDTH;y*=REF_HEIGHT;y1*=REF_HEIGHT;
+    if (!clip_to_picture(&x,&y,&x1,&y1)) continue;
+    float dx=x1-x,dy=y1-y,ax=dx<0?-dx:dx,ay=dy<0?-dy:dy;
+    float major=ax>ay?ax:ay,minor=ax>ay?ay:ax;
+    bool straight=minor<=major*STRAIGHT;
+    unsigned cost=(unsigned)(straight?minor/LINE_WIDTH:major/DOT_SPACING)+1;
+    lines[nlines].x=x;lines[nlines].y=y;lines[nlines].dx=dx;lines[nlines].dy=dy;
+    lines[nlines].cost=cost;lines[nlines].level=ax>=ay;lines[nlines].straight=straight;
+    lines[nlines++].color=(uint8_t)(AW_FLOOR+surface_edges[i].kind);total+=cost;
+  }
+  int available=MAX_DOTS*2/3-*draw->n;
+  if (available<=0 || !total) return;
+  unsigned budget=total<(unsigned)available?total:(unsigned)available;
+  unsigned accumulated=0,assigned=0;
+  for (unsigned i=0;i<nlines;i++) {
+    accumulated+=lines[i].cost;
+    unsigned end=(unsigned)((uint64_t)accumulated*budget/total),samples=end-assigned;
+    assigned=end;
+    for (unsigned j=0;j<samples;j++) {
+      /* Sample the original staircase pieces, without stretching rectangles
+       * into false surfaces when a crowded view needs a sparser outline. */
+      unsigned piece=(unsigned)((uint64_t)(2*j+1)*lines[i].cost/(2*samples));
+      float ta=(float)piece/lines[i].cost,tb=(float)(piece+1)/lines[i].cost;
+      float t=(ta+tb)*.5f,x=lines[i].x,y=lines[i].y,dx=lines[i].dx,dy=lines[i].dy;
+      if (lines[i].straight && lines[i].level)
+        add_rect(draw->dots,draw->n,x+dx*ta,y+dy*t,x+dx*tb,y+dy*t,lines[i].color);
+      else if (lines[i].straight)
+        add_rect(draw->dots,draw->n,x+dx*t,y+dy*ta,x+dx*t,y+dy*tb,lines[i].color);
+      else add_rect(draw->dots,draw->n,x+dx*t,y+dy*t,x+dx*t,y+dy*t,lines[i].color);
+    }
+  }
+}
+
 static void draw_void_box(const vec3f_t corners[8], bool active, void *arg)
 {
   void_draw_t *draw = arg;
@@ -536,16 +621,22 @@ static void draw_void_box(const vec3f_t corners[8], bool active, void *arg)
 
 void airwall_frame(void)
 {
+  collision_frame();
   update_map();
   check_link();
   int next = published == 0 ? 1 : 0;
   int n = 0;
   n_walls_near = 0;
-  bool draw = (airwalls_shown || voids_shown) && !game_is_paused();
+  bool draw = (airwalls_shown || voids_shown || collision_shown) && !game_is_paused();
   cam_t cam;
   if (draw && read_camera(&cam)) {
     void_draw_t void_draw = { dots[next], &n, &cam };
     if (voids_shown) voids_each_box(draw_void_box, &void_draw);
+    surface_edges_reset();
+    if (collision_shown) {
+      collision_each_triangle(draw_surface,&void_draw);
+      draw_surface_edges(&void_draw);
+    }
     /* nearest wall first, so the dot budget goes to what's close */
     n_walls_near = airwalls_shown && current_map ? sort_near_walls(&cam) : 0;
     for (int k = 0; k < n_walls_near && n < MAX_DOTS; k++) {

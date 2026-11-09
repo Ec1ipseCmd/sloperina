@@ -84,6 +84,9 @@ int main(void)
   integer(A(16),10); assert(run()==0); integer(A(16),8);
   blocked=A(19); assert(run()==0); blocked=0;
   setup(); ptr(A(15),MAIN(Z64HD_VT_SAND_ABYSS_NODE)); assert(run()==1);
+  setup(); integer(A(3)+0x38,2); ptr(A(4)+8,A(23)); ptr(A(23)+8,A(5));
+  assert(run()==2 && !missing_bounds); /* more than one sensor controller */
+  blocked=A(23); assert(run()==1 && missing_bounds==1);
   setup(); ptr(A(9)+0x78,0); assert(run()==0 && missing_bounds==1);
   setup(); real(A(8)+0xC0,NAN); assert(run()==0 && missing_bounds==1);
   setup(); real(A(8)+0x10,-1); assert(run()==0);

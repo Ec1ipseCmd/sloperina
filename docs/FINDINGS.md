@@ -824,7 +824,8 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
 - `QueryLifeGetLifeByActor` (executor 0x2A487A0) reaches the base component through actor+0x270,
   component-table+0x2B8. Its actor back-pointer is +0x1340. Native getters 0x2D0BCC0 and 0x2D0BCF0
   read parameter pointers at +0x1C10 / +0x1C18; values are signed 32-bit at parameter+8, with
-  parameter vtable 0x4B63438. Live reads observed ReDeads 12/12, Deku Babas 2/2 and a Gold Skulltula 1/1.
+  parameter vtables 0x4B63438 (Link implementation) and 0x4B4C400 (ActorLife implementation).
+  Live reads observed ReDeads 12/12, Deku Babas 2/2 and a Gold Skulltula 1/1.
   The new watch selects living `Enemy_` actors, not every object with a life component.
 - The position-calculator component is table+0x128, vtable 0x4B47058, owner+0x18. The native query
   selects attachment vectors including +0x44, +0x5C, +0x74 and +0x80 (selector 0x20B370).
@@ -833,8 +834,9 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
 - Camera projection is shared with air walls. Game-thread reads publish at most 32 nearest labels;
   NVN copies a bounded mod-owned snapshot and never traverses actor memory. Missing/changed lists clear
   labels. No cached per-enemy addresses or game-memory writes are used by Enemy Health.
-- Host tests and production label rasterization pass. Live reads validate fields, not the installed
-  overhead display, health changes during combat, or boss coverage. Those still require runtime tests.
+- Host tests and production label rasterization pass. After accepting the ActorLife parameter type in
+  test2, live published labels changed from `2/2` to `1/2` and the user confirmed ReDead labels appear.
+  Boss coverage and other enemy-specific behavior still require runtime tests.
 
 ### 9.6 Void sensors and selective suppression (0.0.10-test)
 
@@ -875,3 +877,52 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
 - Host tests validate selection/conditions, invalid memory, rotated bounds, modes and message forwarding;
   generated-IPS tests decode branches, pointer slots and fallback instructions. Native build and headless
   menu/label checks pass. **The new hooks, void outlines and immunity have not been runtime verified.**
+
+### 9.7 Loaded static collision and stable previews (0.0.10-test3)
+
+- The user reported missing health labels, only invisible barriers in Collision, and no general terrain
+  controls. The health reader had accepted only Link's parameter vtable. Native ActorLife construction
+  at main+0x2E43AAC installs main+0x4B4C400; it uses the same value-at-8 layout. Both verified parameter
+  types are now accepted with the existing actor ownership and read guards. ReDead labels are user-confirmed.
+- Native main+0x6F31F0 resolves static collision through scene `[[main+0x4E97648]+0x1F0]`,
+  component array +0x58, component 10 (+0x50). StaticCompoundBodyMgr vtable is main+0x4BA1FE8.
+  Its 16 streaming slots start at +0x38, stride 0x48; the map-wide slot is +0x6F0. Slot+0x30 is the body
+  (vtable main+0x4C324F0), body+0x10 is resource (main+0x4C32600), resource+8/+0x10 hold blob and size.
+  Mapping, size, identity and owners are rechecked each frame. No extracted collision assets are distributed.
+- The bounded decoder follows phive/TAG0 relative arrays, compound transforms, meshes, convex hulls,
+  boxes and cylinders. Mesh vertex buffers may have padding; rejecting a remainder incorrectly omitted
+  otherwise valid geometry. Nested ground containers may place their transform section after the shape;
+  locate it before decoding. Player mask bit 3 selects solid collision, material 27 excludes AirWall,
+  and entity layer 8 excludes Rough. Static sensor layers 13/14 are optional general triggers, not
+  automatically voids. Face normals split floor/wall/ceiling. Capsules/spheres remain unsupported.
+- On one loaded Castle Town tile the C decoder emitted floor/wall/ceiling/trigger totals
+  73456/118144/35459/72. The reference's additional 32 solid triangles were unsupported capsules.
+  A full scan and 4096-primitive batches matched in 31 batches. User confirmed test2 geometry appeared.
+- Test2 replaced completed geometry with partial nearest-256 snapshots every four frames, and spent
+  the rectangle budget on the nearest edges. These code paths explain the reported flicker and tiny
+  visible area. Test3 publishes only complete scans, keeps 2048 unique preview triangles, offers a
+  fixed world-grid simplification (or exact vertices), hashes shared edges and distributes drawing cost
+  over the whole projected set. The existing total rectangle limit stays 3000. Trigger coordinates
+  are not simplified. A captured-tile replay covers the full selected 12-unit radius with 463 grid-1
+  triangles or 870 exact triangles. Synthetic regressions check snapshot stability and distant-edge
+  rendering under a dense foreground. Test3's in-game appearance/performance are not yet verified.
+- Void Areas can expose multiple sensor controllers. Inspect up to 16 independently instead of requiring
+  exactly one. An unsupported controller does not hide other valid controllers. Keep direct player-void
+  logic association checks; the status explicitly says when no identified sensors are loaded.
+- Levitation now stops at loading flags Sequence_IsLoadingBanc (0xEF2B60C2) and
+  Sequence_IsChangingBancFromRequestToPause (0xF8633C7F), map-name change or actor replacement/loss.
+  Clear active levitation, search and landing state before touching the departing record. Do not invoke
+  release movement on the arriving actor. The saved L3 feature setting remains enabled. Synthetic tests
+  cover same-map reloads and transitions; runtime transition behavior remains unconfirmed.
+- The user also reported "Link's position not found" while standing still. That notice comes from the
+  legacy levitation heap search/test lift, not the collision viewer. The available log showed record
+  loss and successful reacquisition, not the reported failing attempt. It also showed an adult record
+  centre offset of 0.840 versus the legacy search's assumed 0.585 (within, but close to, its 0.3 tolerance).
+  Do not treat these observations as proof of the exact failed attempt's cause.
+- Through-walls levitation now starts from the validated drawn position and uses the existing native
+  controller position setter directly. It no longer needs a heap match, assumed centre offset, or test
+  lift. X/B and stick steering, queued velocity reset, fall-history protection and load cancellation
+  remain. Native hover checks actual game pause flags rather than mistaking a stationary player for a
+  frozen game. Legacy collision-respecting movement and 2x speed retain their search; its failure text
+  now identifies the movement record. Host tests cover no-scan startup, stationary hover/resume,
+  ascent/descent, pause/menu, release and invalid/replaced objects. Native-only movement requires runtime testing.

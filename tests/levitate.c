@@ -16,19 +16,35 @@ static bool controller_active, controller_available = true;
 static int controller_moves, controller_restores;
 static int velocity_resets, distance_resets;
 static bool on_ground;
+static bool loading, changing;
+static bool game_paused,position_available=true;
+static int32_t pause_requests;
+static unsigned region_scans;
+static vec3f_t native_position;
+static uintptr_t actor_override;
+static char map_name[GD_STR_LEN] = "TestMap";
+bool gd_get_bool(uint32_t hash, bool *out)
+{
+  assert(hash == 0xEF2B60C2u || hash == 0xF8633C7Fu || hash == 0x604AEBE1u);
+  *out = hash == 0x604AEBE1u ? game_paused : hash == 0xEF2B60C2u ? loading : changing;
+  return true;
+}
+bool gd_get_int(uint32_t hash,int32_t *out)
+{ assert(hash==0x64A61098u);*out=pause_requests;return true; }
+const char *gd_get_str(int idx) { assert(idx == GD_STR_MAP); return map_name; }
 bool cct_reset_vertical_velocity(uintptr_t a) { (void)a; velocity_resets++; return controller_available; }
 bool cct_clear_fall_distance(uintptr_t a) { (void)a; distance_resets++; return controller_available; }
 bool cct_on_ground(uintptr_t a, bool *grounded) { (void)a; *grounded = on_ground; return controller_available; }
 bool cct_noclip_begin(void) { return controller_active = controller_available; }
 bool cct_noclip_active(void) { return controller_active; }
-bool cct_noclip_move(const vec3f_t *p) { (void)p; controller_moves++; return controller_available; }
+bool cct_noclip_move(const vec3f_t *p) { native_position=*p; controller_moves++; return controller_available; }
 void cct_noclip_end(void) { if (controller_active) controller_restores++; controller_active = false; }
 bool cheats[CHEAT_COUNT];
 uint32_t input_hide_from_game;
 
-uintptr_t link_actor(void) { return (uintptr_t)actor_memory; }
+uintptr_t link_actor(void) { return actor_override ? actor_override : (uintptr_t)actor_memory; }
 uintptr_t camera(void) { return (uintptr_t)cam; }
-bool link_drawn_pos(vec3f_t *p) { *p = drawn_pos; return true; }
+bool link_drawn_pos(vec3f_t *p) { *p = drawn_pos; return position_available; }
 bool link_health(int32_t **cur, int32_t **max) { (void)cur; (void)max; return false; }
 bool sys_mapped(uintptr_t a, size_t n, uint32_t perm)
 {
@@ -38,7 +54,7 @@ bool sys_mapped(uintptr_t a, size_t n, uint32_t perm)
 }
 uint32_t sys_query_memory(sys_meminfo_t *m, uint64_t a) { (void)m; (void)a; return 1; }
 void sys_regions(uint32_t perm, void (*fn)(uintptr_t, size_t, void *), void *ctx)
-{ (void)perm; (void)fn; (void)ctx; }
+{ (void)perm; (void)fn; (void)ctx; region_scans++; }
 uint64_t sys_tick(void) { return 100; }
 uint64_t sys_tick_freq(void) { return 1000; }
 uint32_t input_held(void) { return held; }
@@ -55,6 +71,11 @@ static void sync_drawn(void)
 
 static void start(bool walls)
 {
+  loading = changing = false;
+  game_paused=false;pause_requests=0;position_available=true;controller_float=false;
+  actor_override = area_actor = 0;
+  memset(area_map, 0, sizeof(area_map));
+  strcpy(map_name, "TestMap");
   memset(physics, 0, sizeof(physics));
   memset(cam, 0, sizeof(cam));
   physics[1] = 100;
@@ -244,6 +265,74 @@ static void test_controller_path(void)
   puts("PASS: controller move/restore, mode change, invalid controller and record loss");
 }
 
+static void test_area_transitions(void)
+{
+  for (int cause = 0; cause < 4; cause++) {
+    start(true);
+    levitate_frame(false);
+    assert(floating && controller_active);
+    double before[9];
+    memcpy(before, physics, sizeof(before));
+    int resets = velocity_resets, fall_resets = distance_resets;
+    if (cause == 0) loading = true; /* same-map reload */
+    if (cause == 1) changing = true; /* exit request, before map changes */
+    if (cause == 2) strcpy(map_name, "AnotherMap");
+    if (cause == 3) actor_override = (uintptr_t)actor_memory + 8;
+    pressed = BTN_LSTICK; /* loading must also block an L3 press */
+    levitate_frame(false);
+    assert(!floating && !moving_link && !controller_active && !record);
+    assert(!landing_actor && !float_actor && search_state == SEARCH_IDLE);
+    assert(levitate_enabled && input_hide_from_game == BTN_LSTICK);
+    assert(!memcmp(before, physics, sizeof(before)));
+    assert(velocity_resets == resets && distance_resets == fall_resets);
+    loading = changing = false; pressed = 0;
+    levitate_frame(false);
+    assert(!floating && !moving_link); /* never resumes on arrival */
+  }
+  start(true); levitate_frame(true);
+  assert(floating); /* opening a menu is not a scene transition */
+  puts("PASS: load flags, map/actor replacement stop levitation before writes; arrival stays off");
+}
+
+static void test_native_start(void)
+{
+  start(true);
+  floating=moving_link=false;record=0;search_state=SEARCH_IDLE;
+  region_scans=0;pressed=BTN_LSTICK;held=0;
+  double before[9];memcpy(before,physics,sizeof(before));
+  levitate_frame(false);
+  assert(controller_float && moving_link && floating && controller_active);
+  assert(!record && !region_scans && controller_moves==1);
+  assert(native_position.y==drawn_pos.y); /* no test lift or height offset */
+  pressed=0;
+  for (int i=0;i<60;i++) controller_float_step(1.0/30,false);
+  assert(native_position.y==drawn_pos.y && !memcmp(before,physics,sizeof(before)));
+  held=BTN_X;controller_float_step(1.0/30,false);
+  assert(native_position.y>drawn_pos.y); /* standing hover must not freeze controls */
+  float y=native_position.y;
+  held=0;controller_float_step(1.0/30,false);assert(native_position.y==y);
+  held=BTN_B;controller_float_step(1.0/30,false);assert(native_position.y<y);
+  y=native_position.y;game_paused=true;
+  int moves=controller_moves;
+  controller_float_step(1.0/30,false);assert(controller_moves==moves && native_position.y==y);
+  game_paused=false;held=BTN_X;controller_float_step(1.0/30,true);assert(native_position.y==y);
+  int resets=velocity_resets;
+  pressed=BTN_LSTICK;levitate_frame(false);
+  assert(!floating && !controller_float && !controller_active && landing_actor==link_actor());
+  assert(velocity_resets==resets+1 && !memcmp(before,physics,sizeof(before)));
+  for (int cause=0;cause<4;cause++) {
+    start(true);floating=moving_link=false;record=0;search_state=SEARCH_IDLE;
+    pressed=BTN_LSTICK;levitate_frame(false);pressed=0;
+    if (cause==0) loading=true;
+    if (cause==1) actor_override=(uintptr_t)actor_memory+8;
+    if (cause==2) position_available=false;
+    if (cause==3) controller_available=false;
+    levitate_frame(false);
+    assert(!floating && !moving_link && !controller_float && !record);
+  }
+  puts("PASS: native levitation starts without heap scans/test lifts, stationary hover resumes, X/B/menu/pause/drop and unavailable/load/actor guards");
+}
+
 int main(void)
 {
   start(true);
@@ -339,5 +428,7 @@ int main(void)
   test_release();
   test_vertical_controls();
   test_controller_path();
+  test_area_transitions();
+  test_native_start();
   return 0;
 }

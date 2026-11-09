@@ -21,6 +21,7 @@
 #include "levitate.h"
 #include "airwall.h"
 #include "voids.h"
+#include "collision.h"
 
 #include "sdfs.h"
 #include "lang.h"
@@ -84,6 +85,7 @@ typedef struct {
   int32_t airwalls_shown;
   int32_t airwalls_all;
   int32_t voids_shown;
+  int32_t collision_shown, collision_kinds, collision_radius, collision_detail;
 } snapshot_t;
 
 static bool mounted;
@@ -139,6 +141,10 @@ static snapshot_t take_snapshot(void)
   s.airwalls_shown = airwalls_shown;
   s.airwalls_all = airwalls_all;
   s.voids_shown = voids_shown;
+  s.collision_shown=collision_shown;
+  s.collision_kinds=collision_kinds;
+  s.collision_radius=collision_radius;
+  s.collision_detail=collision_detail;
   return s;
 }
 
@@ -202,6 +208,11 @@ static void apply_snapshot(const snapshot_t *s)
   airwalls_shown = s->airwalls_shown != 0;
   airwalls_all = s->airwalls_all != 0;
   voids_shown = s->voids_shown != 0;
+  collision_shown=s->collision_shown!=0;
+  collision_kinds=s->collision_kinds&15;
+  if (s->collision_radius==4 || s->collision_radius==8 || s->collision_radius==12 || s->collision_radius==20)
+    collision_radius=s->collision_radius;
+  if (s->collision_detail>=0 && s->collision_detail<4) collision_detail=s->collision_detail;
 }
 
 /* --- reading the file ------------------------------------------------------------------------- */
@@ -272,6 +283,10 @@ static const struct { const char *key; size_t field_offset; } int_keys[] = {
   INT_KEY("airwalls_shown", airwalls_shown),
   INT_KEY("airwalls_all", airwalls_all),
   INT_KEY("voids_shown", voids_shown),
+  INT_KEY("collision_shown", collision_shown),
+  INT_KEY("collision_kinds", collision_kinds),
+  INT_KEY("collision_radius", collision_radius),
+  INT_KEY("collision_detail", collision_detail),
 };
 #define N_INT_KEYS (sizeof(int_keys) / sizeof(*int_keys))
 
@@ -436,12 +451,14 @@ static void save_settings_file(const snapshot_t *s)
   int n = snprintf(buf, sizeof(buf),
                    "cheats=%u\nwatch_list=%s\nwatches_shown=%d\nwatch_position=%d\nwatch_x=%d\nwatch_y=%d\nopacity=%d\n"
                    "arrival_cutscenes=%d\nlevitate=%d\nlevitate_speed=%d\nlevitate_move_speed=%d\n"
-                   "levitate_through_walls=%d\nairwalls_shown=%d\nairwalls_all=%d\nvoids_shown=%d\n",
+                   "levitate_through_walls=%d\nairwalls_shown=%d\nairwalls_all=%d\nvoids_shown=%d\n"
+                   "collision_shown=%d\ncollision_kinds=%d\ncollision_radius=%d\ncollision_detail=%d\n",
                    (unsigned)s->cheats, list, (int)s->watches_shown, (int)s->watch_position,
                    (int)s->watch_x, (int)s->watch_y,
                    (int)s->opacity, (int)s->arrival_cutscenes, (int)s->levitate, (int)s->levitate_speed,
                    (int)s->levitate_move, (int)s->levitate_walls, (int)s->airwalls_shown, (int)s->airwalls_all,
-                   (int)s->voids_shown);
+                   (int)s->voids_shown,(int)s->collision_shown,(int)s->collision_kinds,(int)s->collision_radius,
+                   (int)s->collision_detail);
   if (n < (int)sizeof(buf))
     n += snprintf(buf + n, sizeof(buf) - n,
                   "language=%s\nframe_advance=%d\nframe_advance_button=%d\npause_display=%d\nmenu_size=%d\n"

@@ -23,6 +23,8 @@ static bool health_visible;
 uintptr_t z64hd_main;
 bool cheats[CHEAT_COUNT], frame_advance, pause_display, warp_arrival_cutscenes;
 bool levitate_enabled, levitate_through_walls, airwalls_shown, airwalls_all, voids_shown;
+bool collision_shown;
+int collision_kinds=7,collision_radius=12,collision_detail=3;
 int frame_advance_button, levitate_speed = 5, levitate_move_speed = 5;
 
 static uintptr_t actor, first, player, base;
@@ -402,9 +404,11 @@ static void test_reset_lock(void)
 static void test_health_settings(void)
 {
   sd_available = true;
-  snprintf(settings, sizeof(settings), "watch_list=17:0:0,18:0:0\nwatches_shown=1\nvoids_shown=1\n");
+  snprintf(settings, sizeof(settings), "watch_list=17:0:0,18:0:0\nwatches_shown=1\nvoids_shown=1\n"
+           "collision_shown=1\ncollision_kinds=10\ncollision_radius=12\ncollision_detail=1\n");
   settings_load();
   assert(watch_has(W_JS_HEIGHT) && watch_has(W_ENEMY_HEALTH) && voids_shown);
+  assert(collision_shown && collision_kinds==10 && collision_radius==12 && collision_detail==1);
   watches_frame(false); assert(health_visible);
   watches_frame(true); assert(!health_visible);
   watches_shown = false; watches_frame(false); assert(!health_visible);
@@ -414,8 +418,10 @@ static void test_health_settings(void)
   for (int i = 0; i < 60; i++) settings_frame(false);
   assert(strstr(settings, "18:0:0") && strstr(settings, "voids_shown=1\n"));
   watch_set_list(NULL, 0); voids_shown = false;
+  collision_shown=false;collision_kinds=7;collision_radius=8;collision_detail=3;
   settings_load();
   assert(watch_has(W_ENEMY_HEALTH) && voids_shown);
+  assert(collision_shown && collision_kinds==10 && collision_radius==12 && collision_detail==1);
   watch_remove(1); watches_frame(false); assert(!health_visible);
   puts("PASS: Enemy Health watch ID, visibility, removal and settings round-trip; void viewer persistence");
 }

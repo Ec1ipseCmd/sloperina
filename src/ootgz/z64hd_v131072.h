@@ -103,6 +103,16 @@
 #define Z64HD_ACTOR_MGR_PTR     0x4C7DC40 /* ** = process manager; actor list +0x68 */
 #define Z64HD_VT_POSITION_CALCULATOR 0x4B47058
 #define Z64HD_VT_PARAM          0x4B63438
+#define Z64HD_VT_ENEMY_PARAM    0x4B4C400 /* ActorLife current/max s32 parameter */
+#define Z64HD_SCENE_MGR_PTR     0x4E97648
+#define Z64HD_VT_STATIC_MGR     0x4BA1FE8
+#define Z64HD_VT_STATIC_BODY    0x4C324F0
+#define Z64HD_VT_STATIC_RESOURCE 0x4C32600
+#define Z64HD_VT_HK_COMPOUND    0x4891430
+#define Z64HD_VT_HK_MESH        0x4893068
+#define Z64HD_VT_HK_BOX         0x48936E8
+#define Z64HD_VT_HK_CYLINDER    0x4893780
+#define Z64HD_VT_HK_CONVEX      0x4893AE8
 #define Z64HD_DISP_PTR          0x4C7E740   /* ** + 0x29C = Link's drawn position (3 floats) */
 #define Z64HD_CAMERA_PTR        0x4E98068   /* [*+0x68] = camera: +0x38 pos, +0x44 look-at */
 #define Z64HD_FRAME_COUNTER     0x4E84BA0   /* u32, +1 per update; runs in the pause menus too */

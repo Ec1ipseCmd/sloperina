@@ -1,4 +1,5 @@
-/* Levitate and 2x speed: both move Link through his physics record.
+/* Levitation uses the native controller directly in through-walls mode.
+ * Collision-respecting levitation and 2x speed retain the physics-record path.
  *
  * Link's position lives in a physics record: doubles (x, y, z) 0.585 above his drawn position,
  * followed by motion state the game ignores the position without (FINDINGS §5.9-§5.15). game.py found
@@ -24,6 +25,7 @@
 #include "cheats.h"
 #include "cct.h"
 #include "gfx.h"
+#include "gamedata.h"
 #include "input.h"
 #include "link.h"
 #include "sys.h"
@@ -306,7 +308,7 @@ static void write_record(uintptr_t addr, double x, double y, double z, float vx,
 static void search_failed(void)
 {
   if (!quiet_search)
-    gfx_notice("levitate: Link's position not found, try again");
+    gfx_notice("levitate: movement record not ready; retry L3");
   search_state = SEARCH_FAILED;
   retry_wait_frames = quiet_search ? RETRY_FRAMES * 2 : RETRY_FRAMES;
 }
@@ -428,7 +430,10 @@ static uintptr_t float_actor, landing_actor;
 static unsigned landed_frames;
 
 static bool floating;              /* L3 turned it on */
+static uintptr_t area_actor;
+static char area_map[GD_STR_LEN];
 static bool moving_link;           /* we're writing Link's position */
+static bool controller_float;      /* native no-hit movement; no heap record */
 static double pos_x, pos_y, pos_z; /* our position for him */
 static double vel_x, vel_y, vel_z; /* and velocity */
 static double heading_x, heading_z;            /* last direction he moved in */
@@ -444,6 +449,7 @@ static int float_trace; /* frames of float logged (diagnostics) */
 static void drop(void)
 {
   if (!floating) {
+    controller_float = false;
     cct_noclip_end();
     return;
   }
@@ -468,6 +474,7 @@ static void drop(void)
     }
     moving_link = false;
   }
+  controller_float = false;
   cct_noclip_end(); /* Restore collision only after requesting the velocity reset. */
 }
 
@@ -523,6 +530,40 @@ static void steer(double dt)
   vel_x = approach(vel_x, target_x, step);
   vel_z = approach(vel_z, target_z, step);
   pos_y += vel_y * dt;
+}
+
+/* Through-walls movement already has a verified native controller setter.
+ * Start directly from the drawn feet, without heap scans or test-lifting a
+ * look-alike record. The legacy search remains for collision-respecting mode
+ * and 2x speed. Use real pause flags: stationary hover is not a frozen game. */
+static void controller_float_step(double dt,bool menu_open)
+{
+  vec3f_t drawn;
+  if (!link_drawn_pos(&drawn) ||
+      !(drawn.x>-100000 && drawn.x<100000 && drawn.y>-100000 && drawn.y<100000 &&
+        drawn.z>-100000 && drawn.z<100000) || !cct_noclip_begin()) {
+    drop();gfx_notice("levitate: controller unavailable; stopped");return;
+  }
+  if (!controller_float) {
+    float_actor=link_actor();landing_actor=0;landed_frames=0;
+    pos_x=drawn.x;pos_y=drawn.y;pos_z=drawn.z;
+    vel_x=vel_y=vel_z=0;float_clock=0;
+    record=0;record_has_motion=false;search_state=SEARCH_IDLE;
+    controller_float=moving_link=true;
+    log_printf("levitate: native controller movement; no record search");
+  }
+  bool paused=false;int32_t pause_requests=0;
+  gd_get_bool(0x604AEBE1u,&paused);
+  gd_get_int(0x64A61098u,&pause_requests);
+  if (menu_open || paused || pause_requests>0) vel_x=vel_y=vel_z=0;
+  if (paused || pause_requests>0) return;
+  if (!menu_open) steer(dt);
+  pos_x+=vel_x*dt;pos_z+=vel_z*dt;
+  vec3f_t position={(float)pos_x,(float)pos_y,(float)pos_z};
+  if (!cct_noclip_move(&position) || !cct_reset_vertical_velocity(float_actor) ||
+      !cct_clear_fall_distance(float_actor)) {
+    drop();gfx_notice("levitate: controller or fall protection unavailable; stopped");
+  }
 }
 
 /* (cx, cz): where the record is now. Accept the game's push-backs out of walls and stop pushing into
@@ -731,12 +772,63 @@ static bool search_running(void)
   return false;
 }
 
+/* Stop before touching a departing actor's physics record. The transition flags
+ * also cover reloads and exits that reuse the same map name or actor address.
+ * Keep the user's L3 setting, but never carry its active state across a load. */
+static bool area_transition(void)
+{
+  bool loading = false, changing = false;
+  gd_get_bool(0xEF2B60C2u, &loading); /* Sequence_IsLoadingBanc */
+  gd_get_bool(0xF8633C7Fu, &changing); /* Sequence_IsChangingBancFromRequestToPause */
+  uintptr_t actor = link_actor();
+  const char *map = gd_get_str(GD_STR_MAP);
+  bool replaced = area_actor && actor != area_actor;
+  bool different_map = false;
+  if (area_map[0] && map)
+    for (unsigned i = 0; i < sizeof(area_map); i++) {
+      if (map[i] != area_map[i]) { different_map = true; break; }
+      if (!map[i]) break;
+    }
+  area_actor = actor;
+  if (map) {
+    memcpy(area_map, map, sizeof(area_map));
+    area_map[sizeof(area_map) - 1] = 0;
+  }
+  if (!loading && !changing && !replaced && !different_map) return false;
+  if (floating) {
+    gfx_notice("levitate off: area transition");
+    log_printf("levitate: stopped for area transition");
+  }
+  floating = moving_link = speed_known = false;
+  controller_float = false;
+  float_actor = landing_actor = 0;
+  landed_frames = 0;
+  record = last_found = 0;
+  search_state = SEARCH_IDLE;
+  vel_x = vel_y = vel_z = 0;
+  last_tick = 0;
+  cct_noclip_end(); /* Revalidates ownership; never writes to a replaced actor. */
+  return true;
+}
+
 static void frame(bool menu_open)
 {
+  if (area_transition()) return;
   double dt = frame_seconds();
   protect_landing(menu_open);
   handle_l3(menu_open);
 
+  if (controller_float && !levitate_through_walls) {
+    drop();gfx_notice("levitate off: movement mode changed");
+  }
+  /* Finish a pending legacy test before changing modes, so its conditional
+   * restoration is not abandoned. Ordinary L3 activation never starts one. */
+  if (floating && levitate_through_walls && (controller_float || !moving_link) &&
+      search_state != SEARCH_TESTING) {
+    controller_float_step(dt,menu_open);
+    speed_known=false;
+    return;
+  }
   if (search_running())
     return;
   if (search_state == SEARCH_FAILED && --retry_wait_frames <= 0)

@@ -8,6 +8,9 @@ const airwall_t data_airwalls[1] = {0};
 const airmap_t data_airmaps[1] = {0};
 const int data_n_airmaps = 0;
 bool voids_shown;
+bool collision_shown;
+void collision_frame(void) {}
+void collision_each_triangle(void (*draw)(const vec3f_t [3],int,void *),void *ctx) { (void)draw;(void)ctx; }
 const char *T(const char *s) { return s; }
 const char *TF(const char *s) { return s; }
 const char *gd_get_str(int i) { (void)i; return NULL; }
@@ -42,5 +45,31 @@ int main(void)
   n=MAX_DOTS-1; draw_void_box(corners,true,&draw); assert(n==MAX_DOTS);
   const unsigned char *guard=(const unsigned char *)&output[MAX_DOTS];
   for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
+  vec3f_t triangle[3]={{-1,-1,5},{1,-1,5},{0,1,5}};
+  for (int kind=0;kind<COLLISION_KINDS;kind++) {
+    n=0;surface_edges_reset();
+    draw_surface(triangle,kind,&draw);
+    draw_surface_edges(&draw);
+    assert(n>0 && n<=MAX_DOTS);
+    for (int i=0;i<n;i++) assert(output[i].color==AW_FLOOR+kind);
+    int original=n;
+    unsigned edges=surface_edge_count;
+    draw_surface(triangle,kind,&draw); assert(n==original && surface_edge_count==edges); /* shared edges */
+  }
+  /* Dense near geometry must not exhaust the budget before a distant edge. */
+  n=0;surface_edges_reset();
+  for (int i=0;i<1000;i++) {
+    float x=-3+(float)(i%40)*.15f,y=-2+(float)(i/40)*.15f;
+    vec3f_t v[3]={{x,y,5},{x+.2f,y,5},{x+.1f,y+.2f,5}};
+    draw_surface(v,COLLISION_FLOOR,&draw);
+  }
+  vec3f_t distant[3]={{-4,-3,6},{4,-3,6},{0,3,6}};
+  draw_surface(distant,COLLISION_TRIGGER,&draw);draw_surface_edges(&draw);
+  assert(n==MAX_DOTS*2/3);
+  unsigned distant_dots=0;
+  for (int i=0;i<n;i++) if (output[i].color==AW_TRIGGER) distant_dots++;
+  assert(distant_dots>0);
+  for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
   puts("void outlines: projection, near-plane clipping, range, colours and shared dot budget passed");
+  return 0;
 }

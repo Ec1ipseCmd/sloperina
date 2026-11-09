@@ -8,6 +8,7 @@
 #include "gamedata.h"
 #include "airwall.h"
 #include "voids.h"
+#include "collision.h"
 #include "memview.h"
 #include "osk.h"
 #include "build_info.h" /* made by the Makefile: BUILD_WHEN, BUILD_VERSION */
@@ -1825,7 +1826,7 @@ static void build_watches(void)
 
 /* --- scene ------------------------------------------------------------------------------------ */
 
-static menu_t m_scene, m_collision;
+static menu_t m_scene, m_collision, m_surfaces;
 
 static bool get_air_walls_shown(menu_item_t *it)
 {
@@ -1869,6 +1870,23 @@ static void set_voids_mode(menu_item_t *it, int choice)
   if (choice >= 0 && choice < VOIDS_MODE_COUNT) voids_mode = choice;
 }
 static void text_voids(menu_item_t *it, char *buf, int len) { voids_summary(buf, len); }
+static bool get_surfaces(menu_item_t *it) { return collision_shown; }
+static void set_surfaces(menu_item_t *it,bool on) { collision_shown=on; }
+static bool get_surface_kind(menu_item_t *it) { return (collision_kinds>>(uintptr_t)it->data)&1; }
+static void set_surface_kind(menu_item_t *it,bool on)
+{
+  unsigned bit=1u<<(uintptr_t)it->data;
+  collision_kinds=on?collision_kinds|bit:collision_kinds&~bit;
+}
+static const int surface_ranges[]={4,8,12,20};
+static const char *const surface_range_names[]={"4","8","12","20"};
+static int get_surface_range(menu_item_t *it)
+{ for (int i=0;i<4;i++) if (surface_ranges[i]==collision_radius) return i; return 1; }
+static void set_surface_range(menu_item_t *it,int value) { if (value>=0 && value<4) collision_radius=surface_ranges[value]; }
+static const char *const surface_details[]={"exact","0.25","0.5","1"};
+static int get_surface_detail(menu_item_t *it) { return collision_detail; }
+static void set_surface_detail(menu_item_t *it,int value) { if (value>=0 && value<4) collision_detail=value; }
+static void text_surfaces(menu_item_t *it,char *buf,int len) { collision_summary(buf,len); }
 
 static void build_scene(void)
 {
@@ -1879,14 +1897,32 @@ static void build_scene(void)
   menu_add_submenu(&m_scene, "collision", &m_collision);
   menu_add_return(&m_scene);
 
-  menu_init(&m_collision, "collision", 10);
-  menu_add_heading(&m_collision, "air walls");
-  menu_item_t *show = menu_add_check(&m_collision, "show", get_air_walls_shown, set_air_walls_shown, 0);
+  menu_init(&m_surfaces,"surfaces / triggers",9);
+  menu_add_check(&m_surfaces,"show surfaces",get_surfaces,set_surfaces,0);
+  menu_item_t *floor=menu_add_check(&m_surfaces,"floors",get_surface_kind,set_surface_kind,COLLISION_FLOOR);
+  if (floor) floor->hint="Green: nearby solid floors and walkable slopes";
+  menu_item_t *wall=menu_add_check(&m_surfaces,"walls",get_surface_kind,set_surface_kind,COLLISION_WALL);
+  if (wall) wall->hint="Blue: nearby solid walls and steep slopes";
+  menu_item_t *ceiling=menu_add_check(&m_surfaces,"ceilings",get_surface_kind,set_surface_kind,COLLISION_CEILING);
+  if (ceiling) ceiling->hint="Pink: nearby downward-facing solid surfaces";
+  menu_item_t *trigger=menu_add_check(&m_surfaces,"static triggers",get_surface_kind,set_surface_kind,COLLISION_TRIGGER);
+  if (trigger) trigger->hint="Yellow: loaded door/general-area sensors; these are not all voids";
+  menu_item_t *radius=menu_add_option(&m_surfaces,"range",4,surface_range_names,get_surface_range,set_surface_range,0);
+  if (radius) radius->hint="World units around Link; complete views stay visible between scans";
+  menu_item_t *detail=menu_add_option(&m_surfaces,"preview grid",4,surface_details,get_surface_detail,set_surface_detail,0);
+  if (detail) detail->hint="World units: 1 merges tiny faces for coverage; exact preserves original vertices";
+  menu_add_text(&m_surfaces,text_surfaces,0);
+  menu_add_return(&m_surfaces);
+
+  menu_init(&m_collision, "collision", 11);
+  menu_add_submenu(&m_collision,"surfaces / triggers",&m_surfaces);
+  menu_add_heading(&m_collision, "invisible barriers");
+  menu_item_t *show = menu_add_check(&m_collision, "show barriers", get_air_walls_shown, set_air_walls_shown, 0);
   if (show) {
     show->hint = "cyan: stop Link   red: he's inside it   violet: other kinds";
     show->log_label = "air walls:";
   }
-  menu_item_t *all_kinds = menu_add_check(&m_collision, "all kinds", get_air_walls_all, set_air_walls_all, 0);
+  menu_item_t *all_kinds = menu_add_check(&m_collision, "include other actors", get_air_walls_all, set_air_walls_all, 0);
   if (all_kinds) {
     all_kinds->hint = "also the walls for enemies, NPCs and objects";
     all_kinds->log_label = "all kinds:";

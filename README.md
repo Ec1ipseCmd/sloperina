@@ -15,7 +15,7 @@ Source: [github.com/PracticeROM/sloperina](https://github.com/PracticeROM/sloper
 - [`docs/BUILDING.md`](docs/BUILDING.md): building it, how it loads, what's verified.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md): how the game's data works and every problem solved so far (cause, fix,
   how it was found) and the approaches that don't work. **Start here if you want to work on it.**
-- [`docs/COLLISION.md`](docs/COLLISION.md): the collision view (shelved): the plan, its cost, and the decoded
+- [`docs/COLLISION.md`](docs/COLLISION.md): the bounded collision view, its limits, and the decoded
   collision file format.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the build and test routine. [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and
   [`THANKS.md`](THANKS.md): who made it and special thanks.
@@ -27,7 +27,8 @@ goes back.
 
 - **link**: health, heart containers, rupees, age and reload map; position, speed and map.
 - **warps**: any map and spawn point, at once, with the game's own fade.
-- **scene**: reload the map; air-wall and player void-sensor bounds, with optional void-out suppression.
+- **scene**: reload the map; separate nearby floor, wall, ceiling, and static-trigger filters; invisible barriers
+  and supported player void-sensor bounds, with optional void-out suppression.
 - **cheats**: infinite health, rupees, magic and ammo; 2x movement speed.
 - **inventory**: items, equipment, collection (upgrades, strength, scale, magic), bottles, quest items, songs,
   dungeon items and small keys, all through the game's own code where it needs it.

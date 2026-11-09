@@ -49,6 +49,13 @@ bool actors_each(void (*visit)(uintptr_t, const char *, void *), void *ctx)
   return node == sentinel && sys_ptr(sentinel + 8) == previous;
 }
 
+static bool health_parameter(uintptr_t p)
+{
+  if (!actor_readable(p, 12)) return false;
+  uintptr_t vt = sys_ptr(p);
+  return vt == MAIN(Z64HD_VT_ENEMY_PARAM) || vt == MAIN(Z64HD_VT_PARAM);
+}
+
 bool actor_health(uintptr_t actor, int32_t *current, int32_t *maximum)
 {
   if (!actor_readable(actor, 0x400) || sys_ptr(actor) != MAIN(Z64HD_VT_LINKOBJ)) return false;
@@ -57,8 +64,7 @@ bool actor_health(uintptr_t actor, int32_t *current, int32_t *maximum)
   if (!life || actor_next(life, 0x1340) != actor)
     return false;
   uintptr_t cur = actor_next(life, 0x1C10), max = actor_next(life, 0x1C18);
-  if (!actor_readable(cur, 12) || !actor_readable(max, 12) ||
-      sys_ptr(cur) != MAIN(Z64HD_VT_PARAM) || sys_ptr(max) != MAIN(Z64HD_VT_PARAM))
+  if (!health_parameter(cur) || !health_parameter(max))
     return false;
   *current = *(const volatile int32_t *)(cur + 8);
   *maximum = *(const volatile int32_t *)(max + 8);

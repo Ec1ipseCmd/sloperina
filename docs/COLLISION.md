@@ -1,15 +1,35 @@
-# Collision view (shelved)
+# Collision view
 
-**Full scene-mesh status: shelved (9th November 2026).** The collision files are fully decoded on the PC, but nothing is drawn in
-the game yet. This page is everything needed to pick it up again: the plan, what it costs, what's unknown, and the
-file format.
+**0.0.10-test3:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`.
+**Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
+(pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
+Selections persist. Existing invisible-barrier and void-sensor controls are independent.
+
+This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
+per frame. Complete views stay visible until the next scan finishes, and the drawing budget is shared
+across all projected edges rather than exhausted by the nearest few. Range defaults to 12 world units;
+existing saved ranges are preserved. **preview grid** defaults to 1 world unit: vertices are rounded to
+a fixed world grid, collapsed faces discarded and duplicates merged. This improves coverage but can omit
+small features and move a vertex by up to half a grid step per axis. Choose **0.5**, **0.25**, or **exact**
+for finer inspection. Static triggers and void bounds are never snapped. Only the visualization changes.
+Dense views use sparser outlines; the 3000-rectangle overlay limit is unchanged. Geometry refresh takes
+several frames and can take longer in dense maps. It draws
+through scenery. Unsupported shapes are skipped; capsules/spheres, moving actor collision, and unclassified
+scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
+
+No extracted collision files are distributed. Read-only checks located live tiles and the decoder was
+compared with `tools/phive.py` on loaded Castle Town data. Native build, synthetic malformed-data and
+lifecycle tests, and headless menu/projection tests pass. The user confirmed geometry appears in test2,
+but reported flicker and poor coverage. Test3 addresses both in host tests; its appearance and performance
+still need in-game confirmation. The historical research and future GPU-rendering plan follow; the native
+loaded-resource chain described above resolves the earlier question of finding collision in memory.
 
 The goal: **scene > collision > show collision** draws the floors, walls and ceilings around Link (like gz's
 collision view), coloured by kind, the way the air walls are drawn now.
 
 The native test build separately adds **Scene > Collision > show voids**. It resolves live Area
 logic/sensor objects and draws supported player-void sensor bounding boxes, using the existing air-wall
-renderer. This does not implement the full scene mesh described below. No extracted geometry is added
+  renderer. This is separate from solid mesh triangles. No extracted geometry is added
 for the void viewer; see [MANUAL.md](MANUAL.md#231-collision) for coverage and controls.
 
 ## Contents

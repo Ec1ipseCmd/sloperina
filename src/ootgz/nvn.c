@@ -1158,6 +1158,10 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     [AW_OTHER] = { 0.60f, 0.55f, 1.0f, 1.0f },  /* violet: other kinds */
     [AW_VOID] = { 1.0f, 0.70f, 0.10f, 1.0f }, /* amber: player void sensor bounds */
     [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* its logic condition is false */
+    [AW_FLOOR] = { 0.30f, 1.0f, 0.35f, 1.0f },
+    [AW_WALL] = { 0.25f, 0.65f, 1.0f, 1.0f },
+    [AW_CEILING] = { 1.0f, 0.35f, 0.75f, 1.0f },
+    [AW_TRIGGER] = { 1.0f, 0.95f, 0.25f, 1.0f },
   };
   int size = scale / SC_ONE < MIN_DOT_SIZE ? MIN_DOT_SIZE : scale / SC_ONE;
   set_render_target(tex);
