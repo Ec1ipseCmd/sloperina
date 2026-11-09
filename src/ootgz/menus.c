@@ -1969,8 +1969,8 @@ void menus_build(void)
   osk_build();
 
   menu_init(&m_log, "log", LOG_ROWS + 5);
-  menu_add_heading(&m_log, "log history");
-  menu_item_t *lf = menu_add_option(&m_log, "type", 1, log_type_names, get_log_filter, set_log_filter, 0);
+  /* the filter on the heading's line: "log history  < all >" */
+  menu_item_t *lf = menu_add_option(&m_log, "log history", 1, log_type_names, get_log_filter, set_log_filter, 0);
   if (lf)
     lf->hint = "which messages: all, problems, or one kind (newest first; all in sd:/sloperinaGZ/log.txt)";
   menu_item_t *la = menu_add_action(&m_log, "", 0, 0);
@@ -1978,11 +1978,8 @@ void menus_build(void)
     la->text = log_arrows, la->cursor = log_arrows_cursor, la->press = log_scroll, la->press_repeat = true,
     la->n_parts = 2, la->part_hints = log_arrow_hints;
   for (int i = 0; i < LOG_ROWS; i++) {
-    menu_item_t *t = menu_add_text(&m_log, text_log, i);
-    if (t)
-      t->plain = true;
+    menu_add_text(&m_log, text_log, i); /* grey: they can't be selected */
   }
-  menu_end_group(&m_log);
   menu_add_return(&m_log);
 
   int n_contributors = (int)(sizeof(contributors) / sizeof(*contributors));

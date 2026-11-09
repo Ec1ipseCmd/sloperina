@@ -67,6 +67,10 @@ FINDINGS.md still names its files where they're how something was found. It's in
 No game files are included. The data files here are derived from the game and from community tools; you need
 your own copy of the game.
 
+## Licence
+
+sloperinaGZ is free software under the GNU General Public License, version 3 ([LICENSE](LICENSE)), like gz.
+
 ## Credits
 
 - Based on the work of OoT N64's Practice ROM, gz, by glankk. Font: Press Start 2P (codeman38, OFL).

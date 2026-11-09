@@ -251,11 +251,11 @@ The status line under **return** shows what levitate is doing.
 
 ### 2.11 Log
 
-**log history**: the last 128 messages sloperinaGZ wrote, newest first, 12 at a time (**↑ ↓** scroll).
+The last 128 messages sloperinaGZ wrote, newest first, 12 at a time (**↑ ↓** scroll).
 
 | Item | What it does |
 |---|---|
-| **type** | Show **all** messages, only **problems** (anything that couldn't be done), or one kind (warp, settings, notice... whatever kinds there are). |
+| **log history** `< all >` | Which messages: **all**, only **problems** (anything that couldn't be done), or one kind (warp, settings, notice... whatever kinds there are). |
 
 Everything is also written to **`sloperinaGZ/log.txt`** on the SD card (on an emulator, its virtual SD card;
 Eden / Lichii: `%APPDATA%\eden\sdmc\sloperinaGZ\log.txt`), with the time since the game started, about once a
