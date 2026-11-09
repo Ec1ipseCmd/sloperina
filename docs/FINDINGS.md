@@ -501,6 +501,15 @@ Each of these was tried and verified not to help:
 
 ## 8. Open problems
 
+- **Fast fall after L3 release (fork 0.0.7):** the user reports a very fast fall when stopping
+  levitation. Previously `drop()` stopped position writes without clearing any physics velocity.
+  Stored falling velocity is a suspected cause, not runtime-confirmed. Release now clears only the
+  documented requested/post-collision y velocities (`record +0x2C/+0x44`, §5.10), once, after checking
+  the record still follows Link, is readable/writable and has plausible motion state. It does not
+  change position, horizontal velocity or gravity. Host tests cover the exact writes, L3/disable,
+  invalid records and no further writes after release. The game may have additional momentum state;
+  the resulting in-game fall still requires testing.
+
 - **Zero-rise hover (fork 0.0.6):** rise speed previously offered a minimum of 2, and settings
   rejected 0. The menu now offers 0 and settings retain it. At zero rise, vertical levitation velocity
   is explicitly cleared: simply adding 0 to the options would leave a previous upward velocity

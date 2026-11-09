@@ -266,7 +266,9 @@ While floating, levitation keeps your height against downward drift and accepts 
 from the game, including floor support and rising platforms. Hold **R3** to move horizontally at that
 height, or select **rise speed 0** to do so without holding R3. Combine this with **through walls**
 to move through walls without automatic ascent. The zero setting is saved across restarts.
-**L3** again stops floating and returns to normal falling/collision. This does not add missing
+**L3** again stops floating, clears the two known vertical physics velocities once, and lets the
+game apply gravity normally. This avoids deliberately handing off stored downward velocity;
+the in-game fall speed still needs verification. This does not add missing
 floor geometry or query the floor ahead of each move; thin surfaces, large steps and timing between
 physics updates still need in-game testing.
 

@@ -2,12 +2,13 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include "../src/ootgz/levitate.c"
 
 static double physics[9];
 static float cam[24];
 static vec3f_t drawn_pos;
-static uint32_t held;
+static uint32_t held, pressed;
 static int32_t stick_x;
 static bool mapped = true;
 bool cheats[CHEAT_COUNT];
@@ -29,7 +30,7 @@ void sys_regions(uint32_t perm, void (*fn)(uintptr_t, size_t, void *), void *ctx
 uint64_t sys_tick(void) { return 100; }
 uint64_t sys_tick_freq(void) { return 1000; }
 uint32_t input_held(void) { return held; }
-uint32_t input_pressed(void) { return 0; }
+uint32_t input_pressed(void) { return pressed; }
 void input_sticks(int32_t *lx, int32_t *ly, int32_t *rx, int32_t *ry)
 { *lx = stick_x; *ly = *rx = *ry = 0; }
 void log_printf(const char *fmt, ...) { (void)fmt; }
@@ -51,6 +52,7 @@ static void start(bool walls)
   levitate_speed = 4;
   levitate_move_speed = 6;
   held = BTN_RSTICK;
+  pressed = 0;
   stick_x = 0;
   record = (uintptr_t)physics;
   record_motion = false;
@@ -63,6 +65,52 @@ static void step(void)
 {
   sync_drawn();
   float_step(1.0 / 30.0, false);
+}
+
+static void test_release(void)
+{
+  for (int disable = 0; disable <= 1; disable++) {
+    start(true);
+    record_motion = true;
+    float motion[12];
+    for (int i = 0; i < 12; i++) motion[i] = (float)(i + 1);
+    motion[(0x2C - 24) / 4] = motion[(0x44 - 24) / 4] = -80;
+    memcpy((char *)physics + 24, motion, sizeof(motion));
+    unsigned char expected[sizeof(physics)];
+    memcpy(expected, physics, sizeof(expected));
+    memset(expected + 0x2C, 0, 4);
+    memset(expected + 0x44, 0, 4);
+    if (disable) levitate_enabled = false;
+    else pressed = BTN_LSTICK;
+    levitate_frame(false);
+    assert(!floating && !writing);
+    assert(!memcmp(physics, expected, sizeof(expected))); /* no position or horizontal writes */
+    pressed = 0;
+    motion[(0x2C - 24) / 4] = motion[(0x44 - 24) / 4] = -1;
+    memcpy((char *)physics + 24, motion, sizeof(motion));
+    physics[1] -= 0.1; /* next game frame applies gravity */
+    sync_drawn();
+    memcpy(expected, physics, sizeof(expected));
+    levitate_frame(false);
+    assert(!memcmp(physics, expected, sizeof(expected))); /* no continued velocity clamp */
+  }
+  for (int invalid = 0; invalid < 4; invalid++) {
+    start(true);
+    record_motion = true;
+    if (invalid == 0) mapped = false;
+    if (invalid == 1) drawn_pos.x += 100; /* stale record after relocation */
+    if (invalid == 2) record_motion = false;
+    if (invalid == 3) { /* implausible motion */
+      uint32_t nan = 0x7FC00000;
+      memcpy((char *)physics + 24, &nan, sizeof(nan));
+    }
+    unsigned char before[sizeof(physics)];
+    memcpy(before, physics, sizeof(before));
+    pressed = BTN_LSTICK;
+    levitate_frame(false);
+    assert(!floating && !writing && !memcmp(before, physics, sizeof(before)));
+  }
+  puts("PASS: L3/disable clears only two vertical velocities once; invalid/stale records untouched");
 }
 
 int main(void)
@@ -155,5 +203,6 @@ int main(void)
   assert(physics[1] == 20);
   puts("PASS: levitation keeps upward floor corrections, rejects downward drift, passes walls only when enabled");
   puts("PASS: rising platforms, rise/hold/menu/drop, invalid record and fresh-scene height");
+  test_release();
   return 0;
 }

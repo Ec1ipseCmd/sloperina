@@ -44,7 +44,8 @@ The game and SD filesystem are mocked; this does not verify the game's setter/ch
 
 `python tests/run_levitate.py --cc C:/msys64/mingw64/bin/gcc.exe` runs the real levitation step/frame
 logic with a simulated physics record. It checks upward floor corrections, downward drift, wall
-passage versus push-back, rising platforms, rise/hold/menu/drop and record loss/restart. These tests
+passage versus push-back, zero-rise hover, rising platforms, rise/hold/menu/drop and record loss/restart.
+Release tests verify only the two vertical velocity fields are cleared once and invalid records are skipped. These tests
 do not simulate the game's collision solver; verify surfaces and transitions in-game separately.
 
 

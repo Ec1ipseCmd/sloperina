@@ -348,6 +348,16 @@ static void drop(void)
     return;
   floating = false;
   if (writing) {
+    /* Holding the position does not clear the game's falling velocity. Start release
+     * from rest once, then let normal gravity take over. Touch only the two documented
+     * vertical velocity fields, never the position, horizontal motion or full WAKE state.
+     * Revalidate here: L3 is handled before this frame's normal record-loss check. */
+    bool zero;
+    if (state == L_READY && record_motion && record_follows_link() &&
+        plausible_motion(record + 24, &zero)) {
+      *(volatile float *)(record + 0x2C) = 0; /* requested y velocity */
+      *(volatile float *)(record + 0x44) = 0; /* post-collision y velocity */
+    }
     writing = false;
     int32_t *cur, *max;
     if (link_health(&cur, &max))
