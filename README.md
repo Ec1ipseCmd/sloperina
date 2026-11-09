@@ -1,7 +1,7 @@
 # sloperinaGZ
 
 A gz-style practice menu for **The Legend of Zelda: Ocarina of Time (Switch 2)**, built the way gz is: C code
-the game loads and runs itself (an exefs module, `subsdk9`, plus a 67-byte IPS patch to main). It works from
+the game loads and runs itself (an exefs module, `subsdk9`, plus a 143-byte IPS patch to main). It works from
 Atmosphère's LayeredFS, an emulator's mod folder (Lichii / Eden: `load/`) or an offline patcher.
 
 Supported version: program `0400486024DEC000`, update v131072 (main build `E0F3CCFA…`). Other versions have
@@ -27,14 +27,14 @@ goes back.
 
 - **link**: health, heart containers, rupees, age and reload map; position, speed and map.
 - **warps**: any map and spawn point, at once, with the game's own fade.
-- **scene**: reload the map; the map's air walls drawn over the game (collision).
+- **scene**: reload the map; air-wall and player void-sensor bounds, with optional void-out suppression.
 - **cheats**: infinite health, rupees, magic and ammo; 2x movement speed.
 - **inventory**: items, equipment, collection (upgrades, strength, scale, magic), bottles, quest items, songs,
   dungeon items and small keys, all through the game's own code where it needs it.
 - **equips**, **story** (quest stages, tutorials).
 - **watches**: gz's watch list: built-in watches (position, speed, angles, camera, input, timer, lag...) and
   memory watches, with display types, labels (gz's keyboard), show/hide, reordering and the wrench to see the value
-  in memory; the box can go in any corner or anywhere.
+  in memory; the box can go in any corner or anywhere. **Enemy Health** shows current/max above nearby enemies.
 - **debug**: heap and gz's memory viewer (edit, add watches, follow pointers).
 - **settings**: language, menu size and background, the input display (gz's row or a Switch 2 Pro Controller),
   levitate (L3 toggle, held X/B up/down, release to hover), frame advance (L or R) with gz's pause icons.

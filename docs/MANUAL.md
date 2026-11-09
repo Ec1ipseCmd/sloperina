@@ -117,6 +117,18 @@ and you'll come out at the chosen place. Under **return**: the **current** map a
 The two lines under them count the walls in this map and those near you, and say whether Link is inside one
 (how deep, and which way the game will push him out). Outlines are drawn on top of everything, through scenery.
 
+**void sensors** adds independent controls:
+
+| Item | What it does |
+|---|---|
+| **show voids** | Draw recognized player void-sensor bounds within 60 units. Amber: active logic; grey: its condition is false. Saved between launches. |
+| **void-outs** | **normal**, **off while levitating**, or **off**. Only Link's abyss messages and sand-sensor messages are filtered. Resets to normal at launch. |
+
+The summary counts recognized sensors, supported bounds and unavailable bounds. These are bounds,
+not collision faces: curved sensors may occupy only part of a box. Areas must connect directly to a
+recognized abyss/sand node; unsupported logic links or geometry are not guessed. Object-only deletion
+areas are excluded. Scripted warps, unrelated deaths and global actor cleanup are outside this control.
+
 ### 2.4 Cheats
 
 **infinite**: energy, rupees, magic, deku sticks, deku nuts, deku seeds, bombs, arrows, bombchus, magic beans:
@@ -190,6 +202,13 @@ rows of keys (D-pad picks a key, **L** types it) and a row of **shift**, **space
 **return** cancels. Up to 12 characters.
 
 Memory watches aren't saved (addresses change every time the game starts); everything else is.
+
+**Enemy Health** is available in **known watches**. Add it to show `current/max` above living
+`Enemy_` actors within 60 units, nearest 32 first. Values come from their current and maximum life
+parameters; upper attachment positions track the label as the enemy moves. A root-position offset is
+used if attachment points are unavailable. There is no separate corner-HUD row. The watch checkbox,
+global Watches visibility, removal and saved settings all apply. Unknown life values are omitted;
+bosses or multipart actors without the standard life component are not covered.
 
 **JS Height** is the seventh default watch. It resolves the current player's jumpslash height
 threshold on each read, showing an f32 with nine significant digits, **Max** for `FLT_MAX`, or **N/A**
@@ -277,8 +296,8 @@ falls are unchanged. The old short health-refund timer has been removed.
 
 The user confirmed traversal through a previously blocking wall, followed by a gentle L3 fall
 and no landing damage. This does not establish behavior at every surface or during every event.
-Void protection and a void-trigger viewer are not included. Camera-follow and stationary-position
-pause behavior have not been separately fixed.
+Void viewing and suppression are under **scene > collision** (see above). Camera-follow and
+stationary-position pause behavior have not been separately fixed.
 
 #### 2.10.3 Frame advance
 
@@ -345,7 +364,7 @@ dropped (é shows as e) and other alphabets can't be shown yet.
 ## 7 Known limits
 
 - Only **update v131072** of the game is supported.
-- Collision shows the air walls; the full collision mesh isn't drawn yet.
+- Collision shows air walls and supported player void-sensor bounds; the full collision mesh is not drawn.
 - Memory watches aren't kept between runs.
 - Frame advance freezes the picture while paused ([4](#4-about-frame-advance)).
 - Some changes only show after the game redraws them (pause screen, loading zone); story stages need a loading

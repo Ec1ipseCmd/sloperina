@@ -1,11 +1,16 @@
 # Collision view (shelved)
 
-**Status: shelved (9th November 2026).** The collision files are fully decoded on the PC, but nothing is drawn in
+**Full scene-mesh status: shelved (9th November 2026).** The collision files are fully decoded on the PC, but nothing is drawn in
 the game yet. This page is everything needed to pick it up again: the plan, what it costs, what's unknown, and the
 file format.
 
 The goal: **scene > collision > show collision** draws the floors, walls and ceilings around Link (like gz's
 collision view), coloured by kind, the way the air walls are drawn now.
+
+The native test build separately adds **Scene > Collision > show voids**. It resolves live Area
+logic/sensor objects and draws supported player-void sensor bounding boxes, using the existing air-wall
+renderer. This does not implement the full scene mesh described below. No extracted geometry is added
+for the void viewer; see [MANUAL.md](MANUAL.md#231-collision) for coverage and controls.
 
 ## Contents
 

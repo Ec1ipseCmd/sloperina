@@ -813,3 +813,65 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
 - User confirmed the preceding test's native through-walls bypass passes the wall
   that previously trapped Link, after turning through walls ON. Void-trigger
   visualization and optional levitation void immunity are still under investigation.
+
+
+### 9.5 Enemy life and live actor enumeration (0.0.10-test)
+
+- The actor/process manager is `**(main+0x4C7DC40)`. Its circular intrusive list has a sentinel
+  at manager+0x68 and nodes at actor+0x190 (next, previous). The list also contains system processes;
+  only objects with actor vtable `main+0x4B25E18` are treated as actors. Name is actor+0x20.
+  Read-only inspection found hundreds of entries; guards check back-links, bounded traversal and types.
+- `QueryLifeGetLifeByActor` (executor 0x2A487A0) reaches the base component through actor+0x270,
+  component-table+0x2B8. Its actor back-pointer is +0x1340. Native getters 0x2D0BCC0 and 0x2D0BCF0
+  read parameter pointers at +0x1C10 / +0x1C18; values are signed 32-bit at parameter+8, with
+  parameter vtable 0x4B63438. Live reads observed ReDeads 12/12, Deku Babas 2/2 and a Gold Skulltula 1/1.
+  The new watch selects living `Enemy_` actors, not every object with a life component.
+- The position-calculator component is table+0x128, vtable 0x4B47058, owner+0x18. The native query
+  selects attachment vectors including +0x44, +0x5C, +0x74 and +0x80 (selector 0x20B370).
+  The label uses the highest finite nearby attachment plus 0.35, falling back to actor root+1.85.
+  These are upper attachment positions, not a verified universal head-bone index.
+- Camera projection is shared with air walls. Game-thread reads publish at most 32 nearest labels;
+  NVN copies a bounded mod-owned snapshot and never traverses actor memory. Missing/changed lists clear
+  labels. No cached per-enemy addresses or game-memory writes are used by Enemy Health.
+- Host tests and production label rasterization pass. Live reads validate fields, not the installed
+  overhead display, health changes during combat, or boss coverage. Those still require runtime tests.
+
+### 9.6 Void sensors and selective suppression (0.0.10-test)
+
+- Void sensors are separate from solid collision. Area actors expose their logic binder through
+  `[actor+0x3D8]+0x80`; binder vtable 0x4B25A60, its node pointer at +8, Area node vtable 0x4C5B298.
+  Node+8 is the logic context; context+0x60/+0x68 is the node count/pointer array. An Area's
+  SensorHitInfo output cell is node+0x80. Abyss consumer input at +0x28 must reference that exact cell:
+  simply finding a dangerous node elsewhere in the same logic module causes false positives.
+- Native consumer vtables: GiveAbyssActor 0x4B90830, conditional variant 0x4B909B0,
+  SendSandAbyss 0x4B91E08. The standard handler returns death reason 8 (`FallIntoAbyss`, also
+  verified in the native enum's ordered string table). Conditional nodes read reason through +0x78,
+  target-name parameter through +0x68, and activation through +0x60. Null target name permits all;
+  a non-null name must match Link. A non-null empty string is not an unrestricted target.
+- A live Market Area was linked to the conditional node but targeted Blue Fire, used reason 10,
+  and had a false condition. It must **not** be shown as a player void. This confirmed why classifying
+  every GiveAbyss node or generic Area as a void is incorrect.
+- `QueryPhysicsGetRigidBodySensorByIndex` (helper 0xC8BCD0) follows the physics component at
+  `[[actor+0x270]+0x50]`, +0x20 controller set; +0x38 counts sensor controllers, +0x40 points to
+  their array. First controller+8 is a body pool (count+0x10, entries+0x18, stride 0x18, body+8).
+  Sensor body vtable is 0x4C37D20; body+0x28 is shape, body+0x80 is a row-major 3x4 transform.
+- The cached-bounds shape implementation at 0x38614B0 uses scale+0x10, local half-extents+0xC0,
+  centre+0xD0. The viewer checks this virtual-method identity and reads only those supported shapes.
+  The sampled sensor's extents, centre and transform agreed with its actor position. Curved shapes use
+  bounding boxes; the viewer does not reproduce the solver's tiny contact-margin expansion.
+  Unsupported controllers/shapes are counted unavailable. Indirect/aggregated logic links and global
+  cleanup/scripted events are not inferred. No extracted geometry or logic resources are shipped.
+- Suppression is an opt-in, session-only mode. The game-thread frame publishes the current Link actor
+  ID (+0x3E8) only when the selected mode applies. The death-message sender 0x2654B20 copies a 12-byte
+  payload and uses target ID/category at target+0/+4. The hook rejects only Link, category 0x613B0000,
+  reason 8. Every other message retains all original arguments and the original return value.
+  A separate hook at sand sensor call 0x31E6A54 filters only Link/category 0x76910020, forwarding other
+  calls to 0x373A20. It does not turn off unrelated deaths, damage, actor cleanup or scripted warps.
+- IPS v2 is 143 bytes in seven records. The sender-entry fallback at cave+0x70 executes the displaced
+  PACIBSP then branches to sender+4, preserving native return authentication. The frame and sand stubs
+  use the original-function fallback. Additional slots +0x4E9A4D8/+0x4E9A4E0 were zero in live reads,
+  beyond the declared MOD0 BSS end and within the mapped NSO BSS, like the existing frame slot.
+  Boot checks reject mismatched patch versions/sites or occupied slots.
+- Host tests validate selection/conditions, invalid memory, rotated bounds, modes and message forwarding;
+  generated-IPS tests decode branches, pointer slots and fallback instructions. Native build and headless
+  menu/label checks pass. **The new hooks, void outlines and immunity have not been runtime verified.**

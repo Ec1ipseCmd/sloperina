@@ -23,7 +23,7 @@ Outputs, per game version (only `v131072` exists so far):
 | File | What |
 |---|---|
 | `bin/v131072/subsdk9` | the module (NSO), added to the game's exefs |
-| `bin/v131072/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips` | IPS32 patch for main (67 bytes) |
+| `bin/v131072/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips` | IPS32 patch for main (143 bytes) |
 | `dist/` | install trees, see [INSTALLATION.md](../INSTALLATION.md) |
 
 The link fails if the module imports a symbol that isn't in `lib/imports.txt` (the functions main
@@ -84,15 +84,21 @@ without touching the game's files:
    `subsdk1`-`9` are free. rtld loads every module present, links imports by name and calls
    each module's `DT_INIT`. ootgz imports `nnMain` from main (to find main's base: no memory
    scanning) and `nn::hid`, `vsnprintf`, `memcpy`... from sdk. It exports nothing.
-2. **The IPS** patches three things in main:
+2. **The IPS** uses seven records (patch format version 2):
    - `main+0x3c46400`: marker `OOTGZ\0\0\0` + patch version (the module checks it)
    - `main+0x3c46440`: a 5-instruction stub: load the pointer in `main+0x4e9a4d0`; if set,
      jump to it, else run the original GameData unlock
    - `main+0x3b500dc`: the per-frame "unlock GameData" tail call → the stub (the same site and
      cave the old patch used, FINDINGS §3)
 
-   `ootgz_module_init` (DT_INIT) checks the marker, version, site and that the slot is empty,
-   then stores `ootgz_frame_entry` in the slot. The stub falls back to the original code if the
+   - `main+0x2654b20`: the death-message sender entry branches through the stub at `main+0x3c46460`.
+     Its fallback executes the displaced `PACIBSP`, then resumes at sender+4. The module filters only
+     Link's `FallIntoAbyss` reason; other targets/reasons retain the original call and arguments.
+   - `main+0x31e6a54`: the sand-abyss sensor's call branches through `main+0x3c46480`, with the
+     original sender as fallback. The two additional slots are `main+0x4e9a4d8` and `main+0x4e9a4e0`.
+
+   `ootgz_module_init` (DT_INIT) checks the marker, version, all hook sites and empty pointer slots,
+   then stores the frame and message callbacks in their slots. The stub falls back to the original code if the
    module is missing, so the IPS alone is harmless.
 
 The module runs exactly where the old assembly hook ran: the game's thread, once per frame,
@@ -217,3 +223,29 @@ reserved the map within 90 frames, the warp falls back to swapping the next exit
 ## Installing
 
 See [INSTALLATION.md](../INSTALLATION.md).
+
+## Enemy Health and voids test build
+
+Build and install with `make dist` (or `./docker-make dist`), then replace **both** mod files and
+restart the game. Patch version 2 is required; a v1 IPS paired with this module is rejected.
+No original game file is an input to compilation or included in the mod package.
+
+Additional host checks (pass `--cc /path/to/gcc` when needed):
+
+```
+python tests/run_enemy_health.py
+python tests/render_enemy_health.py
+python tests/run_voids.py
+```
+
+These cover actor-list replacement/corruption, health validation, pause/visibility, bounded projection,
+read-only memory access, void sensor association and reason/target filters, rotated bounds, mode changes,
+and exact IPS branches/slots/fallbacks. Label rendering uses the production NVN drawing function and font
+with a headless rectangle backend. This does not emulate the native message queue or game physics.
+
+Runtime checks still required for this test build: add Enemy Health in Watches, damage an enemy and
+confirm current decreases while max remains fixed; reload the scene and restart to check the saved watch.
+Enable Scene > Collision > show voids near a known pit. Check the bounds and summary, then use
+void-outs = off while levitating and cross the same trigger with L3 floating active. Return to safe ground
+and normal mode to verify restoration. Visibility persists; suppression returns to normal after restart.
+Read-only field validation and host checks are not in-game verification of these new features.

@@ -23,6 +23,7 @@
 
 #include "font.h"
 #include "airwall.h"
+#include "enemy_health.h"
 #include "gfx.h"
 #include "sys.h"
 
@@ -1155,6 +1156,8 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     [AW_BLOCKS] = { 0.23f, 0.84f, 1.0f, 1.0f }, /* cyan: stops Link */
     [AW_INSIDE] = { 1.0f, 0.28f, 0.28f, 1.0f }, /* red: Link is inside it */
     [AW_OTHER] = { 0.60f, 0.55f, 1.0f, 1.0f },  /* violet: other kinds */
+    [AW_VOID] = { 1.0f, 0.70f, 0.10f, 1.0f }, /* amber: player void sensor bounds */
+    [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* its logic condition is false */
   };
   int size = scale / SC_ONE < MIN_DOT_SIZE ? MIN_DOT_SIZE : scale / SC_ONE;
   set_render_target(tex);
@@ -1181,6 +1184,51 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     x = x < 0 ? 0 : x + w > area.w ? area.w - w : x;
     y = y < 0 ? 0 : y + h > area.h ? area.h - h : y;
     clear_scissored(area.x + x, area.y + y, w, h, texture_height, colours[dot->color < AW_NCOLORS ? dot->color : 0]);
+  }
+  reset_scissor();
+}
+
+/* Projected enemy labels use the same font and scissored rendering as clear
+ * panels. A small dark backing keeps current/max readable over scenery. */
+static void draw_enemy_labels(const enemy_label_t *labels, int count, nvn_texture_t *tex,
+                              nvn_rect_t area, int texture_height, int menu_scale)
+{
+  static const float black[4] = { 0.04f, 0.04f, 0.04f, 1 };
+  static const float white[4] = { 1, 1, 1, 1 };
+  int scale = menu_scale * 3 / 4;
+  if (scale < SC_ONE)
+    scale = SC_ONE;
+  int rectangles = 0;
+  set_render_target(tex);
+  for (int i = 0; i < count; i++) {
+    int length = (int)strlen(labels[i].text);
+    int width = font_to_screen_ceil(length * FONT_W + 2, scale);
+    int height = font_to_screen_ceil(FONT_H + 2, scale);
+    int x = (int)((int64_t)labels[i].x * area.w / 65535) - width / 2;
+    int y = (int)((int64_t)labels[i].y * area.h / 65535) - height;
+    if (x < 0 || y < 0 || x + width > area.w || y + height > area.h)
+      continue;
+    if (command_memory_low(rectangles++))
+      break;
+    clear_scissored(area.x + x, area.y + y, width, height, texture_height, black);
+    for (int row = 0; row < FONT_H; row++) {
+      for (int col = 0; col < length * FONT_W;) {
+        if (!font_pixel((unsigned char)labels[i].text[col / FONT_W], col % FONT_W, row)) {
+          col++;
+          continue;
+        }
+        int start = col++;
+        while (col < length * FONT_W && font_pixel((unsigned char)labels[i].text[col / FONT_W], col % FONT_W, row))
+          col++;
+        if (command_memory_low(rectangles++)) {
+          reset_scissor();
+          return;
+        }
+        int x0 = font_to_screen_ceil(start + 1, scale), x1 = font_to_screen_ceil(col + 1, scale);
+        int y0 = font_to_screen_ceil(row + 1, scale), y1 = font_to_screen_ceil(row + 2, scale);
+        clear_scissored(area.x + x + x0, area.y + y + y0, x1 - x0, y1 - y0, texture_height, white);
+      }
+    }
   }
   reset_scissor();
 }
@@ -1470,10 +1518,12 @@ static void record_readback(nvn_texture_t *tex, const panel_draw_t *draw)
 static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
 {
   const gfx_screen_t *screen = gfx_published();
+  enemy_label_t health_labels[ENEMY_LABEL_MAX];
+  int n_health = enemy_health_copy(health_labels);
   int n_dots;
   const aw_dot_t *dots = airwall_published(&n_dots);
   int pause_icon = gfx_pause_icon;
-  if ((!screen && !n_dots && !pause_icon) || overlay_state == OV_FAILED)
+  if ((!screen && !n_dots && !n_health && !pause_icon) || overlay_state == OV_FAILED)
     return;
   if (index < 0 || index >= swapchain_texture_count) {
     static bool warned;
@@ -1577,7 +1627,7 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
     draw->scale = scale;
     n++;
   }
-  if (!n && !n_dots && !pause_icon)
+  if (!n && !n_dots && !n_health && !pause_icon)
     return;
   __asm__ volatile("dsb sy" ::: "memory"); /* pixels reach memory before the GPU copies them */
 
@@ -1586,6 +1636,8 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   fn.cmd_begin(&cmd_buffer);
   if (n_dots)
     draw_airwall_dots(dots, n_dots, tex, frame.area, th, frame.scale);
+  if (n_health)
+    draw_enemy_labels(health_labels, n_health, tex, frame.area, th, frame.scale);
   if (pause_icon)
     draw_pause_icon(pause_icon, tex, frame.area, th, frame.scale);
   for (int i = 0; i < n; i++) {

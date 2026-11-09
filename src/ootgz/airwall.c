@@ -9,6 +9,8 @@
  * ones are dots, which takes fewer clears than a staircase there. (FINDINGS §5.11 had see-through
  * faces; here only the outlines, and like the Python view they show through scenery.) */
 #include "airwall.h"
+#include "world_view.h"
+#include "voids.h"
 
 #include "data.h"
 #include "gamedata.h"
@@ -18,7 +20,6 @@
 
 float sinf(float x); /* from sdk */
 float cosf(float x);
-float tanf(float x);
 float sqrtf(float x);
 
 bool airwalls_shown, airwalls_all;
@@ -43,12 +44,6 @@ bool airwalls_shown, airwalls_all;
 #define CYLINDER_SEGMENTS 16
 #define CYLINDER_SIDE_EVERY 4 /* a side line at every 4th segment: four in all */
 #define TWO_PI 6.2831853f
-
-/* the game's camera */
-#define CAM_POSITION 0x38
-#define CAM_LOOK_AT 0x44
-#define CAM_FOV_Y 0x130
-#define CAM_ASPECT 0x140
 
 /* --- geometry, worked out once per map ------------------------------------------------------------ */
 
@@ -323,62 +318,6 @@ static int n_dots[2];
 static volatile int published = -1; /* the buffer to draw, or -1 for none */
 static int n_walls_near;
 
-typedef struct {
-  float pos[3], forward[3], right[3], up[3];
-  float tan_x, tan_y; /* tangents of half the horizontal and vertical fov */
-} cam_t;
-
-static bool read_camera(cam_t *cam)
-{
-  uintptr_t game_cam = camera();
-  if (!game_cam || !sys_mapped(game_cam + CAM_POSITION, CAM_ASPECT - CAM_POSITION + 4, SYS_PERM_R))
-    return false;
-  const float *pos = (const float *)(game_cam + CAM_POSITION);
-  const float *look = (const float *)(game_cam + CAM_LOOK_AT);
-  float fov = *(const float *)(game_cam + CAM_FOV_Y);
-  float aspect = *(const float *)(game_cam + CAM_ASPECT);
-  if (!(fov > 0.1f && fov < 3.0f) || !(aspect > 0.5f && aspect < 4.0f))
-    return false;
-  float f[3] = { look[0] - pos[0], look[1] - pos[1], look[2] - pos[2] };
-  float f_len = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-  if (f_len < 1e-4f)
-    return false;
-  for (int i = 0; i < 3; i++) {
-    cam->pos[i] = pos[i];
-    cam->forward[i] = f[i] / f_len;
-  }
-  float r[3] = { -cam->forward[2], 0, cam->forward[0] }; /* forward x world up */
-  float r_len = sqrtf(r[0] * r[0] + r[2] * r[2]);
-  if (r_len < 1e-4f)
-    return false;
-  cam->right[0] = r[0] / r_len;
-  cam->right[1] = 0;
-  cam->right[2] = r[2] / r_len;
-  /* up = right x forward */
-  cam->up[0] = cam->right[1] * cam->forward[2] - cam->right[2] * cam->forward[1];
-  cam->up[1] = cam->right[2] * cam->forward[0] - cam->right[0] * cam->forward[2];
-  cam->up[2] = cam->right[0] * cam->forward[1] - cam->right[1] * cam->forward[0];
-  cam->tan_y = tanf(fov / 2);
-  cam->tan_x = cam->tan_y * aspect;
-  return true;
-}
-
-/* world point x in camera space: (right, up, forward) */
-static void to_view(const cam_t *cam, const float x[3], float v[3])
-{
-  float d[3] = { x[0] - cam->pos[0], x[1] - cam->pos[1], x[2] - cam->pos[2] };
-  v[0] = d[0] * cam->right[0] + d[1] * cam->right[1] + d[2] * cam->right[2];
-  v[1] = d[0] * cam->up[0] + d[1] * cam->up[1] + d[2] * cam->up[2];
-  v[2] = d[0] * cam->forward[0] + d[1] * cam->forward[1] + d[2] * cam->forward[2];
-}
-
-/* 0..1 across and down the picture */
-static void to_screen(const cam_t *cam, const float v[3], float *sx, float *sy)
-{
-  *sx = (v[0] / (v[2] * cam->tan_x) + 1) / 2;
-  *sy = (1 - v[1] / (v[2] * cam->tan_y)) / 2;
-}
-
 /* 0..size to 0..65535, clamped */
 static uint16_t to_unit16(float v, float size)
 {
@@ -563,6 +502,38 @@ static int sort_near_walls(const cam_t *cam)
   return count;
 }
 
+typedef struct { aw_dot_t *dots; int *n; const cam_t *cam; } void_draw_t;
+
+static void draw_void_box(const vec3f_t corners[8], bool active, void *arg)
+{
+  void_draw_t *draw = arg;
+  float low[3] = { corners[0].x, corners[0].y, corners[0].z };
+  float high[3] = { low[0], low[1], low[2] };
+  for (int i = 1; i < 8; i++) {
+    float p[3] = { corners[i].x, corners[i].y, corners[i].z };
+    for (int j = 0; j < 3; j++) {
+      if (p[j] < low[j]) low[j] = p[j];
+      if (p[j] > high[j]) high[j] = p[j];
+    }
+  }
+  float distance = 0;
+  for (int j = 0; j < 3; j++) {
+    float p = draw->cam->pos[j];
+    float d = p < low[j] ? low[j] - p : p > high[j] ? p - high[j] : 0;
+    distance += d * d;
+  }
+  if (distance > AW_RANGE * AW_RANGE) return;
+  for (int i = 0; i < 8; i++) {
+    float a[3] = { corners[i].x, corners[i].y, corners[i].z };
+    for (int axis = 0; axis < 3; axis++) {
+      if (i >> axis & 1) continue;
+      int other = i | 1 << axis;
+      float b[3] = { corners[other].x, corners[other].y, corners[other].z };
+      add_edge_dots(draw->dots, draw->n, draw->cam, a, b, active ? AW_VOID : AW_VOID_INACTIVE);
+    }
+  }
+}
+
 void airwall_frame(void)
 {
   update_map();
@@ -570,11 +541,13 @@ void airwall_frame(void)
   int next = published == 0 ? 1 : 0;
   int n = 0;
   n_walls_near = 0;
-  bool draw = airwalls_shown && current_map && !game_is_paused();
+  bool draw = (airwalls_shown || voids_shown) && !game_is_paused();
   cam_t cam;
   if (draw && read_camera(&cam)) {
+    void_draw_t void_draw = { dots[next], &n, &cam };
+    if (voids_shown) voids_each_box(draw_void_box, &void_draw);
     /* nearest wall first, so the dot budget goes to what's close */
-    n_walls_near = sort_near_walls(&cam);
+    n_walls_near = airwalls_shown && current_map ? sort_near_walls(&cam) : 0;
     for (int k = 0; k < n_walls_near && n < MAX_DOTS; k++) {
       int i = near_order[k];
       const airwall_t *wall = map_wall(i);

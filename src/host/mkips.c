@@ -9,6 +9,8 @@
  *                              cbz  x16, 1f   ; br  x16
  *                          1:  b    unlock               (original behaviour until hooked)
  *   FRAME_SITE          b stub                            (was: b unlock, a tail call)
+ *   ABYSS_SITE          b entry stub (fallback replays PACIBSP and resumes at +4)
+ *   SAND_SITE           bl call stub (fallback tail-calls the original sender)
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -75,6 +77,38 @@ static void write_record(FILE *f, uint32_t main_off, const uint8_t *data, uint16
   fwrite(data, 1, len, f);
 }
 
+/* A patched BL calls this tail-dispatch stub, preserving the call-site return
+ * address and all arguments. A missing module falls back to the original call. */
+static void write_call_hook(FILE *f, uint32_t site_at, uint32_t stub_at, uint32_t slot, uint32_t original)
+{
+  uint32_t code[STUB_INSNS] = {
+    insn_adrp(X16, stub_at, slot), insn_ldr_x(X16, X16, slot & 0xFFF),
+    insn_cbz_x(X16, stub_at + 8, stub_at + 16), insn_br(X16), insn_b(stub_at + 16, original),
+  };
+  uint8_t stub[STUB_SIZE], site[4];
+  for (int i = 0; i < STUB_INSNS; i++) put_le32(stub + 4 * i, code[i]);
+  put_le32(site, insn_b(site_at, stub_at) | 0x80000000u); /* BL */
+  write_record(f, stub_at, stub, sizeof(stub));
+  write_record(f, site_at, site, sizeof(site));
+}
+
+static void write_abyss_hook(FILE *f)
+{
+  uint32_t stub_at = Z64HD_CAVE_START + OOTGZ_ABYSS_STUB_OFF;
+  uint32_t code[6] = {
+    insn_adrp(X16, stub_at, Z64HD_ABYSS_HOOK_SLOT),
+    insn_ldr_x(X16, X16, Z64HD_ABYSS_HOOK_SLOT & 0xFFF),
+    insn_cbz_x(X16, stub_at + 8, stub_at + 16), insn_br(X16),
+    0xD503237Fu, /* displaced PACIBSP: preserve native return-address authentication */
+    insn_b(stub_at + 20, Z64HD_ABYSS_SEND + 4),
+  };
+  uint8_t stub[24], site[4];
+  for (int i = 0; i < 6; i++) put_le32(stub + 4 * i, code[i]);
+  put_le32(site, insn_b(Z64HD_ABYSS_SITE, stub_at));
+  write_record(f, stub_at, stub, sizeof(stub));
+  write_record(f, Z64HD_ABYSS_SITE, site, sizeof(site));
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 2) {
@@ -83,6 +117,10 @@ int main(int argc, char **argv)
   }
   _Static_assert((Z64HD_HOOK_SLOT & 7) == 0, "slot must be 8-aligned");
   _Static_assert(Z64HD_CAVE_START + OOTGZ_STUB_OFF + STUB_SIZE <= Z64HD_CAVE_END, "stub outside cave");
+  _Static_assert(Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF + STUB_SIZE <= Z64HD_CAVE_END, "void stub outside cave");
+  _Static_assert(OOTGZ_STUB_OFF + STUB_SIZE <= OOTGZ_ABYSS_STUB_OFF &&
+                 OOTGZ_ABYSS_STUB_OFF + 24 <= OOTGZ_SAND_STUB_OFF, "overlapping stubs");
+  _Static_assert((Z64HD_ABYSS_HOOK_SLOT & 7) == 0 && (Z64HD_SAND_HOOK_SLOT & 7) == 0, "unaligned void slot");
 
   uint8_t marker[MARKER_SIZE] = { 0 };
   memcpy(marker, OOTGZ_MARKER, 8);
@@ -112,6 +150,9 @@ int main(int argc, char **argv)
   write_record(f, Z64HD_CAVE_START, marker, sizeof(marker));
   write_record(f, stub_at, stub, sizeof(stub));
   write_record(f, Z64HD_FRAME_SITE, site, sizeof(site));
+  write_abyss_hook(f);
+  write_call_hook(f, Z64HD_SAND_SITE, Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF,
+                  Z64HD_SAND_HOOK_SLOT, Z64HD_SAND_SEND);
   fwrite("EEOF", 1, 4, f);
   if (fclose(f) != 0) {
     perror(argv[1]);

@@ -22,6 +22,7 @@
 #include "menus.h"
 #include "airwall.h"
 #include "levitate.h"
+#include "voids.h"
 #include "settings.h"
 #include "warp.h"
 #include "watches.h"
@@ -304,10 +305,11 @@ static void frame(void)
     watches_sync();
     menu_draw();
   }
-  airwall_frame();
   menus_research_frame();
   watches_frame(menu_current != 0);
   levitate_frame(menu_current != 0);
+  voids_frame();
+  airwall_frame();
   warp_frame();
   gfx_frame();
 
@@ -358,6 +360,13 @@ static const char *patch_problem(void)
     return "frame site not patched (another mod on the same site, e.g. ootmenu?)";
   if (*(volatile uintptr_t *)MAIN(Z64HD_HOOK_SLOT) != 0)
     return "hook slot in main's bss is not empty; not hooking (update Z64HD_HOOK_SLOT)";
+  if (*(const uint32_t *)MAIN(Z64HD_ABYSS_SITE) !=
+        encode_branch(MAIN(Z64HD_ABYSS_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_ABYSS_STUB_OFF)) ||
+      *(const uint32_t *)MAIN(Z64HD_SAND_SITE) !=
+        (encode_branch(MAIN(Z64HD_SAND_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF)) | 0x80000000u))
+    return "void hook sites do not match: install the matching .ips";
+  if (*(volatile uintptr_t *)MAIN(Z64HD_ABYSS_HOOK_SLOT) || *(volatile uintptr_t *)MAIN(Z64HD_SAND_HOOK_SLOT))
+    return "void hook slots are not empty; not hooking";
   return 0;
 }
 
@@ -370,6 +379,8 @@ __attribute__((used)) void ootgz_module_init(void)
     return;
   }
   *(volatile uintptr_t *)MAIN(Z64HD_HOOK_SLOT) = (uintptr_t)ootgz_frame_entry;
+  *(volatile uintptr_t *)MAIN(Z64HD_ABYSS_HOOK_SLOT) = (uintptr_t)voids_abyss_message;
+  *(volatile uintptr_t *)MAIN(Z64HD_SAND_HOOK_SLOT) = (uintptr_t)voids_sand_message;
   log_raw("frame hook installed");
 
   /* main's imports: NVN for drawing, nn::hid to hide input while the menu is open */

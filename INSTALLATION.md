@@ -119,3 +119,10 @@ Language files are looked for when the game starts.
   v131072. On an emulator, check the mod is ticked in the game's *Add-ons* / *Mods* list.
 - **The game crashes at start-up.** Remove other mods that also add a `subsdk9` for this game; only one can.
 - More help: [the usage guide](docs/USAGE.md).
+
+## Updating to the Enemy Health / voids test build
+
+Replace both `subsdk9` and the matching `.ips` in the existing mod's `exefs` folder, then restart the
+game. The new 143-byte IPS is patch format v2; do not combine it with the older module or retain a
+second enabled copy of the mod. Existing `sloperinaGZ/settings.ini` and game saves remain in place.
+The package contains only mod code, a generated patch, and the project's documentation/resources.

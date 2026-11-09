@@ -7,6 +7,7 @@
 #include "data.h"
 #include "gamedata.h"
 #include "airwall.h"
+#include "voids.h"
 #include "memview.h"
 #include "osk.h"
 #include "build_info.h" /* made by the Makefile: BUILD_WHEN, BUILD_VERSION */
@@ -1860,6 +1861,15 @@ static void text_air_wall_link(menu_item_t *it, char *buf, int len)
   snprintf(buf, len, TF("link   %s"), text);
 }
 
+static bool get_voids_shown(menu_item_t *it) { return voids_shown; }
+static void set_voids_shown(menu_item_t *it, bool on) { voids_shown = on; }
+static int get_voids_mode(menu_item_t *it) { return voids_mode; }
+static void set_voids_mode(menu_item_t *it, int choice)
+{
+  if (choice >= 0 && choice < VOIDS_MODE_COUNT) voids_mode = choice;
+}
+static void text_voids(menu_item_t *it, char *buf, int len) { voids_summary(buf, len); }
+
 static void build_scene(void)
 {
   menu_init(&m_scene, "scene", 3);
@@ -1869,7 +1879,7 @@ static void build_scene(void)
   menu_add_submenu(&m_scene, "collision", &m_collision);
   menu_add_return(&m_scene);
 
-  menu_init(&m_collision, "collision", 6);
+  menu_init(&m_collision, "collision", 10);
   menu_add_heading(&m_collision, "air walls");
   menu_item_t *show = menu_add_check(&m_collision, "show", get_air_walls_shown, set_air_walls_shown, 0);
   if (show) {
@@ -1883,6 +1893,13 @@ static void build_scene(void)
   }
   menu_add_text(&m_collision, text_air_wall_summary, 0);
   menu_add_text(&m_collision, text_air_wall_link, 0);
+  menu_add_heading(&m_collision, "void sensors");
+  menu_item_t *void_show = menu_add_check(&m_collision, "show voids", get_voids_shown, set_voids_shown, 0);
+  if (void_show) void_show->hint = "amber: bounds; grey: condition inactive; curved sensors use bounding boxes";
+  menu_item_t *void_mode = menu_add_option(&m_collision, "void-outs", VOIDS_MODE_COUNT, voids_mode_names,
+                                          get_voids_mode, set_voids_mode, 0);
+  if (void_mode) void_mode->hint = "Player pit/sand sensors only; session setting, normal after restart";
+  menu_add_text(&m_collision, text_voids, 0);
   menu_add_return(&m_collision);
 }
 

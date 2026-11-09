@@ -3,6 +3,7 @@
 #include <float.h>
 
 #include "airwall.h"
+#include "enemy_health.h"
 #include "gamedata.h"
 #include "gfx.h"
 #include "input.h"
@@ -19,7 +20,7 @@ float hypotf(float x, float y);
 
 const char *const watch_labels[W_COUNT] = {
   "x", "y", "z", "facing", "move angle", "speed", "y speed", "camera angle", "camera pitch",
-  "camera dist", "input", "stick", "lag", "timer", "frame", "map", "air wall", "JS Height",
+  "camera dist", "input", "stick", "lag", "timer", "frame", "map", "air wall", "JS Height", "Enemy Health",
 };
 const char *const watches_corner_names[GFX_NPLACES] = { "top-left", "top-right", "bottom-left", "bottom-right",
                                                        "top-centre", "bottom-centre", "custom" };
@@ -613,6 +614,9 @@ void watch_text(watch_t watch, char *buf, int len)
     case W_AIRWALL:
       airwall_link_text(buf, len);
       break;
+    case W_ENEMY_HEALTH:
+      snprintf(buf, len, "above enemies");
+      return;
     case W_JS_HEIGHT: {
       float height;
       if (js_height(&height)) {
@@ -832,6 +836,11 @@ void watches_frame(bool menu_open)
   }
   if (!menu_open)
     command_input();
+  bool health_visible = false;
+  for (int i = 0; i < watch_count; i++)
+    if (watch_list[i].id == W_ENEMY_HEALTH && !watch_list[i].hidden)
+      health_visible = true;
+  enemy_health_frame(health_visible && watches_shown && !menu_open);
   bool moving = watches_moving; /* set each frame by the menu's move */
   watches_moving = false;
   if ((menu_open && !moving) || (!watches_shown && !moving))
@@ -842,7 +851,7 @@ void watches_frame(bool menu_open)
   int row = 0;
   for (int i = 0; i < watch_count; i++) {
     char label[24];
-    if (watch_list[i].hidden)
+    if (watch_list[i].hidden || watch_list[i].id == W_ENEMY_HEALTH)
       continue;
     watch_entry_display_label(&watch_list[i], label, sizeof(label));
     watch_entry_text(&watch_list[i], value, sizeof(value));

@@ -111,7 +111,7 @@ With **through walls** enabled, Link can pass through walls and ceilings;
 held B commands descent through floors. Exit geometry before toggling floating off.
 **vertical speed** controls both directions; an old saved value of 0 uses 4 units/s for X/B.
 **L3** stops floating, restores collision and starts the fall with zero vertical speed. Normal
-gravity resumes, with fall-distance protection through the first landing. Void triggers still apply.
+gravity resumes, with fall-distance protection through the first landing. Void triggers apply unless disabled under **scene > collision > void-outs**.
 
 **...look at a trick frame by frame?**
 Frame advance is on from the start (**settings > frame advance > enabled**). In the game, tap **L** to pause, tap **L** for one frame or hold it
@@ -123,6 +123,21 @@ the next frame.
 
 **...make the menu smaller?**
 **settings > size**: small, medium or large.
+
+## Enemy Health and void sensors
+
+- Add **Enemy Health** from **watches > known watches**. Nearby living enemies show `current/max`
+  above their upper attachment point (for example, `2/6`). The watch's checkbox and global Watches
+  visibility control the labels; the selection is saved. Menus and unavailable actors hide the labels.
+- **scene > collision > show voids** draws recognized player void-sensor bounds in amber. Grey means
+  the sensor's logic condition is currently false. This works independently of the air-wall checkbox.
+- **void-outs**: **normal**, **off while levitating**, or **off**. The middle choice protects Link only
+  while L3 floating is active. These modes filter player abyss/sand messages; they do not disable ordinary
+  damage, scripted warps, or global actor cleanup. Suppression is session-only and starts normal.
+
+The viewer shows supported live sensor bounds, not every possible scripted death or floor. Curved
+sensors use bounding boxes; unsupported bounds are counted as unavailable. New build code needs a game
+restart, but these options take effect live once installed.
 
 ## Things on the screen
 

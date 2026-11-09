@@ -17,10 +17,12 @@
 
 _Static_assert(sizeof(uintptr_t) == 8 && sizeof(float) == 4, "requires a 64-bit host with f32");
 _Static_assert(W_X == 0 && W_AIRWALL == 16 && W_JS_HEIGHT == 17, "keep saved watch IDs stable");
+_Static_assert(W_ENEMY_HEALTH == 18, "append health without renumbering watches");
+static bool health_visible;
 
 uintptr_t z64hd_main;
 bool cheats[CHEAT_COUNT], frame_advance, pause_display, warp_arrival_cutscenes;
-bool levitate_enabled, levitate_through_walls, airwalls_shown, airwalls_all;
+bool levitate_enabled, levitate_through_walls, airwalls_shown, airwalls_all, voids_shown;
 int frame_advance_button, levitate_speed = 5, levitate_move_speed = 5;
 
 static uintptr_t actor, first, player, base;
@@ -397,6 +399,27 @@ static void test_reset_lock(void)
   puts("PASS: reset/lock, exact four-byte writes, read-only/invalid targets, relocation, hidden HUD, unlock");
 }
 
+static void test_health_settings(void)
+{
+  sd_available = true;
+  snprintf(settings, sizeof(settings), "watch_list=17:0:0,18:0:0\nwatches_shown=1\nvoids_shown=1\n");
+  settings_load();
+  assert(watch_has(W_JS_HEIGHT) && watch_has(W_ENEMY_HEALTH) && voids_shown);
+  watches_frame(false); assert(health_visible);
+  watches_frame(true); assert(!health_visible);
+  watches_shown = false; watches_frame(false); assert(!health_visible);
+  watches_shown = true; watch_set_hidden(1, true); watches_frame(false); assert(!health_visible);
+  watch_set_hidden(1, false); watches_frame(false); assert(health_visible);
+  watch_set_label(1, "HP");
+  for (int i = 0; i < 60; i++) settings_frame(false);
+  assert(strstr(settings, "18:0:0") && strstr(settings, "voids_shown=1\n"));
+  watch_set_list(NULL, 0); voids_shown = false;
+  settings_load();
+  assert(watch_has(W_ENEMY_HEALTH) && voids_shown);
+  watch_remove(1); watches_frame(false); assert(!health_visible);
+  puts("PASS: Enemy Health watch ID, visibility, removal and settings round-trip; void viewer persistence");
+}
+
 int main(int argc, char **argv)
 {
   assert(watches_shown && watch_count == 7 && watch_list[6].id == W_JS_HEIGHT && !watch_list[6].hidden);
@@ -409,5 +432,8 @@ int main(int argc, char **argv)
   test_hud(argc > 1 ? argv[1] : NULL);
   test_menu_filler(argc > 2 ? argv[2] : NULL);
   test_reset_lock();
+  test_health_settings();
   return 0;
 }
+
+void enemy_health_frame(bool visible) { health_visible = visible; }

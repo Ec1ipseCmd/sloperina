@@ -19,6 +19,19 @@
  * that MOD0 declares (0x4e9a4c8) but inside the bss the NSO header maps (to 0x4ea0000);
  * zero in two live dumps. VERIFY with a write watchpoint before relying on it (BUILDING.md). */
 #define Z64HD_HOOK_SLOT         0x4E9A4D0
+#define Z64HD_ABYSS_HOOK_SLOT   0x4E9A4D8
+#define Z64HD_SAND_HOOK_SLOT    0x4E9A4E0
+#define Z64HD_ABYSS_SITE        0x2654B20 /* message sender entry; original PACIBSP */
+#define Z64HD_ABYSS_SEND        0x2654B20
+#define Z64HD_SAND_SITE         0x31E6A54
+#define Z64HD_SAND_SEND         0x373A20
+#define Z64HD_VT_ABYSS_NODE     0x4B90830
+#define Z64HD_VT_ABYSS_CONDITION_NODE 0x4B909B0
+#define Z64HD_VT_SAND_ABYSS_NODE 0x4B91E08
+#define Z64HD_VT_AREA_BINDER    0x4B25A60
+#define Z64HD_VT_AREA_LOGIC_NODE 0x4C5B298
+#define Z64HD_VT_SENSOR_BODY    0x4C37D20
+#define Z64HD_SHAPE_CACHED_BOUNDS 0x38614B0
 
 /* frame hook (FINDINGS §3) -------------------------------------------------------------- */
 /* Every frame main+0x3b500a4 locks GameData, applies its command queue (main+0xb99980)
@@ -87,6 +100,8 @@
 
 /* Link, camera, frame (game.py) --------------------------------------------------------- */
 #define Z64HD_VT_LINKOBJ        0x4B25E18
+#define Z64HD_ACTOR_MGR_PTR     0x4C7DC40 /* ** = process manager; actor list +0x68 */
+#define Z64HD_VT_POSITION_CALCULATOR 0x4B47058
 #define Z64HD_VT_PARAM          0x4B63438
 #define Z64HD_DISP_PTR          0x4C7E740   /* ** + 0x29C = Link's drawn position (3 floats) */
 #define Z64HD_CAMERA_PTR        0x4E98068   /* [*+0x68] = camera: +0x38 pos, +0x44 look-at */

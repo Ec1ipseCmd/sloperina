@@ -13,6 +13,7 @@ extern int levitate_speed;        /* X/B units/s; legacy 0 uses 4, idle always h
 extern int levitate_move_speed;   /* left stick, units per second */
 
 void levitate_frame(bool menu_open);
+bool levitate_active(void);
 const char *levitate_state(void); /* for watches/menus */
 
 #endif
