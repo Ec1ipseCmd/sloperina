@@ -51,6 +51,7 @@ struct menu_item {
   bool (*edit)(menu_item_t *it);
   const char *edit_hint;
   bool edit_alone;                                   /* while editing, the menu shows only its hint */
+  bool plain;                                        /* MI_TEXT drawn in the normal colour (not dim) */
 };
 
 #define MENU_INDENT 2
@@ -62,6 +63,8 @@ struct menu {
   int selected, scroll;
   menu_t *parent;
   bool grouping; /* items added now go under the last heading */
+  bool scroll_text; /* a page of text: d-up/down scroll it, L presses the selected item (return) */
+  int pinned;       /* the first this many items always show at the top; the rest scroll under them */
 };
 
 /* Items come from one shared pool; `cap` reserves that many for this menu. */

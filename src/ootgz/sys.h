@@ -51,8 +51,11 @@ void sys_regions(uint32_t perm, void (*fn)(uintptr_t, size_t, void *), void *ctx
 void log_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 /* Unformatted; safe before the sdk is initialised (module init). */
 void log_raw(const char *s);
-#define LOG_LINES 16
+#define LOG_LINES 128
 #define LOG_LINE_LEN 96
 const char *log_line(int i); /* 0 = newest; NULL past the end */
+/* the lines logged since the last call ("[seconds] text\n" each), for the log file (settings.c) */
+size_t log_take_pending(char *out, size_t cap);
+void *memmove(void *dst, const void *src, size_t n);
 
 #endif

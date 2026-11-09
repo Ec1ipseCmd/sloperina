@@ -116,6 +116,42 @@ void sys_regions(uint32_t perm, void (*fn)(uintptr_t, size_t, void *), void *ctx
 static char log_ring[LOG_LINES][LOG_LINE_LEN];
 static int log_head;
 
+/* Lines waiting to be written to the log file (settings.c, on the game's thread): log_printf can be
+ * called from the drawing thread too, so the buffer has a small lock. Kept from the start, so the lines
+ * before the SD card is mounted get written too; if it fills up before then, the newest are dropped. */
+#define FILE_PENDING 32768
+static char file_pending[FILE_PENDING];
+static size_t file_len;
+static volatile int file_lock;
+
+static void file_add(const char *s, size_t n)
+{
+  while (__atomic_test_and_set(&file_lock, __ATOMIC_ACQUIRE))
+    ;
+  uint64_t ms = sys_tick() * 1000 / sys_tick_freq();
+  char stamp[24];
+  int sl = snprintf(stamp, sizeof(stamp), "[%5u.%03u] ", (unsigned)(ms / 1000), (unsigned)(ms % 1000));
+  if (sl > 0 && file_len + (size_t)sl + n + 1 < FILE_PENDING) {
+    memcpy(file_pending + file_len, stamp, (size_t)sl);
+    memcpy(file_pending + file_len + sl, s, n);
+    file_len += (size_t)sl + n;
+    file_pending[file_len++] = '\n';
+  }
+  __atomic_clear(&file_lock, __ATOMIC_RELEASE);
+}
+
+size_t log_take_pending(char *out, size_t cap)
+{
+  while (__atomic_test_and_set(&file_lock, __ATOMIC_ACQUIRE))
+    ;
+  size_t n = file_len < cap ? file_len : cap;
+  memcpy(out, file_pending, n);
+  memmove(file_pending, file_pending + n, file_len - n);
+  file_len -= n;
+  __atomic_clear(&file_lock, __ATOMIC_RELEASE);
+  return n;
+}
+
 void log_printf(const char *fmt, ...)
 {
   char buf[256];
@@ -133,6 +169,7 @@ void log_printf(const char *fmt, ...)
   size_t l = len - PREFIX_LEN < LOG_LINE_LEN - 1 ? len - PREFIX_LEN : LOG_LINE_LEN - 1;
   memcpy(log_ring[log_head], buf + PREFIX_LEN, l);
   log_ring[log_head][l] = 0;
+  file_add(buf + PREFIX_LEN, len - PREFIX_LEN);
 }
 
 void log_raw(const char *s)

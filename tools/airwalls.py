@@ -18,7 +18,7 @@ sys.path.insert(0, HERE)
 import byml  # noqa: E402
 import gamefiles  # noqa: E402
 
-OUT = os.path.join(os.path.dirname(HERE), "airwalls.json")
+OUT = os.path.join(os.path.dirname(HERE), "data", "airwalls.json")
 
 
 def member(path):

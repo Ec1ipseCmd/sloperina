@@ -218,7 +218,7 @@ static uint8_t *pix_mem, *cmd_mem, *ctrl_mem;
 static const int n_bufs[GFX_PANELS] = { 1, SLOTS, SLOTS, SLOTS };
 static size_t pix_off[GFX_PANELS][SLOTS], pix_size[GFX_PANELS];
 static int max_cols[GFX_PANELS] = { GFX_COLS, HUD_COLS, LOG_COLS, INPUT_COLS },
-           max_rows[GFX_PANELS] = { GFX_ROWS, HUD_ROWS, GFX_LOG_MAX, PAD_ROWS };
+           max_rows[GFX_PANELS] = { GFX_ROWS, HUD_ROWS, GFX_LOG_ROWS, PAD_ROWS };
 /* the input display is either one long row or the controller (PAD_COLS x PAD_ROWS), never both at
  * once: its buffers are sized for the larger of the two */
 static size_t panel_area(int p, int sc)
@@ -737,7 +737,7 @@ static void build_mask(int p, const gfx_panel_t *s, int cols, int rows)
  * Only their pixels are drawn, as cleared rectangles straight into the picture (as the air walls are):
  * a run of one colour in a font-pixel row is a rectangle, and runs repeated in the rows under it (in the
  * same text row) grow it. Nothing around the text is touched, so nothing behind it lags or sticks. A
- * clear can't be see-through, so the log fades to dark (its shadow goes first). */
+ * clear can't be see-through: a log line fading out is blended by fade_compose instead. */
 #define CLEAR_MASK (MASK_W(INPUT_COLS) * MASK_H(PAD_ROWS))
 #define CLEAR_RECTS 3072
 typedef struct { uint16_t x, y, w, h; uint8_t k, row; } crect_t;
@@ -808,12 +808,13 @@ static void draw_clear(int i, const gfx_panel_t *s, nvn_texture_t *tex, nvn_rect
   for (int j = 0; j < n_crects[i]; j++) {
     if ((j & 63) == 0 && fn.cmd_free(&cmd) < 16384)
       break;
-    unsigned a = s->alpha[r[j].row < GFX_ROWS ? r[j].row : GFX_ROWS - 1];
-    if (r[j].k == PAL_SHADOW && a < 160)
+    int row = r[j].row < GFX_ROWS ? r[j].row : GFX_ROWS - 1;
+    unsigned a = s->alpha[row];
+    if (a == 0)
       continue;
-    float c[4] = { pal[r[j].k][0] * a / (255.0f * 255.0f), pal[r[j].k][1] * a / (255.0f * 255.0f),
-                   pal[r[j].k][2] * a / (255.0f * 255.0f), 1 };
-    int x0 = (r[j].x * sc + SC_ONE - 1) / SC_ONE, x1 = ((r[j].x + r[j].w) * sc + SC_ONE - 1) / SC_ONE;
+    int fx0 = r[j].x, fx1 = r[j].x + r[j].w; /* (a fading line is drawn by fade_compose; solid here) */
+    float c[4] = { pal[r[j].k][0] / 255.0f, pal[r[j].k][1] / 255.0f, pal[r[j].k][2] / 255.0f, 1 };
+    int x0 = (fx0 * sc + SC_ONE - 1) / SC_ONE, x1 = (fx1 * sc + SC_ONE - 1) / SC_ONE;
     int y0 = (r[j].y * sc + SC_ONE - 1) / SC_ONE, y1 = ((r[j].y + r[j].h) * sc + SC_ONE - 1) / SC_ONE;
     if (x1 > at.w)
       x1 = at.w;
@@ -826,6 +827,89 @@ static void draw_clear(int i, const gfx_panel_t *s, nvn_texture_t *tex, nvn_rect
     fn.clear_color(&cmd, 0, c, 0xF);
   }
   fn.set_scissor(&cmd, 0, 0, 65535, 65535);
+}
+
+/* --- the log's fade (gz's: the text's opacity going down) -----------------------------------------
+ * While a log line fades, the picture under the log is read back first, in its own small command
+ * buffer that's waited for (so it's this frame's picture, nothing stale), and the text is blended into
+ * it at the line's opacity on the CPU; the result is copied over the log. Only during a fade (about a
+ * second): the wait costs some time. If anything fails, that frame draws the text solid (draw_clear). */
+#define FADE_CMD 0x8000  /* command / control memory taken from the end of the frame's slot */
+#define FADE_CTRL 0x1000
+static enum { FADE_NONE, FADE_READY, FADE_FAILED } fade_state;
+static nvn_obj_t fade_pool, fade_sync;
+static uint8_t *fade_mem;
+static size_t fade_size;
+
+static bool fade_init(void)
+{
+  fade_size = round_page((size_t)PANEL_W(LOG_COLS, init_scale * SC_ONE) * PANEL_H(GFX_LOG_ROWS, init_scale * SC_ONE) * 4);
+  fade_mem = aligned_alloc(0x1000, fade_size);
+  if (!fade_mem || !make_pool(&fade_pool, fade_mem, fade_size, POOL_CPU_CACHED | POOL_GPU_UNCACHED) ||
+      !fn.sync_init(&fade_sync, device)) {
+    log_printf("log fade off: no memory for it");
+    fade_state = FADE_FAILED;
+    return false;
+  }
+  fade_state = FADE_READY;
+  return true;
+}
+
+static bool fading(const gfx_panel_t *s)
+{
+  for (int r = 0; r < s->rows && r < GFX_ROWS; r++)
+    if (s->alpha[r] > 0 && s->alpha[r] < 255)
+      return true;
+  return false;
+}
+
+/* reads back the picture under `at` (this frame's), then blends the log's text into it at each line's
+ * opacity, into dst; false if it couldn't */
+static bool fade_compose(nvn_queue_t *queue, int slot, nvn_texture_t *tex, nvn_region_t at, const gfx_panel_t *s,
+                         uint8_t *dst, int sc)
+{
+  if ((size_t)at.w * at.h * 4 > fade_size)
+    return false;
+  fn.cmd_add_command(&cmd, &cmd_pool, slot * CMD_SIZE + CMD_SIZE - FADE_CMD, FADE_CMD);
+  fn.cmd_add_control(&cmd, ctrl_mem + slot * CTRL_SIZE + CTRL_SIZE - FADE_CTRL, FADE_CTRL);
+  fn.cmd_begin(&cmd);
+  for (int y = 0; y < at.h; y++) {
+    nvn_region_t r = { at.x, at.y + y, 0, at.w, 1, 1 };
+    fn.cmd_copy_to_buffer(&cmd, tex, 0, &r, fn.pool_address(&fade_pool) + (nvn_addr_t)y * at.w * 4, 0);
+  }
+  nvn_handle_t h = fn.cmd_end(&cmd);
+  fn.queue_submit(queue, 1, &h);
+  fn.queue_fence(queue, &fade_sync, SYNC_ALL_GPU_COMMANDS_COMPLETE, 0);
+  if (fn.sync_wait(&fade_sync, 50 * 1000 * 1000ull) > 1)
+    return false;
+  fn.pool_invalidate(&fade_pool, 0, (size_t)at.w * at.h * 4);
+  uint8_t pal[PAL_COUNT][3];
+  palette(pal);
+  int mw = MASK_W(crect_cols[0]);
+  const uint8_t *m = clear_mask[0];
+  const uint32_t *under = (const uint32_t *)fade_mem;
+  uint32_t *out = (uint32_t *)line;
+  for (int x = 0; x < at.w; x++)
+    font_x[x] = x * SC_ONE / sc;
+  for (int y = 0; y < at.h; y++) {
+    int fy = y * SC_ONE / sc, py = fy - TEXT_TOP - s->yoff, row = py < 0 ? 0 : py / CELL_H;
+    unsigned a = s->alpha[row < GFX_ROWS ? row : GFX_ROWS - 1];
+    const uint8_t *mr = m + (size_t)fy * mw;
+    const uint32_t *u = under + (size_t)y * at.w;
+    for (int x = 0; x < at.w; x++) {
+      uint8_t k = mr[font_x[x]];
+      if (!k || !a) {
+        out[x] = u[x];
+        continue;
+      }
+      uint32_t r = 0, uu = u[x];
+      for (int c = 0; c < 3; c++)
+        r |= ((pal[k][c] * a + (uu >> (8 * c) & 0xFF) * (255 - a) + 127) / 255) << (8 * c);
+      out[x] = r | 0xFFu << 24;
+    }
+    memcpy(dst + (size_t)y * at.w * 4, line, (size_t)at.w * 4);
+  }
+  return true;
 }
 
 /* ... then each frame: text pixels from the mask, background blended with what was under it.
@@ -1098,6 +1182,13 @@ static void draw(nvn_queue_t *queue, nvn_window_t *window, int index)
       if (crect_hash[ci] != pn->hash || crect_cols[ci] != cols || crect_rows[ci] != rows)
         build_clear(ci, pn, cols, rows);
       clear_of[n] = ci, panel_of[n] = p, copy[n] = false, scales[n] = psc;
+      /* the log fading: blended into this frame's picture instead (fade_compose) */
+      if (p == GFX_PANEL_LOG && fading(pn) && is_rgba8(fmt) && fade_state != FADE_FAILED &&
+          (fade_state == FADE_READY || fade_init()) && (size_t)w * h * 4 <= pix_size[p] &&
+          fade_compose(queue, slot, tex, region, pn, out_ptr(p, slot), psc)) {
+        clear_of[n] = -1, copy[n] = true, srcs[n] = out_addr(p, slot);
+        drawn_hash[p][slot] = 0;
+      }
       regions[n++] = region;
       continue;
     }
@@ -1144,8 +1235,8 @@ static void draw(nvn_queue_t *queue, nvn_window_t *window, int index)
     return;
   __asm__ volatile("dsb sy" ::: "memory"); /* pixels reach memory before the GPU copies them */
 
-  fn.cmd_add_command(&cmd, &cmd_pool, slot * CMD_SIZE, CMD_SIZE);
-  fn.cmd_add_control(&cmd, ctrl_mem + slot * CTRL_SIZE, CTRL_SIZE);
+  fn.cmd_add_command(&cmd, &cmd_pool, slot * CMD_SIZE, CMD_SIZE - FADE_CMD); /* the end: fade_compose's */
+  fn.cmd_add_control(&cmd, ctrl_mem + slot * CTRL_SIZE, CTRL_SIZE - FADE_CTRL);
   fn.cmd_begin(&cmd);
   if (n_dots)
     draw_dots(dots, n_dots, tex, area, th, sc);

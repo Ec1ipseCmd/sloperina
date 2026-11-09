@@ -2,7 +2,7 @@
 
     python tools/gendata.py
 
-Run it after changing field_hashes.json, extra_fields.json, story.json or warps.json and commit
+Run it after changing data/field_hashes.json, extra_fields.json, story.json or warps.json and commit
 the result: the native build itself doesn't need Python. The lists below mirror ootmenu.pyw.
 """
 import json
@@ -142,11 +142,11 @@ def fl(v):
 
 
 def main():
-    fields = json.loads((ROOT / "field_hashes.json").read_text(encoding="utf-8"))
-    extra = json.loads((ROOT / "extra_fields.json").read_text(encoding="utf-8"))
-    story = json.loads((ROOT / "story.json").read_text(encoding="utf-8"))
-    warps = json.loads((ROOT / "warps.json").read_text(encoding="utf-8"))
-    starters = json.loads((ROOT / "spawn_starters.json").read_text(encoding="utf-8"))
+    fields = json.loads((ROOT / "data" / "field_hashes.json").read_text(encoding="utf-8"))
+    extra = json.loads((ROOT / "data" / "extra_fields.json").read_text(encoding="utf-8"))
+    story = json.loads((ROOT / "data" / "story.json").read_text(encoding="utf-8"))
+    warps = json.loads((ROOT / "data" / "warps.json").read_text(encoding="utf-8"))
+    starters = json.loads((ROOT / "data" / "spawn_starters.json").read_text(encoding="utf-8"))
     F = {m["title"]: (int(h, 16), m.get("type", "Int")) for h, m in fields.items()
          if m.get("group") not in ("Acquisition history", "Assignment order")}
     A = {m["title"]: int(h, 16) for h, m in fields.items() if m.get("group") == "Acquisition history"}
@@ -285,7 +285,7 @@ def main():
     w("};\nconst int data_n_spawns = sizeof(data_spawns) / sizeof(*data_spawns);")
 
     # air walls (airwalls.json, from tools/airwalls.py): per map, walls with their shapes
-    aw = json.loads((ROOT / "airwalls.json").read_text(encoding="utf-8"))["maps"]
+    aw = json.loads((ROOT / "data" / "airwalls.json").read_text(encoding="utf-8"))["maps"]
     blocks = {"HitOnlyPlayer", "Default", None}  # airwall.py PLAYER_MASKS
     w("")
     w("const airshape_t data_airshapes[] = {")

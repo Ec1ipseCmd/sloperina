@@ -1,28 +1,37 @@
-# Python
-__pycache__/
-*.pyc
-
-# Local state (per user)
-settings.json
-save_backups/
-snapshots/
-scan_state.bin
-scan_state.json
-
-# Research tool output
-tools/*.log
-tools/*_report.txt
-tools/*.arm
-tools/magicwatch.log
-
-# Personal notes
-*.local.md
-tools/*.csv
-tools/*.npz
-tools/meterscan_report.txt
-tools/meterscan_state.json
-
-# Native build output
+# Build output (make, ./docker-make)
 obj/
 bin/
 dist/
+# Releases (scripts/make-release.sh)
+release/
+*.zip
+
+# Game files: never commit them (the tools read a dump from outside the repository)
+*.nup
+*.nsp
+*.xci
+*.nca
+*.nso
+*.nro
+main.bin
+main.base
+romfs/
+exefs/
+
+# Python (tools/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Personal notes
+*.local.md

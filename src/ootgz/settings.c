@@ -26,6 +26,8 @@
 #define MOUNT SD_MOUNT
 #define DIR SD_DIR
 #define SETTINGS_FILE DIR "/settings.ini"
+#define LOG_FILE DIR "/log.txt" /* everything the module logs, from this start of the game */
+#define LOG_FILE_GAP 30         /* frames between writes (about a second) */
 #define OLD_SETTINGS_FILE SD_OLD_DIR "/settings.ini"
 #define SAVE_GAP_FRAMES 60 /* at most one write every ~2 s */
 
@@ -169,6 +171,9 @@ void settings_load(void)
     return;
   }
   mounted = true;
+  fs_create_dir(DIR);
+  fs_delete_file(LOG_FILE); /* a fresh one each time the game starts */
+  fs_create_file(LOG_FILE, 0);
   lang_init(); /* the language files on the SD card, for the language setting */
   snapshot_t s = take(); /* defaults for anything the file lacks */
   bool have_list = false;
@@ -318,6 +323,30 @@ static bool same_bytes(const void *a, const void *b, size_t n)
     if (x[i] != y[i])
       return false;
   return true;
+}
+
+/* appends what's been logged to the log file, about once a second (the game's thread) */
+void settings_log_frame(void)
+{
+  static int since;
+  static char chunk[8192];
+  if (!mounted || ++since < LOG_FILE_GAP)
+    return;
+  since = 0;
+  size_t n = log_take_pending(chunk, sizeof(chunk));
+  if (!n)
+    return;
+  fs_file_t f;
+  if (fs_open(&f, LOG_FILE, FS_WRITE | FS_ALLOW_APPEND) != 0) {
+    fs_create_file(LOG_FILE, 0);
+    if (fs_open(&f, LOG_FILE, FS_WRITE | FS_ALLOW_APPEND) != 0)
+      return;
+  }
+  int64_t size = 0;
+  fs_size(&size, f);
+  fs_write_option_t flush = { FS_WRITE_FLUSH };
+  fs_write(f, size, chunk, n, &flush);
+  fs_close(f);
 }
 
 void settings_frame(bool menu_open)

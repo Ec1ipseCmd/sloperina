@@ -1,4 +1,4 @@
-# sloperinaGZ (source: src/ootgz): the native (in-game) build. See BUILDING.md.
+# sloperinaGZ (source: src/ootgz): the native (in-game) build. See docs/BUILDING.md.
 #
 #   make            build bin/<version>/subsdk9 and bin/<version>/<build id>.ips
 #   make dist       stage install trees in dist/ (atmosphere/, lichii/, exefs/)

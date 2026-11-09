@@ -39,8 +39,8 @@ field name (`gamedata.murmur3`). "The patch" is ootmenu's code patch (`patch.py`
 ### GameData (the live save fields)
 - All saved state lives in GameData fields, keyed by the hash of the field name. The full list (~15,000 fields with
   types and defaults) ships in the game: `romfs/GameData/GameDataList.Product.110.byml.zs`. Exported to
-  `gamedata_fields.json`. About 4,600 names were recovered by hashing every string in the game's scripts and data;
-  ~3,600 more fields have readable titles from the onif save editor (`all_fields.json`, mapped by diffing exports).
+  `data/gamedata_fields.json`. About 4,600 names were recovered by hashing every string in the game's scripts and data;
+  ~3,600 more fields have readable titles from the onif save editor (`data/all_fields.json`, mapped by diffing exports).
 - GameData keeps a **type list** of `(type vtable, count, objects, hash table)` entries, one per field type. The
   hash table maps field hash → object index. Objects of one type are a fixed size apart:
   - Int / Float: 0x28 bytes, value at `+0x1C`, **copy at `+0x20`** (write both).
@@ -56,7 +56,7 @@ field name (`gamedata.murmur3`). "The patch" is ootmenu's code patch (`patch.py`
 - **Struct** fields group others (`PlayerStatus`, `ActionGuide_IsEnd`, `DungeonInfo.<Dungeon>`); members are
   separate fields named `Struct.Member`.
 - **BoolExp** fields are formulas the game evaluates (e.g. "quest at or past stage X"); they can't be written.
-- **Enum** values are hashes of choice names; the choices are in `gamedata_fields.json` (`"v"`).
+- **Enum** values are hashes of choice names; the choices are in `data/gamedata_fields.json` (`"v"`).
 
 ### Save files
 - `%APPDATA%\eden\nand\user\save\0000000000000000\<user id>\0400486024DEC000\slot_NN\progress.sav`: from offset
@@ -289,7 +289,7 @@ Objects:
   `+0x388` follows the second copy. The game ignores the position while this is all zero, hence `WAKE`.
 
 ### 5.11 Air walls: where they are and what they do
-- **Data:** `tools/airwalls.py` builds `airwalls.json` from the layouts (`romfs/Banc/<Area>/<Map>_Static|_Dynamic
+- **Data:** `tools/airwalls.py` builds `data/airwalls.json` from the layouts (`romfs/Banc/<Area>/<Map>_Static|_Dynamic
   .bcett.byml.zs`, the map name is the save's "map" string) and the actor packs (`romfs/Pack/Actor/<Actor>.pack.zs`, a
   SARC). Each placed actor whose name contains `AirWall` has `Translate`, `Rotate` (radians, X Y Z; applied as
   Rz Ry Rx like sead's makeR) and `Scale`. Its shape comes from the pack: PhysicsParam `ControllerSetPath` →
@@ -435,7 +435,7 @@ Objects:
   with `EventStarterName` empty and `BootEventName = OcarinaWarp_Arrive` (blue warps and sage rooms also
   use an empty starter, with story events).
 - **Fix (not yet confirmed in game):** `tools/spawnstarters.py` records, per spawn, the actors that share
-  its name (`spawn_starters.json`: 145 of 336 have the exit actor, 191 have none). Warps to spawns with
+  its name (`data/spawn_starters.json`: 145 of 336 have the exit actor, 191 have none). Warps to spawns with
   none pass `OcarinaWarp_Arrive` and clear the reserved starter as soon as the game has reserved the map.
 - **Found by:** dumping every event flow's `EventReserveBancChange` (`evfl`) and comparing the layouts of an
   exit spawn and the Minuet pad.

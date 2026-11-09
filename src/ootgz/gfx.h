@@ -19,6 +19,7 @@
 #define GFX_PANEL_LOG 2
 #define GFX_PANEL_INPUT 3 /* gz's input display: the stick and the buttons held, bottom-left, no background */
 #define GFX_LOG_MAX 4 /* lines, as gz's SETTINGS_LOG_MAX */
+#define GFX_LOG_ROWS 6 /* the log panel's rows: the log, or the start-up splash */
 
 /* gz's icons, as characters. The two-cell ones are followed by GFX_WIDE_REST.
  *   GFX_CHECK_OFF / GFX_CHECK_ON: the checkbox (res/gz/checkbox.png), two cells, in the cell's style
@@ -70,6 +71,9 @@ void gfx_end(void);
 void gfx_clear(void);            /* menu closed */
 /* gz_log: a line in the log at the bottom right, shown a second and then faded out */
 void gfx_notice(const char *s);
+/* gz's start-up splash, in the log's place (bottom right) for `frames` frames, then faded out: lines
+ * (NULL: a blank one), each in its style, indented by its count of columns */
+void gfx_splash(const char *const *lines, const uint8_t *styles, const uint8_t *indents, int n, int frames);
 void gfx_logf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 extern volatile uint32_t gfx_log_count; /* lines logged so far */
 /* game thread: watches (panel 1), drawn this frame only */

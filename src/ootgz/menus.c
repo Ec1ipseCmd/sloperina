@@ -226,15 +226,12 @@ static void text_axis(menu_item_t *it, char *buf, int len)
     snprintf(buf, len, "%c: -", axis[it->data]);
 }
 
-static void text_speed(menu_item_t *it, char *buf, int len)
+static void text_age(menu_item_t *it, char *buf, int len)
 {
-  char v[32];
-  watch_text(W_SPEED, v, sizeof(v));
-  const char *t = v;
-  while (*t == ' ')
-    t++;
-  snprintf(buf, len, TF("speed: %s"), t);
+  int a = age_current();
+  snprintf(buf, len, TF("current age: %s"), T(a == AGE_ADULT ? "adult" : a == AGE_CHILD ? "child" : "-"));
 }
+
 
 /* the map as the warps menu names it, with the age */
 static void text_map(menu_item_t *it, char *buf, int len)
@@ -278,7 +275,7 @@ static void build_link(void)
   for (int a = 0; a < 3; a++)
     menu_add_text(&m_link, text_axis, a);
   menu_end_group(&m_link);
-  menu_add_text(&m_link, text_speed, 0);
+  menu_add_text(&m_link, text_age, 0);
   menu_add_text(&m_link, text_map, 0);
 }
 
@@ -1026,6 +1023,8 @@ static void build_story(void)
 /* --- watches ------------------------------------------------------------------------------------ */
 
 static menu_t m_watches, m_watch_add;
+#define WATCH_ROWS 5 /* watches shown at once; gz's arrows scroll the rest */
+static int watch_top, watch_first_row;
 static uint32_t watches_built = ~0u;
 
 static bool get_shown(menu_item_t *it) { return watches_shown; }
@@ -1205,10 +1204,14 @@ static void watch_press(menu_item_t *it, int part)
       int dir = row_part(it) == PART_UP ? -1 : 1, j = i + dir;
       if (j < 0 || j >= watch_count)
         break;
-      /* the cursor goes with the row, on the same arrow */
-      int sel = (int)(it - m_watches.items) + dir;
-      m_watches.items[sel].part = it->part;
-      m_watches.selected = sel;
+      /* the window follows the row, and the cursor goes with it, on the same arrow */
+      if (j < watch_top)
+        watch_top = j;
+      else if (j >= watch_top + WATCH_ROWS)
+        watch_top = j - WATCH_ROWS + 1;
+      int sel = watch_first_row + (j - watch_top);
+      if (sel < m_watches.n_items)
+        m_watches.items[sel].part = it->part, m_watches.selected = sel;
       watch_move(i, dir);
       break;
     }
@@ -1315,6 +1318,30 @@ static void act_custom_watch(menu_item_t *it)
 }
 
 /* The watches menu, rebuilt whenever the list changes (watches_sync). */
+/* gz's arrows over the list (as in debug > memory) when there are more watches than WATCH_ROWS */
+static void watch_arrows(menu_item_t *it, char *buf, int len)
+{
+  int last = watch_top + WATCH_ROWS < watch_count ? watch_top + WATCH_ROWS : watch_count;
+  snprintf(buf, len, "%c %c  %d-%d / %d", GFX_ICON_UP, GFX_ICON_DOWN, watch_top + 1, last, watch_count);
+}
+
+static bool watch_arrows_cursor(menu_item_t *it, const char *line, int *start, int *len)
+{
+  *start = it->part ? 2 : 0, *len = 1;
+  return true;
+}
+
+static void watch_scroll(menu_item_t *it, int part)
+{
+  int max = watch_count > WATCH_ROWS ? watch_count - WATCH_ROWS : 0, top = watch_top + (part ? 1 : -1);
+  top = top < 0 ? 0 : top > max ? max : top;
+  if (top != watch_top)
+    watch_top = top, watches_built = ~0u; /* the rows show other watches: rebuilt */
+}
+
+static const char *const watch_arrow_hints[] = { "L: scroll the list up (held: keeps going)",
+                                                 "L: scroll the list down (held: keeps going)" };
+
 static void fill_watches(void)
 {
   /* the cursor stays on the folder when a watch is added from it */
@@ -1330,7 +1357,16 @@ static void fill_watches(void)
     mv->edit = move_watches, mv->edit_alone = true, mv->hint = "L: move the watches around the screen",
     mv->edit_hint = "watches: d-pad moves them   L: done";
   menu_add_heading(&m_watches, "watches");
-  for (int i = 0; i < watch_count; i++) {
+  int max_top = watch_count > WATCH_ROWS ? watch_count - WATCH_ROWS : 0;
+  watch_top = watch_top < 0 ? 0 : watch_top > max_top ? max_top : watch_top;
+  if (watch_count > WATCH_ROWS) {
+    menu_item_t *ar = menu_add_action(&m_watches, "", 0, 0);
+    if (ar)
+      ar->text = watch_arrows, ar->cursor = watch_arrows_cursor, ar->press = watch_scroll, ar->press_repeat = true,
+      ar->n_parts = 2, ar->part_hints = watch_arrow_hints;
+  }
+  watch_first_row = m_watches.n_items;
+  for (int i = watch_top; i < watch_count && i < watch_top + WATCH_ROWS; i++) {
     menu_item_t *it = menu_add_action(&m_watches, "", 0, i);
     if (!it)
       continue;
@@ -1369,7 +1405,7 @@ void watches_sync(void)
 
 static void build_watches(void)
 {
-  menu_init(&m_watches, "watches", WATCH_MAX + 14);
+  menu_init(&m_watches, "watches", WATCH_ROWS + 16);
   fill_watches();
   menu_init(&m_watch_add, "known watches", W_COUNT + 1);
   m_watch_add.parent = &m_watches; /* opened from the folder button */
@@ -1630,11 +1666,78 @@ static void act_heap_memory(menu_item_t *it)
     memview_open((uintptr_t)heap.start, MW_X64);
 }
 
+/* debug > pause research: the engine's own pause state (Sequence_* GameData), to find how the game
+ * stops its world while still drawing (its pause screen), for frame advance. Shows the values, lets them
+ * be changed, and can log every change (also with the menu closed: menus_research_frame). */
+static menu_t m_pause_research;
+static const struct { const char *name; uint32_t hash; bool is_int; } pause_fields[] = {
+  { "IsPause", 0x604AEBE1u, false }, { "GamePauseRequestCount", 0x64A61098u, true },
+  { "PreGamePauseRequestCount", 0xEF935C2Du, true }, { "PostGamePauseRequestCount", 0xE8D033EAu, true },
+  { "IsPreGamePause", 0xBF5BF25Fu, false }, { "IsPostGamePause", 0xC2F987DBu, false },
+  { "IsSceneTransitionPause", 0x9A9506E7u, false }, { "IsEventBancChangePause", 0xF96989B6u, false },
+  { "IsChangingBancFromRequestToPause", 0xF8633C7Fu, false },
+};
+#define N_PAUSE_FIELDS ((int)(sizeof(pause_fields) / sizeof(*pause_fields)))
+static bool pause_log;
+static int32_t pause_last[N_PAUSE_FIELDS];
+static bool pause_seen;
+
+static int32_t pause_value(int i)
+{
+  if (pause_fields[i].is_int) {
+    int32_t v;
+    return gd_get_int(pause_fields[i].hash, &v) ? v : NUM_UNKNOWN;
+  }
+  bool b;
+  return gd_get_bool(pause_fields[i].hash, &b) ? b : NUM_UNKNOWN;
+}
+
+void menus_research_frame(void)
+{
+  if (!pause_log)
+    return;
+  for (int i = 0; i < N_PAUSE_FIELDS; i++) {
+    int32_t v = pause_value(i);
+    if (pause_seen && v != pause_last[i])
+      log_printf("pause research: frame %u: %s %d -> %d", (unsigned)frame_counter(), pause_fields[i].name,
+                 (int)pause_last[i], (int)v);
+    pause_last[i] = v;
+  }
+  pause_seen = true;
+}
+
+static bool get_pause_log(menu_item_t *it) { return pause_log; }
+static void set_pause_log(menu_item_t *it, bool on) { pause_log = on, pause_seen = false; }
+static int32_t get_pause_int(menu_item_t *it) { return pause_value((int)it->data); }
+static void set_pause_int(menu_item_t *it, int32_t v) { gd_set_int(pause_fields[it->data].hash, v); }
+static bool get_pause_bool(menu_item_t *it) { return pause_value((int)it->data) == 1; }
+static void set_pause_bool(menu_item_t *it, bool on) { gd_set_bool(pause_fields[it->data].hash, on); }
+
+static void build_pause_research(void)
+{
+  menu_init(&m_pause_research, "pause research", N_PAUSE_FIELDS + 4);
+  menu_item_t *lg = menu_add_check(&m_pause_research, "log changes", get_pause_log, set_pause_log, 0);
+  if (lg)
+    lg->hint = "every change of these to the log, also with the menu closed (open the game's pause screen)";
+  menu_add_heading(&m_pause_research, "Sequence_");
+  for (int i = 0; i < N_PAUSE_FIELDS; i++) {
+    menu_item_t *it = pause_fields[i].is_int
+                        ? menu_add_number(&m_pause_research, pause_fields[i].name, get_pause_int, set_pause_int, 0, 0, i)
+                        : menu_add_check(&m_pause_research, pause_fields[i].name, get_pause_bool, set_pause_bool, i);
+    if (it)
+      it->hint = "the game's own value; changing it is an experiment";
+  }
+  menu_end_group(&m_pause_research);
+  menu_add_return(&m_pause_research);
+}
+
 static void build_debug(void)
 {
-  menu_init(&m_debug, "debug", 3);
+  build_pause_research();
+  menu_init(&m_debug, "debug", 4);
   menu_add_submenu(&m_debug, "heap", &m_heap);
   menu_add_submenu(&m_debug, "memory", &memview_menu);
+  menu_add_submenu(&m_debug, "pause research", &m_pause_research);
   menu_add_return(&m_debug);
   memview_build(&m_watches);
 
@@ -1652,10 +1755,203 @@ static void build_debug(void)
 
 static menu_t m_log, m_about;
 
+/* The about page: the name, version, date and description stay at the top (pinned); under them the
+ * contributors and the special thanks, each list ABOUT_LIST_ROWS at a time with its own gz arrows (as in
+ * debug > memory) when it's longer. Everything is grey (text) but the arrows and return. */
+#define ABOUT_LIST_ROWS 3
+static struct { const char *const *names; int n, top, width; } about_lists[2];
+
+static void about_list_row(menu_item_t *it, char *buf, int len)
+{
+  int l = (int)it->data >> 8, i = about_lists[l].top + ((int)it->data & 0xFF);
+  int n = snprintf(buf, len, "%s%s", i < about_lists[l].n ? "- " : "", i < about_lists[l].n ? about_lists[l].names[i] : "");
+  /* as wide as the list's longest name (a filler, drawn as nothing): the page keeps one size */
+  int w = about_lists[l].width;
+  if (n >= 0 && w > n && w < len) {
+    memset(buf + n, ' ', (size_t)(w - n));
+    buf[w - 1] = 0x7F, buf[w] = 0;
+  }
+}
+
+static void about_list_arrows(menu_item_t *it, char *buf, int len)
+{
+  int l = (int)it->data, n = about_lists[l].n, top = about_lists[l].top;
+  snprintf(buf, len, "%c %c  %d-%d / %d", GFX_ICON_UP, GFX_ICON_DOWN, top + 1,
+           top + ABOUT_LIST_ROWS < n ? top + ABOUT_LIST_ROWS : n, n);
+}
+
+static bool about_list_cursor(menu_item_t *it, const char *line, int *start, int *len)
+{
+  *start = it->part ? 2 : 0, *len = 1;
+  return true;
+}
+
+static void about_list_scroll(menu_item_t *it, int part)
+{
+  int l = (int)it->data, max = about_lists[l].n - ABOUT_LIST_ROWS;
+  int top = about_lists[l].top + (part ? 1 : -1);
+  about_lists[l].top = top < 0 ? 0 : top > max ? (max > 0 ? max : 0) : top;
+}
+
+static const char *const about_arrow_hints[] = { "L: scroll the list up (held: keeps going)",
+                                                 "L: scroll the list down (held: keeps going)" };
+
+static void about_list(int l, const char *heading, const char *const *names, int n)
+{
+  about_lists[l].names = names, about_lists[l].n = n, about_lists[l].top = 0, about_lists[l].width = 0;
+  for (int i = 0; i < n; i++) {
+    int w = 2 + (int)strlen(names[i]) + 1;
+    about_lists[l].width = w > about_lists[l].width ? w : about_lists[l].width;
+  }
+  menu_add_heading(&m_about, heading);
+  menu_item_t *ar = menu_add_action(&m_about, "", 0, l); /* shown even when it all fits: the same layout */
+  if (ar)
+    ar->text = about_list_arrows, ar->cursor = about_list_cursor, ar->press = about_list_scroll,
+    ar->press_repeat = true, ar->n_parts = 2, ar->part_hints = about_arrow_hints;
+  for (int r = 0; r < n && r < ABOUT_LIST_ROWS; r++)
+    menu_add_text(&m_about, about_list_row, l << 8 | r);
+  menu_end_group(&m_about);
+}
+
+/* The log menu: the module's last LOG_LINES messages, newest first, filtered by type (the word(s)
+ * before a message's ':', e.g. "warp", "settings"; or "problems") and scrolled with gz's arrows. */
+#define LOG_ROWS 12
+#define LOG_TYPES 24
+static char log_types[LOG_TYPES][20];
+static const char *log_type_names[LOG_TYPES + 2];
+static int n_log_types, log_filter, log_top;
+
+/* a message's type: what's before its ':' (letters and spaces, a short way in), or "other" */
+static void log_type(const char *l, char *out, int len)
+{
+  int n = 0;
+  while (l[n] && n < 18 && ((l[n] >= 'a' && l[n] <= 'z') || l[n] == ' '))
+    n++;
+  if (l[n] == ':' && n > 0)
+    snprintf(out, len, "%.*s", n, l);
+  else
+    snprintf(out, len, "other");
+}
+
+static bool log_problem(const char *l)
+{
+  static const char *const words[] = { "couldn't", "can't", "fail", "refused", "not found", "error", "abandoned" };
+  for (unsigned w = 0; w < sizeof(words) / sizeof(*words); w++)
+    for (const char *p = l; *p; p++) {
+      const char *a = p, *b = words[w];
+      while (*b && *a == *b)
+        a++, b++;
+      if (!*b)
+        return true;
+    }
+  return false;
+}
+
+/* the types present, for the filter switch: all, problems, then each one seen */
+static void log_scan_types(void)
+{
+  n_log_types = 0;
+  for (int i = 0; i < LOG_LINES; i++) {
+    const char *l = log_line(i);
+    if (!l || !l[0])
+      continue;
+    char t[20];
+    log_type(l, t, sizeof(t));
+    int k = 0;
+    while (k < n_log_types && !same_label(log_types[k], t))
+      k++;
+    if (k == n_log_types && n_log_types < LOG_TYPES)
+      snprintf(log_types[n_log_types++], sizeof(log_types[0]), "%s", t);
+  }
+  log_type_names[0] = "all", log_type_names[1] = "problems";
+  for (int k = 0; k < n_log_types; k++)
+    log_type_names[k + 2] = log_types[k];
+}
+
+static bool log_matches(const char *l)
+{
+  if (log_filter == 0)
+    return true;
+  if (log_filter == 1)
+    return log_problem(l);
+  char t[20];
+  log_type(l, t, sizeof(t));
+  return log_filter - 2 < n_log_types && same_label(t, log_types[log_filter - 2]);
+}
+
+/* the n-th message (newest first) that passes the filter, or NULL; *count: how many pass */
+static const char *log_nth(int n, int *count)
+{
+  const char *found = 0;
+  int c = 0;
+  for (int i = 0; i < LOG_LINES; i++) {
+    const char *l = log_line(i);
+    if (!l || !l[0] || !log_matches(l))
+      continue;
+    if (c == n)
+      found = l;
+    c++;
+  }
+  if (count)
+    *count = c;
+  return found;
+}
+
+static int get_log_filter(menu_item_t *it)
+{
+  log_scan_types();
+  it->n_choices = n_log_types + 2, it->choices = log_type_names;
+  if (log_filter >= it->n_choices)
+    log_filter = 0;
+  return log_filter;
+}
+static void set_log_filter(menu_item_t *it, int f) { log_filter = f, log_top = 0; }
+
+static void log_arrows(menu_item_t *it, char *buf, int len)
+{
+  int count;
+  log_nth(0, &count);
+  int max = count > LOG_ROWS ? count - LOG_ROWS : 0;
+  log_top = log_top > max ? max : log_top;
+  int last = log_top + LOG_ROWS < count ? log_top + LOG_ROWS : count;
+  snprintf(buf, len, "%c %c  %d-%d / %d", GFX_ICON_UP, GFX_ICON_DOWN, count ? log_top + 1 : 0, last, count);
+}
+
+static bool log_arrows_cursor(menu_item_t *it, const char *line, int *start, int *len)
+{
+  *start = it->part ? 2 : 0, *len = 1;
+  return true;
+}
+
+static void log_scroll(menu_item_t *it, int part)
+{
+  int count;
+  log_nth(0, &count);
+  int max = count > LOG_ROWS ? count - LOG_ROWS : 0;
+  log_top += part ? 1 : -1;
+  log_top = log_top < 0 ? 0 : log_top > max ? max : log_top;
+}
+
+static const char *const log_arrow_hints[] = { "L: scroll to newer (held: keeps going)",
+                                               "L: scroll to older (held: keeps going)" };
+
 static void text_log(menu_item_t *it, char *buf, int len)
 {
-  const char *l = log_line((int)it->data);
+  const char *l = log_nth(log_top + (int)it->data, 0);
   snprintf(buf, len, "%s", l ? l : "");
+}
+
+/* gz's start-up splash (bottom right): name and version, the build date under it, the website, how to
+ * open the menu; about 8 seconds, as gz's */
+void menus_splash(void)
+{
+  static char title[64], date[64];
+  snprintf(title, sizeof(title), "sloperinaGZ - %s", BUILD_VERSION);
+  snprintf(date, sizeof(date), TF("Build Date: %s"), BUILD_WHEN);
+  const char *lines[] = { title, date, "practicerom.com/oothd", 0, T("R + right stick down: open the menu") };
+  static const uint8_t styles[] = { GFX_DIM, GFX_DIM, GFX_LOG, GFX_LOG, GFX_NORMAL };
+  static const uint8_t indents[] = { 0, 0, 0, 0, 0 };
+  gfx_splash(lines, styles, indents, 5, 240);
 }
 
 void menus_build(void)
@@ -1672,39 +1968,41 @@ void menus_build(void)
   build_debug();
   osk_build();
 
-  menu_init(&m_log, "log", 13);
-  for (int i = 0; i < 12; i++)
-    menu_add_text(&m_log, text_log, i);
+  menu_init(&m_log, "log", LOG_ROWS + 5);
+  menu_add_heading(&m_log, "log history");
+  menu_item_t *lf = menu_add_option(&m_log, "type", 1, log_type_names, get_log_filter, set_log_filter, 0);
+  if (lf)
+    lf->hint = "which messages: all, problems, or one kind (newest first; all in sd:/sloperinaGZ/log.txt)";
+  menu_item_t *la = menu_add_action(&m_log, "", 0, 0);
+  if (la)
+    la->text = log_arrows, la->cursor = log_arrows_cursor, la->press = log_scroll, la->press_repeat = true,
+    la->n_parts = 2, la->part_hints = log_arrow_hints;
+  for (int i = 0; i < LOG_ROWS; i++) {
+    menu_item_t *t = menu_add_text(&m_log, text_log, i);
+    if (t)
+      t->plain = true;
+  }
+  menu_end_group(&m_log);
   menu_add_return(&m_log);
 
-  /* every line can be moved through (so the page scrolls), the blank ones skipped */
   int n_contributors = (int)(sizeof(contributors) / sizeof(*contributors));
   int n_thanks = (int)(sizeof(thanks) / sizeof(*thanks));
-  menu_init(&m_about, "about", 16 + n_contributors + n_thanks);
-  static char build[64];
-  snprintf(build, sizeof(build), "%s - %s", BUILD_VERSION, BUILD_WHEN);
-  menu_add_action(&m_about, "sloperinaGZ", 0, 0);
-  menu_add_action(&m_about, build, 0, 0);
+  menu_init(&m_about, "about", 16 + 2 * ABOUT_LIST_ROWS);
+  static char title[64];
+  snprintf(title, sizeof(title), "sloperinaGZ - %s", BUILD_VERSION);
+  menu_add_heading(&m_about, title); /* these five stay at the top */
+  menu_add_text(&m_about, text_static, (intptr_t)BUILD_WHEN);
+  menu_add_text(&m_about, text_static, (intptr_t) "gz-style practice menu, loaded by the game");
+  menu_add_text(&m_about, text_static, (intptr_t) "font: Press Start 2P (codeman38, OFL)");
+  menu_add_text(&m_about, text_static, (intptr_t) "based on the work of OoT N64's Practice ROM by glankk");
+  menu_end_group(&m_about);
+  m_about.pinned = m_about.n_items;
   menu_add_text(&m_about, text_static, (intptr_t) "");
-  menu_add_action(&m_about, "gz-style practice menu, loaded by the game", 0, 0);
-  menu_add_action(&m_about, "font: Press Start 2P (codeman38, OFL)", 0, 0);
-  menu_add_action(&m_about, "based on the work of OoT N64's Practice ROM by glankk", 0, 0);
+  about_list(0, "built with love and slop to not make this game a nightmare by:", contributors, n_contributors);
   menu_add_text(&m_about, text_static, (intptr_t) "");
-  menu_add_action(&m_about, "built with love and slop to not make this game a nightmare by:", 0, 0);
-  static char names[64][64]; /* "- name" for CONTRIBUTORS.md, then THANKS.md */
-  int nn = 0;
-  for (int i = 0; i < n_contributors && nn < 64; i++, nn++) {
-    snprintf(names[nn], sizeof(names[nn]), "- %s", contributors[i]);
-    menu_add_action(&m_about, names[nn], 0, 0);
-  }
+  about_list(1, "special thanks:", thanks, n_thanks);
   menu_add_text(&m_about, text_static, (intptr_t) "");
-  menu_add_action(&m_about, "special thanks:", 0, 0);
-  for (int i = 0; i < n_thanks && nn < 64; i++, nn++) {
-    snprintf(names[nn], sizeof(names[nn]), "- %s", thanks[i]);
-    menu_add_action(&m_about, names[nn], 0, 0);
-  }
-  menu_add_text(&m_about, text_static, (intptr_t) "");
-  menu_add_action(&m_about, "practicerom.com/oothd", 0, 0);
+  menu_add_text(&m_about, text_static, (intptr_t) "practicerom.com/oothd");
   menu_add_return(&m_about);
 
   menu_init(&menu_root, "sloperinaGZ", 14);

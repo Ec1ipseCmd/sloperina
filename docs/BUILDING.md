@@ -24,7 +24,7 @@ Outputs, per game version (only `v131072` exists so far):
 |---|---|
 | `bin/v131072/subsdk9` | the module (NSO), added to the game's exefs |
 | `bin/v131072/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips` | IPS32 patch for main (67 bytes) |
-| `dist/` | install trees, see [INSTALL.md](INSTALL.md) |
+| `dist/` | install trees, see [INSTALLATION.md](../INSTALLATION.md) |
 
 The link fails if the module imports a symbol that isn't in `lib/imports.txt` (the functions main
 and sdk are known to export). A function we call but forgot to define would otherwise link as an
@@ -191,4 +191,4 @@ reserved the map within 90 frames, the warp falls back to swapping the next exit
 
 ## Installing
 
-See [INSTALL.md](INSTALL.md).
+See [INSTALLATION.md](../INSTALLATION.md).

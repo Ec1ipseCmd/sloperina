@@ -1,8 +1,8 @@
-"""Rebuild the HTML docs from ootmenu's data files.
+"""Rebuild the browsable field / quest / tutorial reference (docs/reference/) from the data files.
 
-    python docs/build.py
+    python3 tools/build_docs.py
 
-Inputs (in ootmenu/): gamedata_fields.json, story.json. Outputs (in docs/): fields.js, quests.html,
+Inputs (data/): gamedata_fields.json, story.json. Outputs (docs/reference/): fields.js, quests.html,
 guides.html. index.html, fields.html and style.css are hand-written and only read the generated data.
 """
 import html
@@ -10,8 +10,9 @@ import json
 import re
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parent
-ROOT = DOCS.parent
+ROOT = Path(__file__).resolve().parents[1]
+DOCS = ROOT / "docs" / "reference"
+DATA = ROOT / "data"
 
 
 def page(title, body):
@@ -29,11 +30,11 @@ def quest_label(name):
 
 
 def main():
-    fields = json.loads((ROOT / "gamedata_fields.json").read_text(encoding="utf-8"))
+    fields = json.loads((DATA / "gamedata_fields.json").read_text(encoding="utf-8"))
     (DOCS / "fields.js").write_text("window.FIELDS=" + json.dumps(fields, ensure_ascii=False, separators=(",", ":")) + ";",
                                     encoding="utf-8")
 
-    story = json.loads((ROOT / "story.json").read_text(encoding="utf-8"))
+    story = json.loads((DATA / "story.json").read_text(encoding="utf-8"))
     rows = []
     for h, q in sorted(story["quests"].items(), key=lambda x: x[1]["name"]):
         stages = " &rarr; ".join(f"<code>{html.escape(s)}</code>" for s in q["stages"])

@@ -1,7 +1,7 @@
 # Working on sloperinaGZ
 
 Read [`docs/FINDINGS.md`](docs/FINDINGS.md) first: it covers how the game works, every problem already solved and
-the approaches that are known not to work. [`BUILDING.md`](BUILDING.md) covers the build and how the module loads.
+the approaches that are known not to work. [`docs/BUILDING.md`](docs/BUILDING.md) covers the build and how the module loads.
 
 ## Rules that saved a lot of time
 
@@ -22,14 +22,14 @@ the approaches that are known not to work. [`BUILDING.md`](BUILDING.md) covers t
 1. `./docker-make dist`. It must build without warnings; the link fails if the module would import a symbol that
    isn't in `lib/imports.txt` (add one only after checking main or sdk exports it).
 2. Copy `dist/lichii/load/0400486024DEC000/sloperinaGZ/exefs/*` into the emulator's
-   `load/0400486024DEC000/sloperinaGZ/exefs/` (or install as in INSTALL.md) and restart the game.
+   `load/0400486024DEC000/sloperinaGZ/exefs/` (or install as in [`INSTALLATION.md`](INSTALLATION.md)) and restart the game.
 3. Check the log for errors.
 
-After changing the JSON data, run `python3 tools/gendata.py` (writes `src/ootgz/data.c`). After changing menu
+After changing the JSON data in `data/`, run `python3 tools/gendata.py` (writes `src/ootgz/data.c`). After changing menu
 text, run `python3 tools/lang_template.py` (writes `lang/template.json`).
 
 ## Docs
 
 - Add every verified finding to `docs/FINDINGS.md`: symptom, cause, fix, how it was found, and anything that was
   tried and didn't work (§6).
-- `python docs/build.py` regenerates the field / quest / tutorial reference pages in `docs/`.
+- `python3 tools/build_docs.py` regenerates the field / quest / tutorial reference in `docs/reference/`.

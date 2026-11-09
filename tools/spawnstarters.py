@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    spawns = json.loads((ROOT / "warps.json").read_text())["spawns"]
+    spawns = json.loads((ROOT / "data" / "warps.json").read_text())["spawns"]
     layouts = {}
     for p in gamefiles.nup().index:
         if p.startswith("romfs/Banc/") and p.endswith(".bcett.byml.zs"):
@@ -46,7 +46,7 @@ def main():
         for p in layouts.get(m, []):
             walk(byml.load(gamefiles.read(p)))
         out[m] = {pos: sorted(names.get(pos, [])) for pos, _, _ in sp}
-    (ROOT / "spawn_starters.json").write_text(json.dumps(out, indent=1, sort_keys=True))
+    (ROOT / "data" / "spawn_starters.json").write_text(json.dumps(out, indent=1, sort_keys=True))
     print(f"spawn_starters.json: {sum(len(v) for v in out.values())} spawns")
 
 

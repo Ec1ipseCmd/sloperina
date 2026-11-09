@@ -313,6 +313,15 @@ void menu_input(void)
       menu_editing = 0;
     return;
   }
+  if (m->scroll_text) { /* the page moves, the cursor stays on return (menu_draw keeps it in range) */
+    if (input_repeat(BTN_DUP))
+      m->scroll--;
+    else if (input_repeat(BTN_DDOWN))
+      m->scroll++;
+    else if (input_pressed() & BTN_L)
+      activate(it);
+    return;
+  }
   bool parts = it->n_parts > 1;
   /* numbers: L held makes d-left/right go by 10, so their L (fill) happens when L is let go,
    * if the d-pad wasn't used meanwhile */
@@ -447,6 +456,9 @@ static const char *hint_raw(const menu_item_t *it)
   }
 }
 
+/* items (and the hint) start here: column 0 has the ^ / v scroll marks, then a blank column */
+#define ITEM_COL 2
+
 void menu_draw(void)
 {
   menu_t *m = menu_current;
@@ -456,31 +468,40 @@ void menu_draw(void)
   const char *hint = m->n_items ? hint_of(&m->items[m->selected]) : 0;
   if (menu_editing && menu_editing->edit_hint)
     hint = T(menu_editing->edit_hint);
+  if (m->scroll_text)
+    hint = T("d-up/down: scroll   L: return");
   if (menu_editing && menu_editing->edit_alone) { /* out of the way of what's being moved */
     gfx_begin();
     gfx_text(0, 0, GFX_TITLE, T(m->title));
-    gfx_text(1, 2, GFX_DIM, hint ? hint : "");
+    gfx_text(ITEM_COL, 2, GFX_DIM, hint ? hint : "");
     gfx_end();
     return;
   }
   int visible = gfx_menu_rows - 4; /* always room for the hint, so the list doesn't jump */
   if (visible < 3)
     visible = 3;
+  /* the first `pinned` items stay at the top; the rest scroll under them in `visible` rows */
+  int pin = m->pinned > 0 && m->pinned < m->n_items && visible - m->pinned >= 3 ? m->pinned : 0;
+  visible -= pin;
   /* headings and text just above the cursor come into view with it (they can't be selected, so
    * the cursor alone would never scroll back to a heading at the top) */
   int top = m->selected;
-  while (top > 0 && !selectable(&m->items[top - 1]) && m->selected - (top - 1) < visible)
+  while (top > pin && !selectable(&m->items[top - 1]) && m->selected - (top - 1) < visible)
     top--;
   /* and the same below it: the read-only lines under a menu's return */
   int bottom = m->selected;
   while (bottom + 1 < m->n_items && !selectable(&m->items[bottom + 1]) && bottom + 1 - top < visible)
     bottom++;
-  if (top < m->scroll)
+  if (m->scroll_text) /* scrolled by the d-pad: only kept in range */
+    m->scroll = m->scroll < 0 ? 0 : m->scroll;
+  else if (top < m->scroll)
     m->scroll = top;
   else if (bottom >= m->scroll + visible)
     m->scroll = bottom - visible + 1;
   if (m->scroll > m->n_items - visible)
     m->scroll = m->n_items - visible > 0 ? m->n_items - visible : 0;
+  if (m->scroll < pin)
+    m->scroll = pin;
   char line[GFX_COLS * 2];
   gfx_begin();
   /* breadcrumb: root > ... > this menu; long paths keep their end */
@@ -503,11 +524,15 @@ void menu_draw(void)
   }
   gfx_text(0, 0, GFX_TITLE, shown);
   int title_len = (int)strlen(shown); /* (shown can be `line`, which the items reuse) */
-  for (int r = 0; r < visible && m->scroll + r < m->n_items; r++) {
-    int i = m->scroll + r;
+  for (int r = 0; r < pin + visible; r++) { /* r: the display row; pinned items first */
+    int i = r < pin ? r : m->scroll + r - pin;
+    if (i >= m->n_items)
+      break;
     menu_item_line(&m->items[i], line, sizeof(line));
-    gfx_style_t st = i == m->selected ? GFX_SELECTED : m->items[i].kind == MI_TEXT ? GFX_DIM : GFX_NORMAL;
-    int col = 1 + m->items[i].indent * MENU_INDENT, cs = 0, cl = 0;
+    gfx_style_t st = i == m->selected                                ? GFX_SELECTED
+                     : m->items[i].kind == MI_TEXT && !m->items[i].plain ? GFX_DIM
+                                                                        : GFX_NORMAL;
+    int col = ITEM_COL + m->items[i].indent * MENU_INDENT, cs = 0, cl = 0;
     if (i == m->selected && m->items[i].cursor && m->items[i].cursor(&m->items[i], line, &cs, &cl)) {
       int l = (int)strlen(line);
       gfx_text(col, 2 + r, GFX_NORMAL, line);
@@ -533,27 +558,27 @@ void menu_draw(void)
       gfx_text(col, 2 + r, st, line);
     }
   }
-  if (m->scroll > 0)
-    gfx_text(0, 2, GFX_DIM, "^");
+  if (m->scroll > pin)
+    gfx_text(0, 2 + pin, GFX_DIM, "^");
   if (m->scroll + visible < m->n_items)
-    gfx_text(0, 2 + visible - 1, GFX_DIM, "v");
+    gfx_text(0, 2 + pin + visible - 1, GFX_DIM, "v");
   /* The panel keeps one size while in this menu (a size change redraws it, which flashes): the hint
    * row is always there, and the width is the widest line or hint of any item, not just the visible
    * ones. FILL is drawn as nothing but counts as content. */
   static const char fill[2] = { 0x7F, 0 };
-  int n_shown = m->n_items - m->scroll < visible ? m->n_items - m->scroll : visible;
-  gfx_text(1, 2 + n_shown + 1, GFX_DIM, hint ? hint : fill);
+  int n_shown = pin + (m->n_items - m->scroll < visible ? m->n_items - m->scroll : visible);
+  gfx_text(ITEM_COL, 2 + n_shown + 1, GFX_DIM, hint ? hint : fill);
   int width = title_len;
   for (int i = 0; i < m->n_items; i++) {
     const char *h = hint_of(&m->items[i]), *eh = T(m->items[i].edit_hint);
-    int w = 1 + (int)strlen(h ? h : "");
-    if (eh && 1 + (int)strlen(eh) > w)
-      w = 1 + (int)strlen(eh);
+    int w = ITEM_COL + (int)strlen(h ? h : "");
+    if (eh && ITEM_COL + (int)strlen(eh) > w)
+      w = ITEM_COL + (int)strlen(eh);
     for (int k = 0; m->items[i].part_hints && k < m->items[i].n_parts; k++)
-      if (m->items[i].part_hints[k] && 1 + (int)strlen(T(m->items[i].part_hints[k])) > w)
-        w = 1 + (int)strlen(T(m->items[i].part_hints[k]));
+      if (m->items[i].part_hints[k] && ITEM_COL + (int)strlen(T(m->items[i].part_hints[k])) > w)
+        w = ITEM_COL + (int)strlen(T(m->items[i].part_hints[k]));
     menu_item_line(&m->items[i], line, sizeof(line));
-    int lw = 1 + m->items[i].indent * MENU_INDENT + (int)strlen(line);
+    int lw = ITEM_COL + m->items[i].indent * MENU_INDENT + (int)strlen(line);
     if (lw > w)
       w = lw;
     if (w > width)

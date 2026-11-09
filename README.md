@@ -7,8 +7,12 @@ Atmosphère's LayeredFS, an emulator's mod folder (Lichii / Eden: `load/`) or an
 Supported version: program `0400486024DEC000`, update v131072 (main build `E0F3CCFA…`). Other versions have
 different addresses and won't work.
 
-- [`INSTALL.md`](INSTALL.md): installing it, languages, settings.
-- [`BUILDING.md`](BUILDING.md): building it, how it loads, what's verified.
+Source: [github.com/PracticeROM/sloperina](https://github.com/PracticeROM/sloperina). Website:
+[practicerom.com/oothd](https://practicerom.com/oothd).
+
+- [`docs/USAGE.md`](docs/USAGE.md): how to use it (quick start). [`docs/MANUAL.md`](docs/MANUAL.md): every menu and option.
+- [`INSTALLATION.md`](INSTALLATION.md): installing it (with the installer or by hand), updating, removing, languages.
+- [`docs/BUILDING.md`](docs/BUILDING.md): building it, how it loads, what's verified.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md): how the game's data works and every problem solved so far (cause, fix,
   how it was found) and the approaches that don't work. **Start here if you want to work on it.**
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the build and test routine. [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and
@@ -37,21 +41,24 @@ goes back.
 ## Layout
 
 - `src/ootgz/`: the module (C). `data.c` is generated, by `tools/gendata.py`.
-- `src/host/mkips.c`: makes the IPS patch. `lib/`: linker script and the list of symbols it may import.
-- `Makefile`, `docker-make`: the build (devkitA64, or the devkitpro/devkita64 Docker image).
-- `*.json`: the game's field names, hashes, story stages, warp and spawn points, air walls (inputs of
-  `tools/gendata.py` and `docs/build.py`; see `docs/FINDINGS.md` §1).
-- `tools/`: development tools in Python (not needed to play):
-  - `gendata.py` regenerates `src/ootgz/data.c` from the JSON files; `lang_template.py` writes
-    `lang/template.json` for translators.
+- `src/host/mkips.c`: makes the IPS patch. `lib/`: the linker script and the list of symbols the module may
+  import.
+- `Makefile`, `docker-make`: the build (devkitA64, or the devkitpro/devkita64 Docker image). `VERSION`: the
+  release number shown in the about menu; `CONTRIBUTORS.md`, `THANKS.md`: its lists of names.
+- `data/`: the game's field names, hashes and types, story stages, warp and spawn points, air walls (derived from
+  the game; inputs of `tools/gendata.py` and `tools/build_docs.py`; see `docs/FINDINGS.md` §1).
+- `lang/`: the translation template (`tools/lang_template.py`).
+- `docs/`: [`FINDINGS.md`](docs/FINDINGS.md), [`BUILDING.md`](docs/BUILDING.md),
+  [`INSTALLATION.md`](INSTALLATION.md), and `reference/`, a browsable field / quest / tutorial reference
+  (`reference/index.html`; rebuilt by `tools/build_docs.py`).
+- `tools/`: development tools in Python (not needed to play; `tools/requirements.txt` lists what they need):
+  - `gendata.py` regenerates `src/ootgz/data.c` from `data/`; `lang_template.py` writes `lang/template.json`
+    for translators; `build_docs.py` regenerates `docs/reference/`.
   - Reading the game's files from a dump (set `OOTMENU_NUP` to the `.nup`): `nupfs.py`, `byml.py`,
-    `gamefiles.py`, `airwalls.py` (→ `airwalls.json`), `spawnstarters.py` (→ `spawn_starters.json`), `evdump.py`
-    (event flows).
+    `gamefiles.py`, `airwalls.py` (→ `data/airwalls.json`), `spawnstarters.py` (→ `data/spawn_starters.json`),
+    `evdump.py` (event flows).
   - `re64.py`: static analysis of a dump of main (cross-references, disassembly with field names).
-  - `requirements.txt` lists what they need.
-- `lang/`: the translation template.
-- `docs/`: findings and a browsable field / quest / tutorial reference (`index.html`; rebuild with
-  `python docs/build.py`).
+- `bin/`, `obj/`, `dist/`: build output (not in git).
 
 The first version was a Python overlay for Lichii (ootmenu) that read and wrote the game's memory from outside;
 FINDINGS.md still names its files where they're how something was found. It's in this repository's history

@@ -58,10 +58,16 @@ static uint32_t frames;
 bool frame_advance, pause_display = true;
 int frame_advance_button; /* 0 L, 1 R */
 static bool fa_paused, fa_down, fa_dirty;
+/* held (with nothing else pressed) for FA_HOLD_MS, the button advances a frame every FA_REPEAT_MS until
+ * it's let go: the wait leaves room for a tap that's a little long */
+#define FA_HOLD_MS 400
+#define FA_REPEAT_MS 66
+static uint64_t fa_down_at, fa_last_step;
+static bool fa_repeating;
 
 static uint32_t fa_bit(void) { return frame_advance_button ? BTN_R : BTN_L; }
 
-/* the button's state this frame: 1 tapped, 2 + L3 (run), 0 nothing */
+/* the button's state this frame: 1 tapped, 2 + L3 (run), 3 held (another frame), 0 nothing */
 static int fa_button(void)
 {
   uint32_t b = fa_bit(), pressed = input_pressed(), held = input_held();
@@ -70,7 +76,7 @@ static int fa_button(void)
     return 0;
   }
   if (pressed & b)
-    fa_down = true, fa_dirty = (held & ~b) != 0;
+    fa_down = true, fa_dirty = (held & ~b) != 0, fa_down_at = sys_tick(), fa_repeating = false;
   if (!fa_down)
     return 0;
   if ((held & b) && (held & BTN_LSTICK) && ((pressed & b) || (pressed & BTN_LSTICK))) {
@@ -80,8 +86,16 @@ static int fa_button(void)
   if (pressed & ~b)
     fa_dirty = true;
   if (!(held & b)) {
-    fa_down = false;
-    return fa_dirty ? 0 : 1;
+    bool tap = !fa_dirty && !fa_repeating; /* a hold already advanced: no extra frame */
+    fa_down = fa_repeating = false;
+    return tap ? 1 : 0;
+  }
+  /* held: after FA_HOLD_MS, a frame every FA_REPEAT_MS (only while paused: fa_hold) */
+  uint64_t ms = sys_tick_freq() / 1000, now = sys_tick();
+  if (fa_paused && !fa_dirty && now - fa_down_at >= FA_HOLD_MS * ms &&
+      (!fa_repeating || now - fa_last_step >= FA_REPEAT_MS * ms)) {
+    fa_repeating = true, fa_last_step = now;
+    return 3;
   }
   return 0;
 }
@@ -150,7 +164,7 @@ static void fa_hold(void)
       gfx_notice("frame advance: running");
       break;
     }
-    if (b == 1) { /* one frame, with what was pressed meanwhile */
+    if (b == 1 || b == 3) { /* one frame (a tap, or the button held), with what was pressed meanwhile */
       input_force_buttons = fa_buf_buttons;
       input_force_sticks[0] = fa_buf_stick[0], input_force_sticks[1] = fa_buf_stick[1];
       memcpy(input_force_stick, fa_buf_sticks, sizeof(input_force_stick));
@@ -165,6 +179,7 @@ static void fa_hold(void)
     watches_frame(menu_current != 0);
     gfx_frame();
     settings_frame(menu_current != 0);
+    settings_log_frame();
     if (!logged && sys_tick() - since > sys_tick_freq()) { /* does the picture still get presented? */
       logged = true;
       log_printf("frame advance: %u presents in the first second paused", (unsigned)(gfx_presents - presents));
@@ -186,6 +201,10 @@ static void fa_frame(void)
   if (!fa_paused && fa_button() == 1) {
     fa_paused = true;
     gfx_notice(frame_advance_button ? "frame advance: R a frame, R + L3 to run" : "frame advance: L a frame, L + L3 to run");
+    /* The game shows nothing new while it's held, so this frame is let through first, with the pause
+     * icon on it: the screen shows the game is paused (and hasn't crashed). Held from the next one. */
+    gfx_pause_icon = pause_display ? 1 : 0;
+    return;
   }
   if (fa_paused)
     fa_hold();
@@ -198,7 +217,7 @@ static void frame(void)
     menus_build();
     settings_load();
     log_printf("running (patch v%d, main %#lx)", OOTGZ_PATCH_VERSION, (unsigned long)z64hd_main);
-    gfx_notice("sloperinaGZ: R + right stick down = menu");
+    menus_splash();
   }
   frames++;
   input_update();
@@ -209,6 +228,7 @@ static void frame(void)
     menu_draw();
   }
   airwall_frame();
+  menus_research_frame();
   watches_frame(menu_current != 0);
   levitate_frame(menu_current != 0);
   warp_frame();
@@ -218,6 +238,7 @@ static void frame(void)
   pouch_frame();
   job_frame();
   settings_frame(menu_current != 0);
+  settings_log_frame();
   fa_frame(); /* last: the frame's work is done before the game is held */
 }
 

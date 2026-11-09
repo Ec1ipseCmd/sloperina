@@ -70,12 +70,54 @@ void gfx_logf(const char *fmt, ...)
   gfx_notice(buf);
 }
 
+/* the start-up splash (gfx_splash): shown in the log's place, then faded out as the log is */
+#define SPLASH_FADE 30
+static struct { char text[LOG_COLS + 1]; uint8_t style, indent; } splash[GFX_LOG_ROWS];
+static int n_splash, splash_frames;
+
+void gfx_splash(const char *const *lines, const uint8_t *styles, const uint8_t *indents, int n, int frames)
+{
+  n_splash = n < GFX_LOG_ROWS ? n : GFX_LOG_ROWS;
+  for (int i = 0; i < n_splash; i++) {
+    snprintf(splash[i].text, sizeof(splash[i].text), "%s", lines[i] ? lines[i] : "");
+    splash[i].style = styles[i], splash[i].indent = indents[i];
+  }
+  splash_frames = frames;
+}
+
+static bool build_splash(gfx_panel_t *p)
+{
+  if (splash_frames <= 0)
+    return false;
+  splash_frames--;
+  memset(p, 0, sizeof(*p));
+  p->corner = GFX_BOTTOM_RIGHT;
+  p->clear = true;
+  p->yoff = 1;
+  unsigned a = splash_frames >= SPLASH_FADE ? 255 : (unsigned)splash_frames * 255 / SPLASH_FADE;
+  int cols = 0;
+  for (int i = 0; i < n_splash; i++) {
+    int l = splash[i].indent + (int)strlen(splash[i].text);
+    cols = l > cols ? l : cols;
+  }
+  for (int i = 0; i < n_splash; i++) {
+    put(p, splash[i].indent, i, (gfx_style_t)splash[i].style, splash[i].text);
+    p->alpha[i] = (uint8_t)a;
+  }
+  if (cols > 0) /* the block's size, so its right edge sits at the corner (fillers: drawn as nothing) */
+    p->ch[0][cols - 1] = p->ch[0][cols - 1] ? p->ch[0][cols - 1] : 0x7F, p->ch[n_splash - 1][0] =
+      p->ch[n_splash - 1][0] ? p->ch[n_splash - 1][0] : 0x7F;
+  return true;
+}
+
 /* the log panel: newest at the bottom, each line right-aligned, as gz draws it. While anything is
  * shown the panel only grows (a new size means its blend with the picture starts over, 2 frames
  * without it), and it starts small again once it's empty. */
 static void build_log(gfx_panel_t *p)
 {
   static int keep_cols, keep_rows;
+  if (build_splash(p))
+    return;
   memset(p, 0, sizeof(*p));
   p->corner = GFX_BOTTOM_RIGHT;
   p->clear = true;
