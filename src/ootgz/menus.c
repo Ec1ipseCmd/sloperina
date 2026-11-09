@@ -9,7 +9,7 @@
 #include "airwall.h"
 #include "memview.h"
 #include "osk.h"
-#include "build_info.h" /* made by the Makefile: BUILD_WHEN, contributors (CONTRIBUTORS.md) */
+#include "build_info.h" /* made by the Makefile: BUILD_WHEN, BUILD_VERSION */
 #include "age.h"
 #include "gfx.h"
 #include "levitate.h"
@@ -1761,63 +1761,6 @@ static void build_debug(void)
 
 static menu_t m_log, m_about;
 
-/* The about page: the name, version, date and description stay at the top (pinned); under them the
- * contributors and the special thanks, each list ABOUT_LIST_ROWS at a time with its own gz arrows (as in
- * debug > memory) when it's longer. Everything is grey (text) but the arrows and return. */
-#define ABOUT_LIST_ROWS 3
-static struct { const char *const *names; int n, top, width; } about_lists[2];
-
-static void about_list_row(menu_item_t *it, char *buf, int len)
-{
-  int l = (int)it->data >> 8, i = about_lists[l].top + ((int)it->data & 0xFF);
-  int n = snprintf(buf, len, "%s%s", i < about_lists[l].n ? "- " : "", i < about_lists[l].n ? about_lists[l].names[i] : "");
-  /* as wide as the list's longest name (a filler, drawn as nothing): the page keeps one size */
-  int w = about_lists[l].width;
-  if (n >= 0 && w > n && w < len) {
-    memset(buf + n, ' ', (size_t)(w - n));
-    buf[w - 1] = 0x7F, buf[w] = 0;
-  }
-}
-
-static void about_list_arrows(menu_item_t *it, char *buf, int len)
-{
-  int l = (int)it->data, n = about_lists[l].n, top = about_lists[l].top;
-  snprintf(buf, len, "%c %c  %d-%d / %d", GFX_ICON_UP, GFX_ICON_DOWN, top + 1,
-           top + ABOUT_LIST_ROWS < n ? top + ABOUT_LIST_ROWS : n, n);
-}
-
-static bool about_list_cursor(menu_item_t *it, const char *line, int *start, int *len)
-{
-  *start = it->part ? 2 : 0, *len = 1;
-  return true;
-}
-
-static void about_list_scroll(menu_item_t *it, int part)
-{
-  int l = (int)it->data, max = about_lists[l].n - ABOUT_LIST_ROWS;
-  int top = about_lists[l].top + (part ? 1 : -1);
-  about_lists[l].top = top < 0 ? 0 : top > max ? (max > 0 ? max : 0) : top;
-}
-
-static const char *const about_arrow_hints[] = { "L: scroll the list up (held: keeps going)",
-                                                 "L: scroll the list down (held: keeps going)" };
-
-static void about_list(int l, const char *heading, const char *const *names, int n)
-{
-  about_lists[l].names = names, about_lists[l].n = n, about_lists[l].top = 0, about_lists[l].width = 0;
-  for (int i = 0; i < n; i++) {
-    int w = 2 + (int)strlen(names[i]) + 1;
-    about_lists[l].width = w > about_lists[l].width ? w : about_lists[l].width;
-  }
-  menu_add_heading(&m_about, heading);
-  menu_item_t *ar = menu_add_action(&m_about, "", 0, l); /* shown even when it all fits: the same layout */
-  if (ar)
-    ar->text = about_list_arrows, ar->cursor = about_list_cursor, ar->press = about_list_scroll,
-    ar->press_repeat = true, ar->n_parts = 2, ar->part_hints = about_arrow_hints;
-  for (int r = 0; r < n && r < ABOUT_LIST_ROWS; r++)
-    menu_add_text(&m_about, about_list_row, l << 8 | r);
-  menu_end_group(&m_about);
-}
 
 /* The log menu: the module's last LOG_LINES messages, newest first, filtered by type (the word(s)
  * before a message's ':', e.g. "warp", "settings"; or "problems") and scrolled with gz's arrows. */
@@ -1987,7 +1930,9 @@ void menus_build(void)
 
   menu_init(&m_log, "log", LOG_ROWS + 5);
   /* the filter on the heading's line: "log history  < all >" */
-  menu_add_option(&m_log, "log history", 1, log_type_names, get_log_filter, set_log_filter, 0);
+  menu_item_t *lf = menu_add_option(&m_log, "log history", 1, log_type_names, get_log_filter, set_log_filter, 0);
+  if (lf)
+    lf->log_label = ""; /* the list shows the filter: no log message for it */
   menu_item_t *la = menu_add_action(&m_log, "", 0, 0);
   if (la)
     la->text = log_arrows, la->cursor = log_arrows_cursor, la->press = log_scroll, la->press_repeat = true,
@@ -1997,24 +1942,19 @@ void menus_build(void)
   }
   menu_add_return(&m_log);
 
-  int n_contributors = (int)(sizeof(contributors) / sizeof(*contributors));
-  int n_thanks = (int)(sizeof(thanks) / sizeof(*thanks));
-  menu_init(&m_about, "about", 16 + 2 * ABOUT_LIST_ROWS);
+  /* the about page: the name, version, build date and description, then the website */
+  menu_init(&m_about, "about", 10);
   static char title[64];
   snprintf(title, sizeof(title), "sloperinaGZ - %s", BUILD_VERSION);
-  menu_add_heading(&m_about, title); /* these five stay at the top */
+  menu_add_heading(&m_about, title);
   menu_add_text(&m_about, text_static, (intptr_t)BUILD_WHEN);
   menu_add_text(&m_about, text_static, (intptr_t) "gz-style practice menu, loaded by the game");
   menu_add_text(&m_about, text_static, (intptr_t) "font: Press Start 2P (codeman38, OFL)");
   menu_add_text(&m_about, text_static, (intptr_t) "based on the work of OoT N64's Practice ROM by glankk");
   menu_end_group(&m_about);
-  m_about.pinned = m_about.n_items;
-  menu_add_text(&m_about, text_static, (intptr_t) "");
-  about_list(0, "built with love and slop to not make this game a nightmare by:", contributors, n_contributors);
-  menu_add_text(&m_about, text_static, (intptr_t) "");
-  about_list(1, "special thanks:", thanks, n_thanks);
   menu_add_text(&m_about, text_static, (intptr_t) "");
   menu_add_text(&m_about, text_static, (intptr_t) "practicerom.com/oothd");
+  menu_add_text(&m_about, text_static, (intptr_t) "");
   menu_add_return(&m_about);
 
   menu_init(&menu_root, "sloperinaGZ", 14);

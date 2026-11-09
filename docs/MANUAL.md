@@ -217,7 +217,7 @@ The game's own pause state, for development: values you can watch, change and lo
 ### 2.10 Settings
 
 **menu settings**: **language** ([6](#6-languages)), **size** (auto, small 2x, medium 2.5x, large 3x: the menu, watches
-and log) and **background opacity** (0 to 100%; below 100% the game shows through, slightly behind).
+and log) and **background opacity** (0 to 100%, 60% at first; below 100% the game shows through, slightly behind).
 
 **other settings**: the **input display**, **levitate** and **frame advance** menus below.
 
@@ -265,8 +265,7 @@ second. It starts fresh each time the game starts. Send it along when you report
 
 ### 2.12 About
 
-The name, version, build date and description stay at the top. Under them, who made it and the special thanks,
-three names at a time: each list has its own **↑ ↓** to scroll it.
+The name, version, build date and description, and the website.
 
 ## 3 On the screen
 

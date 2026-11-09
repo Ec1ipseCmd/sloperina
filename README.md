@@ -18,7 +18,7 @@ Source: [github.com/PracticeROM/sloperina](https://github.com/PracticeROM/sloper
 - [`docs/COLLISION.md`](docs/COLLISION.md): the collision view (shelved): the plan, its cost, and the decoded
   collision file format.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the build and test routine. [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and
-  [`THANKS.md`](THANKS.md): who made it and special thanks (both shown in the about menu, read at build time).
+  [`THANKS.md`](THANKS.md): who made it and special thanks.
 
 Open the menu with **R + right stick down**. **L** selects, the D-pad moves and changes values, **R + D-left**
 goes back.
@@ -46,7 +46,7 @@ goes back.
 - `src/host/mkips.c`: makes the IPS patch. `lib/`: the linker script and the list of symbols the module may
   import.
 - `Makefile`, `docker-make`: the build (devkitA64, or the devkitpro/devkita64 Docker image). `VERSION`: the
-  release number shown in the about menu; `CONTRIBUTORS.md`, `THANKS.md`: its lists of names.
+  release number shown in the about menu; `CONTRIBUTORS.md`, `THANKS.md`: the credits.
 - `data/`: the game's field names, hashes and types, story stages, warp and spawn points, air walls (derived from
   the game; inputs of `tools/gendata.py` and `tools/build_docs.py`; see `docs/FINDINGS.md` §1).
 - `lang/`: the translation template (`tools/lang_template.py`).

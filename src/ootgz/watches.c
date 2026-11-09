@@ -82,17 +82,17 @@ int watches_corner = GFX_BOTTOM_LEFT;
 int watches_x = 30, watches_y = 600;
 bool watches_moving;
 bool input_display;
-bool input_display_bg;
+bool input_display_bg = true;
 bool input_show_left = true, input_show_right = true, input_show_buttons = true;
-int input_style;
+int input_style = 1; /* controller */
 int input_size;
 
 /* the controller: each button's text where it is on a Switch 2 Pro Controller seen from above
  * (nvn.c draws the body and the sticks around them) */
 static const struct { uint32_t bit; int col, row; const char *name; } pad_buttons[] = {
-  { BTN_ZL, 1, 0, "ZL" }, { BTN_L, 4, 0, "L" }, { BTN_R, 20, 0, "R" }, { BTN_ZR, 22, 0, "ZR" },
-  { BTN_MINUS, 8, 2, "-" }, { BTN_PLUS, 16, 2, "+" },
-  { BTN_X, 20, 2, "X" }, { BTN_Y, 18, 3, "Y" }, { BTN_A, 22, 3, "A" }, { BTN_B, 20, 4, "B" },
+  { BTN_ZL, 1, 0, "ZL" }, { BTN_L, 4, 0, "L" }, { BTN_R, 16, 0, "R" }, { BTN_ZR, 18, 0, "ZR" },
+  { BTN_MINUS, 8, 2, "-" }, { BTN_PLUS, 12, 2, "+" },
+  { BTN_X, 16, 2, "X" }, { BTN_Y, 14, 3, "Y" }, { BTN_A, 18, 3, "A" }, { BTN_B, 16, 4, "B" },
 };
 
 static int8_t percent(int32_t v)
@@ -128,11 +128,11 @@ static void controller_frame(void)
   }
   if (input_show_right) {
     snprintf(v, sizeof(v), "R%4d%4d", sticks[2], sticks[3]);
-    gfx_input(14, 9, GFX_LOG, v);
+    gfx_input(11, 9, GFX_LOG, v);
   }
   static const char end[2] = { 0x7F, 0 }; /* fillers: the panel keeps its size */
   gfx_input(0, 0, GFX_NORMAL, end);
-  gfx_input(23, 9, GFX_NORMAL, end);
+  gfx_input(19, 9, GFX_NORMAL, end);
 }
 
 /* gz's input display: the sticks (-100..100) in gz's grey, then every button in a slot of its own

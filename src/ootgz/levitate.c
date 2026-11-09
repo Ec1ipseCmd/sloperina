@@ -27,8 +27,8 @@
 
 float hypotf(float x, float y); /* from sdk */
 
-bool levitate_enabled = true;
-bool levitate_through_walls;
+bool levitate_enabled;
+bool levitate_through_walls = true;
 int levitate_speed = 4;       /* rise, units/s */
 int levitate_move_speed = 6;  /* stick, units/s */
 

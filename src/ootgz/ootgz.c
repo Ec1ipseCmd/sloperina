@@ -55,7 +55,7 @@ static uint32_t frames;
  * button while it's on.
  * A tap is the button let go with nothing else pressed while it was held, so R's shortcuts (R +
  * right stick down, R + d-left...) don't pause the game. */
-bool frame_advance, pause_display = true;
+bool frame_advance = true, pause_display = true;
 int frame_advance_button; /* 0 L, 1 R */
 static bool fa_paused, fa_down, fa_dirty;
 /* held (with nothing else pressed) for FA_HOLD_MS, the button advances a frame every FA_REPEAT_MS until

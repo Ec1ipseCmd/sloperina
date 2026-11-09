@@ -202,7 +202,7 @@ void *nvn_bootstrap_hook(const char *name)
 #define HUD_ROWS 20
 #define LOG_COLS 48
 #define INPUT_COLS 58 /* both sticks (10 + 10) and every button (36) */
-#define PAD_COLS 25    /* the controller drawing */
+#define PAD_COLS 21    /* the controller drawing */
 #define PAD_ROWS 10
 /* The menu panel goes under the HUD's D-pad / ocarina icon. From the HUD layout
  * (romfs UI/Layout2Archive/Common › PlayerStatus_00 › Pa_GuideCross_00 › PaGuideCross_00, a
@@ -558,9 +558,9 @@ static inline bool is_sprite(unsigned char c)
  * the text's top-left: the body's outline (a bar with rounded corners and a grip under each end), the
  * sticks (a ring with a dot where the stick is, filled while clicked in) and the d-pad (a cross, an arm
  * filled while held). The other buttons are text (watches.c). Rows of 10, columns of 8: the body
- * takes rows 1..8 of 24 columns, the readouts row 9. */
-#define PAD_W 192
-static const struct { int cx, cy; } pad_sticks[2] = { { 36, 36 }, { 128, 56 } };
+ * takes rows 1..8 of 20 columns, the readouts row 9. */
+#define PAD_W 160
+static const struct { int cx, cy; } pad_sticks[2] = { { 36, 36 }, { 96, 56 } };
 #define PAD_STICK_R 10
 #define DPAD_X 64
 #define DPAD_Y 56
@@ -569,16 +569,16 @@ static const struct { int cx, cy; } pad_sticks[2] = { { 36, 36 }, { 128, 56 } };
 
 static bool pad_inside(int x, int y)
 {
-  /* the bar: x 4..188, y 12..70, corners rounded (14 at the top, 10 at the bottom) */
-  if (x >= 4 && x <= 188 && y >= 12 && y <= 70) {
+  /* the bar: x 4..156, y 12..70, corners rounded (14 at the top, 10 at the bottom) */
+  if (x >= 4 && x <= 156 && y >= 12 && y <= 70) {
     int r = y < 41 ? 14 : 10, cy = y < 41 ? 12 + r : 70 - r;
-    int cx = x < 4 + r ? 4 + r : x > 188 - r ? 188 - r : x;
+    int cx = x < 4 + r ? 4 + r : x > 156 - r ? 156 - r : x;
     if (cx == x || (y >= 12 + 14 && y <= 70 - 10))
       return true;
     return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r;
   }
   /* the grips: circles under each end */
-  int dl = (x - 36) * (x - 36) + (y - 70) * (y - 70), dr = (x - 156) * (x - 156) + (y - 70) * (y - 70);
+  int dl = (x - 36) * (x - 36) + (y - 70) * (y - 70), dr = (x - 124) * (x - 124) + (y - 70) * (y - 70);
   return dl <= 18 * 18 || dr <= 18 * 18;
 }
 
@@ -834,8 +834,9 @@ static void draw_clear(int i, const gfx_panel_t *s, nvn_texture_t *tex, nvn_rect
 }
 
 /* ... then each frame: text pixels from the mask, background blended with what was under it.
- * `under` holds one row of the region per font-pixel row (its first screen row), w pixels each. */
-static void compose(int p, uint8_t *dst, const uint8_t *under, int w, int h, int sc, int opacity,
+ * `under` holds one row of the region per font-pixel row (its first screen row), uw pixels each (it can be
+ * wider than the panel: from the same top-left). */
+static void compose(int p, uint8_t *dst, const uint8_t *under, int uw, int w, int h, int sc, int opacity,
                     const uint8_t *row_alpha, int yoff)
 {
   uint8_t pal[PAL_COUNT][3];
@@ -855,7 +856,7 @@ static void compose(int p, uint8_t *dst, const uint8_t *under, int w, int h, int
   for (int y = 0; y < h; y++) {
     int fy = y * SC_ONE / sc;
     const uint8_t *m = tl_mask[p] + (size_t)fy * mw;
-    const uint32_t *in = under ? (const uint32_t *)(under + (size_t)fy * w * 4) : 0;
+    const uint32_t *in = under ? (const uint32_t *)(under + (size_t)fy * uw * 4) : 0;
     unsigned ta = 255; /* the text's opacity on this row (the log fading) */
     if (row_alpha) {
       int py = fy - TEXT_TOP - yoff, row = py < 0 ? 0 : py / CELL_H;
@@ -1036,6 +1037,7 @@ static void draw(nvn_queue_t *queue, nvn_window_t *window, int index)
   nvn_region_t regions[GFX_PANELS];
   nvn_addr_t srcs[GFX_PANELS], readback[GFX_PANELS];
   int readback_rows[GFX_PANELS];
+  nvn_region_t rb_regions[GFX_PANELS];
   bool copy[GFX_PANELS];
   int scales[GFX_PANELS], clear_of[GFX_PANELS], panel_of[GFX_PANELS];
   int n = 0;
@@ -1113,22 +1115,37 @@ static void draw(nvn_queue_t *queue, nvn_window_t *window, int index)
       int rb_rows = (h * SC_ONE + psc - 1) / psc; /* font-pixel rows */
       if (p == 0 && (size_t)w * h * 4 > tl_out_size) /* taller than the menu can be on screen */
         h = (int)(tl_out_size / ((size_t)w * 4)), region.h = h, rb_rows = (h * SC_ONE + psc - 1) / psc;
-      if ((size_t)w * rb_rows * 4 > tl_rb_size[p])
+      /* The menu reads back the most it can cover, not just its panel: when it changes size (another
+       * menu), what's under the new size is already there, rather than 2 frames of no see-through. */
+      nvn_region_t rb_region = region;
+      int uw = w;
+      if (p == 0) {
+        int mw = PANEL_W(max_cols[0], psc), mh = area.h - y - margin;
+        if (mw > area.w - x - margin)
+          mw = area.w - x - margin;
+        int mr = (mh * SC_ONE + psc - 1) / psc;
+        if (mw >= w && mh >= h && (size_t)mw * mr * 4 <= tl_rb_size[0])
+          rb_region.w = mw, rb_region.h = mh, uw = mw, rb_rows = mr;
+      }
+      if ((size_t)uw * rb_rows * 4 > tl_rb_size[p])
         continue;
       if (mask_hash[p] != pn->hash || mask_cols[p] != cols || mask_rows[p] != rows)
         build_mask(p, pn, cols, rows);
       /* this slot's readback is from two frames ago (its fence has passed) */
       const uint8_t *under = 0;
-      if (slot_used[slot] && same_region(&tl_rb_region[p][slot], &region)) {
-        fn.pool_invalidate(&tl_rb_pool[p][slot], 0, (size_t)w * rb_rows * 4);
+      if (slot_used[slot] && same_region(&tl_rb_region[p][slot], &rb_region)) {
+        fn.pool_invalidate(&tl_rb_pool[p][slot], 0, (size_t)uw * rb_rows * 4);
         under = tl_rb_mem[p][slot];
       }
       bool log = pn->clear; /* no background */
-      compose(p, out_ptr(p, b), under, w, h, psc, log ? 0 : opacity, log ? pn->alpha : 0, pn->yoff);
-      if (log && !under) /* nothing to blend with yet (2 frames): read what's there, show it later */
+      compose(p, out_ptr(p, b), under, uw, w, h, psc, log ? 0 : opacity, log ? pn->alpha : 0, pn->yoff);
+      /* nothing to blend with yet (2 frames: just opened, or a new size): read what's there and show
+       * it then, rather than a solid background for 2 frames (a flash) */
+      if (!under && (log || p == 0))
         copy[n] = false;
       drawn_hash[p][b] = 0; /* the opaque path redraws when it's next used */
-      tl_rb_region[p][slot] = region;
+      tl_rb_region[p][slot] = rb_region;
+      rb_regions[n] = rb_region;
       readback[n] = fn.pool_address(&tl_rb_pool[p][slot]);
       readback_rows[n] = rb_rows;
       srcs[n] = out_addr(p, b);
@@ -1160,10 +1177,11 @@ static void draw(nvn_queue_t *queue, nvn_window_t *window, int index)
     /* what the game drew there, before the panel covers it: one row per font-pixel row */
     for (int k = 0; readback[i] && k < readback_rows[i]; k++) {
       /* font row k starts at screen row ceil(k * scale / 16) */
-      nvn_region_t r = { regions[i].x, regions[i].y + (k * scales[i] + SC_ONE - 1) / SC_ONE, 0, regions[i].w, 1, 1 };
-      if (r.y >= regions[i].y + regions[i].h)
+      const nvn_region_t *rr = &rb_regions[i];
+      nvn_region_t r = { rr->x, rr->y + (k * scales[i] + SC_ONE - 1) / SC_ONE, 0, rr->w, 1, 1 };
+      if (r.y >= rr->y + rr->h)
         break;
-      fn.cmd_copy_to_buffer(&cmd, tex, 0, &r, readback[i] + (nvn_addr_t)k * regions[i].w * 4, 0);
+      fn.cmd_copy_to_buffer(&cmd, tex, 0, &r, readback[i] + (nvn_addr_t)k * rr->w * 4, 0);
     }
     if (clear_of[i] >= 0) {
       nvn_rect_t at = { regions[i].x, regions[i].y, regions[i].w, regions[i].h };

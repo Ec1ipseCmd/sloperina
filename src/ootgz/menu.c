@@ -200,7 +200,7 @@ void menu_back(void)
 /* gz's log: what a switch or checkbox is now, or the action taken (unless it logged something itself) */
 static void log_item(menu_item_t *it, uint32_t logged_before)
 {
-  if (gfx_log_count != logged_before || !it->label || !it->label[0])
+  if (gfx_log_count != logged_before || !it->label || !it->label[0] || (it->log_label && !it->log_label[0]))
     return;
   const char *name = T(it->log_label ? it->log_label : it->label);
   char val[64] = "";
@@ -461,6 +461,51 @@ static const char *hint_raw(const menu_item_t *it)
 #define ITEM_COL 2
 #define HINT_MIN_W 36 /* hints wrap at the panel's width, but at least this wide */
 #define HINT_MAX_ROWS 4
+#define TITLE_MAX_ROWS 3
+
+/* The breadcrumb of m in up to TITLE_MAX_ROWS lines of at most w columns: menus joined by " > ", a line
+ * broken after a " >" with the next indented 2. Too many lines: the start is dropped for "... >". */
+static int crumb_lines(const menu_t *m, int w, char out[][GFX_COLS + 1])
+{
+  const menu_t *path[16];
+  int depth = 0;
+  for (const menu_t *p = m; p && depth < 16; p = p->parent)
+    path[depth++] = p;
+  for (int first = depth - 1; first >= 0; first--) { /* from the whole path; then without its start */
+    int n = 0, len = 0;
+    bool fits = true;
+    out[0][0] = 0;
+    if (first != depth - 1)
+      len = snprintf(out[0], GFX_COLS + 1, "...");
+    for (int i = first; i >= 0 && fits; i--) {
+      const char *t = T(path[i]->title);
+      int tl = (int)strlen(t);
+      bool lead = i == first && first == depth - 1; /* the very first name: nothing before it */
+      if (!lead && len + 3 + tl > w) { /* " > name" doesn't fit: end this line with " >" */
+        if (len + 2 > w || n + 1 >= TITLE_MAX_ROWS) {
+          fits = false;
+          break;
+        }
+        snprintf(out[n] + len, GFX_COLS + 1 - len, " >");
+        n++;
+        len = snprintf(out[n], GFX_COLS + 1, "  ");
+        lead = true;
+      }
+      if (len + (lead ? 0 : 3) + tl > w) { /* one name wider than the line: cut it */
+        tl = w - len - (lead ? 0 : 3);
+        if (tl < 1) {
+          fits = false;
+          break;
+        }
+      }
+      len += snprintf(out[n] + len, GFX_COLS + 1 - len, "%s%.*s", lead ? "" : " > ", tl, t);
+    }
+    if (fits)
+      return n + 1;
+  }
+  snprintf(out[0], GFX_COLS + 1, "%.*s", w, T(m->title)); /* (can't happen: the last try is one name) */
+  return 1;
+}
 
 /* Word-wraps s (lines split at '\n' too) to w columns into out; a wrapped line keeps the indent its
  * line started with. Returns the lines (at least 1); *longest: the longest one. */
@@ -558,7 +603,16 @@ void menu_draw(void)
       hint_w = l > hint_w ? l : hint_w;
     }
   }
-  int visible = gfx_menu_rows - 3 - hint_rows; /* always room for the hint, so the list doesn't jump */
+  /* breadcrumb: root > ... > this menu, wrapped after a " >" to the panel's width (continuation lines
+   * indented); a path longer than TITLE_MAX_ROWS keeps its end */
+  int title_w = items_w > ITEM_COL + hint_w ? items_w : ITEM_COL + hint_w;
+  title_w = title_w < ITEM_COL + HINT_MIN_W ? ITEM_COL + HINT_MIN_W : title_w > GFX_COLS ? GFX_COLS : title_w;
+  static char tl[TITLE_MAX_ROWS][GFX_COLS + 1];
+  int title_rows = crumb_lines(m, title_w, tl), title_len = 0;
+  for (int k = 0; k < title_rows; k++)
+    title_len = (int)strlen(tl[k]) > title_len ? (int)strlen(tl[k]) : title_len;
+  int y0 = title_rows + 1; /* the first item's row: the title, then a blank line */
+  int visible = gfx_menu_rows - y0 - 1 - hint_rows; /* always room for the hint, so the list doesn't jump */
   if (visible < 3)
     visible = 3;
   /* the first `pinned` items stay at the top; the rest scroll under them in `visible` rows */
@@ -584,26 +638,8 @@ void menu_draw(void)
   if (m->scroll < pin)
     m->scroll = pin;
   gfx_begin();
-  /* breadcrumb: root > ... > this menu; long paths keep their end */
-  const menu_t *path[16];
-  int depth = 0;
-  for (const menu_t *p = m; p && depth < 16; p = p->parent)
-    path[depth++] = p;
-  char crumb[GFX_COLS * 4];
-  int len = 0;
-  for (int i = depth - 1; i >= 0; i--)
-    len += snprintf(crumb + len, len < (int)sizeof(crumb) ? sizeof(crumb) - len : 0, "%s%s",
-                    i == depth - 1 ? "" : " > ", T(path[i]->title));
-  if (len > (int)sizeof(crumb) - 1)
-    len = sizeof(crumb) - 1;
-  const char *shown = crumb;
-  if (len > GFX_COLS - 1) { /* "... > " + the end of the path */
-    shown = crumb + len - (GFX_COLS - 7);
-    snprintf(line, sizeof(line), "... >%s", shown);
-    shown = line;
-  }
-  gfx_text(0, 0, GFX_TITLE, shown);
-  int title_len = (int)strlen(shown); /* (shown can be `line`, which the items reuse) */
+  for (int k = 0; k < title_rows; k++)
+    gfx_text(0, k, GFX_TITLE, tl[k]);
   for (int r = 0; r < pin + visible; r++) { /* r: the display row; pinned items first */
     int i = r < pin ? r : m->scroll + r - pin;
     if (i >= m->n_items)
@@ -615,16 +651,16 @@ void menu_draw(void)
     int col = ITEM_COL + m->items[i].indent * MENU_INDENT, cs = 0, cl = 0;
     if (i == m->selected && m->items[i].cursor && m->items[i].cursor(&m->items[i], line, &cs, &cl)) {
       int l = (int)strlen(line);
-      gfx_text(col, 2 + r, GFX_NORMAL, line);
+      gfx_text(col, y0 + r, GFX_NORMAL, line);
       if (cs >= 0 && cs < l) {
         if (cs + cl < l)
           line[cs + cl] = 0;
-        gfx_text(col + cs, 2 + r, GFX_SELECTED, line + cs);
+        gfx_text(col + cs, y0 + r, GFX_SELECTED, line + cs);
       }
     } else if (i == m->selected && m->items[i].icon_select) { /* gz: a button icon in the highlight colour */
       char icon[2] = { line[0], 0 };
-      gfx_text(col, 2 + r, GFX_NORMAL, line);
-      gfx_text(col, 2 + r, GFX_SELECTED, icon);
+      gfx_text(col, y0 + r, GFX_NORMAL, line);
+      gfx_text(col, y0 + r, GFX_SELECTED, icon);
       char *lt = line, *gt; /* and its switch (strchr isn't imported) */
       while (*lt && *lt != '<')
         lt++;
@@ -632,16 +668,16 @@ void menu_draw(void)
         ;
       if (*lt && *gt) {
         gt[1] = 0;
-        gfx_text(col + (int)(lt - line), 2 + r, GFX_SELECTED, lt);
+        gfx_text(col + (int)(lt - line), y0 + r, GFX_SELECTED, lt);
       }
     } else {
-      gfx_text(col, 2 + r, st, line);
+      gfx_text(col, y0 + r, st, line);
     }
   }
   if (m->scroll > pin)
-    gfx_text(0, 2 + pin, GFX_DIM, "^");
+    gfx_text(0, y0 + pin, GFX_DIM, "^");
   if (m->scroll + visible < m->n_items)
-    gfx_text(0, 2 + pin + visible - 1, GFX_DIM, "v");
+    gfx_text(0, y0 + pin + visible - 1, GFX_DIM, "v");
   /* The panel keeps one size while in this menu (a size change redraws it, which flashes): the hint
    * row is always there, and the width is the widest line or hint of any item, not just the visible
    * ones. FILL is drawn as nothing but counts as content. */
@@ -649,14 +685,14 @@ void menu_draw(void)
   int n_shown = pin + (m->n_items - m->scroll < visible ? m->n_items - m->scroll : visible);
   int nh = wrap_text(hint, wrap_w, hl, HINT_MAX_ROWS, 0);
   for (int k = 0; k < nh; k++)
-    gfx_text(ITEM_COL, 2 + n_shown + 1 + k, GFX_DIM, hl[k][0] ? hl[k] : fill);
+    gfx_text(ITEM_COL, y0 + n_shown + 1 + k, GFX_DIM, hl[k][0] ? hl[k] : fill);
   if (nh < hint_rows) /* the rows the longest hint takes stay the panel's */
-    gfx_text(ITEM_COL, 2 + n_shown + hint_rows, GFX_DIM, fill);
+    gfx_text(ITEM_COL, y0 + n_shown + hint_rows, GFX_DIM, fill);
   int width = title_len;
   width = items_w > width ? items_w : width;
   width = ITEM_COL + hint_w > width ? ITEM_COL + hint_w : width;
   if (width > GFX_COLS)
     width = GFX_COLS;
-  gfx_text(width - 1, 1, GFX_DIM, fill);
+  gfx_text(width - 1, y0 - 1, GFX_DIM, fill);
   gfx_end();
 }

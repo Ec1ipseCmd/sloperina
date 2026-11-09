@@ -63,7 +63,7 @@ These work with the menu closed.
 | **R + B + D-pad right** | Reset the lag counter |
 | **L3** | Levitate: start floating / drop (when it's turned on in settings) |
 | **R3** (held, while floating) | Levitate: stay at this height |
-| **L** (or **R**) | Frame advance: pause, then one frame per tap, frames continuously while held (when it's turned on) |
+| **L** (or **R**) | Frame advance: pause, then one frame per tap, frames continuously while held (on at first; **settings > frame advance**) |
 | **L + L3** (or **R + L3**) | Frame advance: let the game run again |
 
 Everything you do shows for a moment in the bottom-right corner (gz's log), for example `infinite magic on` or
@@ -109,7 +109,7 @@ Turn on **settings > levitate > enabled**, close the menu, press **L3**. Push th
 to stay at your height; **L3** again to come down (no fall damage).
 
 **...look at a trick frame by frame?**
-Turn on **settings > frame advance > enabled**. In the game, tap **L** to pause, tap **L** for one frame or hold it
+Frame advance is on from the start (**settings > frame advance > enabled**). In the game, tap **L** to pause, tap **L** for one frame or hold it
 to play slowly, and press **L + L3** to carry on. Buttons and stick directions you press while paused are given to
 the next frame.
 

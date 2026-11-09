@@ -51,20 +51,14 @@ HDRS                  = $(wildcard $(SRCDIR)/*.h)
 
 all: $(foreach v,$(VERSIONS),$(BINDIR)/$(v)/$(SUBSDK) $(BINDIR)/$(v)/$(BUILD_ID-$(v)).ips)
 
-# The about menu's build info: the version, the day it was built ("9th November, 2026") and the names in
-# CONTRIBUTORS.md and THANKS.md
-# ("- name" lines). Made every time; menus.c is rebuilt when it changes.
-$(OBJDIR)/build_info.h: CONTRIBUTORS.md THANKS.md VERSION FORCE
+# The about menu's build info: the version and the day it was built ("9th November, 2026"). Made every
+# time; menus.c is rebuilt when it changes.
+$(OBJDIR)/build_info.h: VERSION FORCE
 	mkdir -p $(@D)
 	d=$$(LC_ALL=C date +%-d); \
 	case $$d in 11|12|13) o=th;; *1) o=st;; *2) o=nd;; *3) o=rd;; *) o=th;; esac; \
 	{ printf '#define BUILD_WHEN "%s%s %s"\n' "$$d" "$$o" "$$(LC_ALL=C date +'%B, %Y')"; \
-	  printf '#define BUILD_VERSION "%s"\n' "$(PACKAGE_VERSION)"; \
-	  printf 'static const char *const contributors[] = {\n'; \
-	  sed -n 's/^[-*][ \t]*\(.*[^ \t]\)[ \t]*$$/  "\1",/p' CONTRIBUTORS.md | tr -d '\r'; \
-	  printf '};\nstatic const char *const thanks[] = {\n'; \
-	  sed -n 's/^[-*][ \t]*\(.*[^ \t]\)[ \t]*$$/  "\1",/p' THANKS.md | tr -d '\r'; \
-	  printf '};\n'; } > $@.tmp
+	  printf '#define BUILD_VERSION "%s"\n' "$(PACKAGE_VERSION)"; } > $@.tmp
 	cmp -s $@.tmp $@ || mv $@.tmp $@; rm -f $@.tmp
 FORCE:
 
