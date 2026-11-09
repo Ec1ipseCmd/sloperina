@@ -1,0 +1,9 @@
+#!/bin/sh
+# Run make inside the devkitpro/devkita64 image (no local devkitPro install needed).
+#   ./docker-make            build
+#   ./docker-make dist       build and stage install trees in dist/
+set -e
+cd "$(dirname "$0")"
+exec docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/src -w /src \
+  -e PACKAGE_VERSION="$(cat VERSION 2>/dev/null || echo 0) ($(git describe --tags --always --dirty 2>/dev/null || echo unknown))" \
+  devkitpro/devkita64:latest sh -c 'command -v make >/dev/null || { echo "make missing in image"; exit 1; }; make "$@"' make "$@"

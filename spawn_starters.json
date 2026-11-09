@@ -1,0 +1,793 @@
+{
+ "BarinadeStage": {
+  "BarinadeStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "BigOctoStage": {
+  "BigOctoStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "BongoBongoStage": {
+  "BongoBongoStage": [],
+  "StartPos_SageOfShadow": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "BossRushIntervalRoom": {
+  "BossRush": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "BottomOfTheWell": {
+  "StartPos_SubEvent_GetStormSong": [],
+  "StartPos_SubEvent_GetStormSong_BeforeBossRoom": [],
+  "Well_KakarikoSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "CrumblingGanonCastle": {
+  "BackEntrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "CrumblingGanonCastle_StartPos": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "RestartPos1": [],
+  "RestartPos2": [],
+  "RestartPos3": [],
+  "RestartPos4": [],
+  "RestartPos5": [],
+  "RestartPos6": [],
+  "RestartPos7": [],
+  "RestartPos_Ganondorf_BossBattle": [],
+  "StartPos_Defeat_Ganon": []
+ },
+ "DarkLinkStage": {
+  "DarkLinkStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "DeadHandStage": {
+  "DeadHandStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "DeathMountainCrater_Adult": {
+  "Crater_GoronCitySide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Crater_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "EntrancePos_FireTemple": [],
+  "EntrancePos_GoronCity": [],
+  "EntrancePos_MountainTrail": [],
+  "FireBolero": [],
+  "OutsideOfFireTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "DeathMountainCrater_Child": {
+  "Crater_GoronCitySide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Crater_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "EntrancePos_FireTemple": [],
+  "EntrancePos_GoronCity": [],
+  "EntrancePos_MountainTrail": [],
+  "FireBolero": [],
+  "OutsideOfFireTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "DeathMountainTrail_Adult": {
+  "DodongoCavernFront": [],
+  "MountainTrail_CraterSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_DodongoCavernSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_GoronCitySide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_KakarikoSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "DeathMountainTrail_Child": {
+  "DodongoCavernFront": [],
+  "MountainTrail_CraterSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_DodongoCavernSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_GoronCitySide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MountainTrail_KakarikoSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "Demo_ShootingLocation_Tapestry_ED": {
+  "Ending": []
+ },
+ "DesertColossus_Adult": {
+  "DesertColossus_FromHountedWasteland": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleEntrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleLeftHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleRightHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SpiritRequiem": []
+ },
+ "DesertColossus_Child": {
+  "DesertColossus_FromHountedWasteland": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleEntrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleLeftHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "DesertColossus_FromSpiritTempleRightHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SpiritRequiem": []
+ },
+ "DinolfosStage": {
+  "DinolfosStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "DodongoCavern": {
+  "DodongoCavern_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_Get_StoneOfFire": []
+ },
+ "DodongoStage": {
+  "DodongoStage": [],
+  "StartPos_Get_StoneOfFire": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "EnemyMuseum": {
+  "EnemyMusuem": []
+ },
+ "FinalBattleField": {
+  "FinalBattleField_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "RestartPos_Ganondorf_BossBattle": [],
+  "StartPos_Defeat_Ganon": [],
+  "StartPos_Defeat_Ganon_InBattle": []
+ },
+ "FireTemple": {
+  "BossDefeat": [],
+  "FireTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_SageOfFire": []
+ },
+ "FlareDancerStage": {
+  "FlareDancerStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "ForestTemple": {
+  "ForestTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_SageOfForest": [],
+  "StartPos_SageOfForest_Step06": []
+ },
+ "GanonCastle": {
+  "GanonCastleEntrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GanonCastleEntrance_FromInside": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleCastle_Entrance": []
+ },
+ "GanonStage": {
+  "GanonStage": [],
+  "RestartPos_Ganondorf_BossBattle": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "GanondorfStage": {
+  "GanondorfStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "GerudoFortress_Adult": {
+  "GerudoFortress_FromGerudoTrainingGround": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoFortress_FromGerudoValley": [
+   "Area",
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoFortress_FromHountedWasteland": [
+   "Area",
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "GerudoThiefStage": {
+  "GerudoThiefStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "GerudoTrainingGround": {
+  "GerudoTrainingGround_FromGerudoFortress": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoTrainingGround_FromGerudoFortress_Air": []
+ },
+ "GerudoValley_Adult": {
+  "GerudoValley_Entrance": [
+   "Area",
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoValley_FromGerudoFortress": [
+   "Area",
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoValley_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoValley_FromLakeHylia_Air": [],
+  "ReturnFromDreamWorld": [],
+  "RunningRace_pos": []
+ },
+ "GerudoValley_Child": {
+  "GerudoValley_Entrance": [
+   "Area",
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoValley_FromGerudoFortress": [],
+  "GerudoValley_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GerudoValley_FromLakeHylia_Air": [],
+  "ReturnFromDreamWorld": []
+ },
+ "GohmaStage": {
+  "DefeatBoss": [],
+  "GohmaStage": [],
+  "StartPos_Get_StoneOfForest": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "GoronCity_Adult": {
+  "GoronCity_CraterSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_LostWoodSide_after": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_LostWoodSide_before": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": []
+ },
+ "GoronCity_Child": {
+  "GoronCity_CraterSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_LostWoodSide_after": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_LostWoodSide_before": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GoronCity_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": []
+ },
+ "Graveyard_Adult": {
+  "4": [],
+  "5": [],
+  "6": [],
+  "GraveYard_KakarikoSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GraveYard_KakarikoWindmillSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GraveYard_ShadowTempleSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ShadowNocturne": []
+ },
+ "Graveyard_Child": {
+  "Front": [],
+  "GraveYard_KakarikoSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "GraveYard_KakarikoWindmillSide": [],
+  "GraveYard_ShadowTempleSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Lear": [],
+  "ShadowNocturne": []
+ },
+ "HountedWasteland_Adult": {
+  "HountedWasteland_FromDesertColossus": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HountedWasteland_FromGerudoFortress": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "HountedWasteland_Child": {
+  "HountedWasteland_FromDesertColossus": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HountedWasteland_FromGerudoFortress": []
+ },
+ "HyruleCastle": {
+  "GanonCastleEntrance": [],
+  "HyruleCastle_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "HyruleField_Adult": {
+  "HyruleField_FromLakeHylia": [],
+  "HyruleField_FrontOfGerudoValley": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfKakarikoVillage": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfLostWoodBridge": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfMarket": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfZoraRiver": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfZoraRiver_UnderWater": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfZoraRiver_UnderWater_Air": [],
+  "LakeHylia_FromGerudoValley": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LakeHylia_FromGerudoValley_Air": [],
+  "Market_FrontOfHyruleCastle": [],
+  "MiniGame_Fishing_PlayerStart": [],
+  "OutsideOfWaterTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "OutsideOfWaterTemple_Air": [],
+  "ReturnFromDreamWorld": [],
+  "StartPos_Get_Epona_Race": [],
+  "WaterSerenade": [],
+  "WaterTempleEntrancePos": [],
+  "ZoraDomainEntrancePos": [],
+  "ZoraLakeHylia_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraLakeHylia_FromZoraDomain_Air": []
+ },
+ "HyruleField_Child": {
+  "DoorOfTime_MeetImpa_EndPos": [],
+  "FindCuccoStartPos": [],
+  "GerudoFortress_FromGerudoValley": [],
+  "GerudoFortress_FromHountedWasteland": [],
+  "HyruleField_FromLakeHylia": [],
+  "HyruleField_FrontOfGerudoValley": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfKakarikoVillage": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfLostWoodBridge": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfMarket": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfZoraRiver": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "HyruleField_FrontOfZoraRiver_UnderWater": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LakeHylia_FromGerudoValley": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LakeHylia_FromGerudoValley_Air": [],
+  "MiniGame_Fishing_PlayerStart": [],
+  "OutsideOfWaterTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "OutsideOfWaterTemple_Air": [],
+  "ReturnFromDreamWorld": [],
+  "StartPos_DoorOfTime": [],
+  "WaterSerenade": [],
+  "WaterTempleEntrancePos": [],
+  "ZoraDomainEntrancePos": [],
+  "ZoraLakeHylia_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraLakeHylia_FromZoraDomain_Air": []
+ },
+ "IceCavern": {
+  "EntrancePos2": [],
+  "IceCavern_FromZoraFountain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "IceCavern_FromZoraFountain_Backdoor": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "IceCavern_FromZoraFountain_Backdoor_Air": []
+ },
+ "InsideGanonCastle": {
+  "Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_Defeat_Ganon": []
+ },
+ "InsideJabuJabuBelly": {
+  "InsideJabuJabuBelly_FromZoraFountain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_Get_StoneOfWater_MiddleBoss": [],
+  "StartPos_StoneOfWater": []
+ },
+ "InsideTheDekuTree": {
+  "DefeatBoss": [],
+  "Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_Get_StoneOfForest": []
+ },
+ "IronKnuckleBlackStage": {
+  "IronKnuckleBlackStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "IronKnuckleWhiteStage": {
+  "IronKnuckleWhiteStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "KakarikoVillage_Adult": {
+  "HitTargetStartPos": [],
+  "KakarikoVillage_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "KakarikoWindmill_GraveYardSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_GraveYardSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_WellSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": []
+ },
+ "KakarikoVillage_Adult_Alternative": {
+  "HitTargetStartPos": [],
+  "KakarikoVillage_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "KakarikoWindmill_GraveYardSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_GraveYardSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_WellSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": []
+ },
+ "KakarikoVillage_Child": {
+  "FromMountainTrail": [],
+  "KakarikoVillage_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "KakarikoWindmill_GraveYardSide": [],
+  "Kakariko_GraveYardSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_MountainTrailSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Kakariko_WellSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": []
+ },
+ "KokiriForest_Adult": {
+  "FrontDekuTree": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "KokiriForest_FrontOfLostWood": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LinkBed": [],
+  "LostWoodBridge_FrontOfHyruleField": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": [],
+  "WarpFromForestTemple": []
+ },
+ "KokiriForest_Child": {
+  "After_DekuWither": [],
+  "FrontDekuTree": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "KokiriForest_FrontOfLostWood": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWoodBridge_FrontOfHyruleField": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ReturnFromDreamWorld": [],
+  "WarpFromDekuTree": [],
+  "WarpFromDekuTree_2": []
+ },
+ "LizalfosStage": {
+  "LizalfosStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "LostWood_Adult": {
+  "LostWood_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_FrontOfSacredForestMeadow": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_GoronCitySide_after": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_GoronCitySide_before": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_ZoraRiverSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_ZoraRiverSide_Air": []
+ },
+ "LostWood_Child": {
+  "LostWood_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_FrontOfSacredForestMeadow": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_GoronCitySide_after": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_GoronCitySide_before": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_ZoraRiverSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "LostWood_ZoraRiverSide_Air": []
+ },
+ "Market_Adult": {
+  "LightPrelude": [],
+  "Market_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Market_Entrance_FromCastle": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "Market_Child": {
+  "BombchuBowlingStartPos": [],
+  "GameOverRespawn": [],
+  "HitTargetStartPos": [],
+  "LightPrelude": [],
+  "Market_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "Market_FrontOfHyruleCastle": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "MiniGameChoiceTreasureRestartPos": [],
+  "ReturnFromDreamWorld": [],
+  "StartPos_Market_Item_Bottle_TutorialEvent": []
+ },
+ "MegStage": {
+  "MegStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "MorphaStage": {
+  "MorphaStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "NaboruStage": {
+  "NaboruStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "PhantomGanonStage": {
+  "PhantomGanonStage": [],
+  "StartPos_SageOfForest": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "SacredForestMeadow_Adult": {
+  "ForestMinuet": [],
+  "OutsideOfForestTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SacredForestMeadow_FrontOfLostWood": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "SacredForestMeadow_Child": {
+  "ForestMinuet": [],
+  "OutsideOfForestTemple": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SacredForestMeadow_FrontOfLostWood": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "SageRoom": {
+  "StartPos": []
+ },
+ "ShadowTemple": {
+  "Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_SageOfShadow": [],
+  "StartPos_SageOfShadow_BattleOnShip": [],
+  "StartPos_SageOfShadow_BeforeBossRoom": []
+ },
+ "SpiritTemple": {
+  "SpiritTemple_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SpiritTemple_FromLeftHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "SpiritTemple_FromRightHand": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "StartPos_SageOfSpirit": []
+ },
+ "StalfosStage": {
+  "StalfosStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "StalfosWeakStage": {
+  "StalfosWeakStage": [],
+  "StartPos_SubEvent_AllBossBattle": []
+ },
+ "TwinrovaStage": {
+  "StartPos_SubEvent_AllBossBattle": [],
+  "TwinrovaStage": []
+ },
+ "VolvagiaStage": {
+  "BossDefeat": [],
+  "StartPos_SageOfFire": [],
+  "StartPos_SubEvent_AllBossBattle": [],
+  "VolvagiaStage": []
+ },
+ "WaterTemple": {
+  "StartPos_SageOfWater": [],
+  "StartPos_SageOfWater_MiddleBoss": [],
+  "WaterTemple_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "WaterTemple_FromLakeHylia_Air": []
+ },
+ "WolfosStage": {
+  "StartPos_SubEvent_AllBossBattle": [],
+  "WolfosStage": []
+ },
+ "WolfosWhiteStage": {
+  "StartPos_SubEvent_AllBossBattle": [],
+  "WolfosWhiteStage": []
+ },
+ "ZoraDomain_Adult": {
+  "ZoraDomain_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromLakeHylia_Air": [],
+  "ZoraDomain_FromZoraFountain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromZoraRiver": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "ZoraDomain_Adult_Alternative": {
+  "ZoraDomain_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromLakeHylia_Air": [],
+  "ZoraDomain_FromZoraFountain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromZoraRiver": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "ZoraDomain_Child": {
+  "MiniGame_Diving_PlayerStart": [],
+  "ZoraDomain_FromLakeHylia": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromLakeHylia_Air": [],
+  "ZoraDomain_FromZoraFountain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraDomain_FromZoraRiver": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "ZoraFountain_Adult": {
+  "ZoraFountain_FromIceCavern": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraFountain_FromIceCavern_Backdoor": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraFountain_FromIceCavern_Backdoor_Air": [],
+  "ZoraFountain_FromInsideJabuJabuBelly": [],
+  "ZoraFountain_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "ZoraFountain_Child": {
+  "ClearJabuJabu": [],
+  "ZoraFountain_FromIceCavern": [],
+  "ZoraFountain_FromIceCavern_Backdoor": [],
+  "ZoraFountain_FromInsideJabuJabuBelly": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraFountain_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ]
+ },
+ "ZoraRiver_Adult": {
+  "ZoraRiver_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_Entrance_UnderWater": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_LostWoodSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_LostWoodSide_Air": []
+ },
+ "ZoraRiver_Child": {
+  "ZoraRiver_Entrance": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_Entrance_UnderWater": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_FromZoraDomain": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_LostWoodSide": [
+   "FieldAndDungeonEntranceEventRequestActor"
+  ],
+  "ZoraRiver_LostWoodSide_Air": []
+ }
+}

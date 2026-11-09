@@ -7,6 +7,10 @@ Applies to **Ocarina of Time (Switch 2), program `0400486024DEC000`, update v131
 `E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`**, running in **Lichii** (an Eden/yuzu fork, Windows). Other versions
 have different addresses.
 
+Most of this was found with ootmenu, the Python overlay sloperinaGZ replaced; its files (`game.py`, `patch.py`,
+`gamedata.py`, `guestmem.py`, the GDB tools) are named below where they're how something was found. They're
+archived outside the project (`ootmenu-python-overlay-2026-11-09.tar.gz`); the native code is in `src/ootgz`.
+
 Conventions: `main+0x…` is an offset into the game's main module. Field hashes are MurmurHash3_32 (seed 0) of the
 field name (`gamedata.murmur3`). "The patch" is ootmenu's code patch (`patch.py`, source in `tools/hook_asm.py`).
 
@@ -411,6 +415,43 @@ Objects:
 - **Fix:** while a request for that setting is queued or running (`patch.pending`), the choice shows and steps
   from the value last chosen; the queue keeps only the newest request per setting, so the last choice is what
   gets applied. Applies to every upgrade choice (magic, wallet, bags, quiver).
+
+### 5.18 How the game changes maps; warps to warp-song pads crashed (native ootgz)
+- **Mechanism:** an exit is a `FieldAndDungeonEntranceEventRequestActor` (map layouts) that requests event
+  `Dm_SY_BancChangeGo` with `NextBanc`, `NextStartPos`, `NextStartPosAir`, `BootEventName` (the arrival
+  event, from its `NextEventName`) and `IsCheckAir`. The flow's `GameSystemActor.EventReserveBancChange`
+  is an AI module (`romfs/Pack/Actor/GameSystemActor.pack` › `AI/ReserveBancChange.module.ainb`) that
+  only writes GameData: `Sequence_ReservedNextBanc`, `…NextStartPosName`, `…BootEventName`,
+  `…EventStarterName` (String64 indexes 0x22, 0x23, 0x20, 0x21: these are game.py's `next_map`, `spawn`,
+  `event`, `starter`), `…NextPosition`, `…DungeonRoomID`, `Sequence_BancChangeFadePattern`, and
+  `Sequence_ControlInEvent = ChangeBancOnEvent`, which the Event sequence (`romfs/Sequence/Event.module`)
+  turns into `ChangeBancOnEvent` › `ChangeBanc`. The native menu requests the same event the way the
+  `SeqOneShotRequestEvent` node does (`main+0x32db1a0`; layout in `z64hd_v131072.h`). Verified: instant
+  warps to Kakariko and Hyrule Field.
+- **Symptom:** warping to `SacredForestMeadow_Child / ForestMinuet` crashed after the game reserved the map.
+- **Cause:** `Dm_SY_BancChangeGo` always reserves the spawn name as the *event starter*, and the standard
+  arrival (`Dm_SY_BancChangeArrive`) uses that actor. At exit spawns the exit actor has that name; at
+  warp-song pads there is only a `StartPos`. The game enters the pads from `Dm_SY_Ocarina` › `OcarinaWarp`
+  with `EventStarterName` empty and `BootEventName = OcarinaWarp_Arrive` (blue warps and sage rooms also
+  use an empty starter, with story events).
+- **Fix (not yet confirmed in game):** `tools/spawnstarters.py` records, per spawn, the actors that share
+  its name (`spawn_starters.json`: 145 of 336 have the exit actor, 191 have none). Warps to spawns with
+  none pass `OcarinaWarp_Arrive` and clear the reserved starter as soon as the game has reserved the map.
+- **Found by:** dumping every event flow's `EventReserveBancChange` (`evfl`) and comparing the layouts of an
+  exit spawn and the Minuet pad.
+
+### 5.19 Copies of Link's position; the native levitate (in progress)
+- **A copy, not the record:** Link's actor `[+0x8]` → `[+0x458]` → `[+0x410]` → `+0x288` holds (x, y, z) doubles 0.585 above
+  his drawn position, followed by a second (x, y, z) about 1 unit lower. A pointer search from the actor (depth 4)
+  finds this and one more like it. **The game rewrites it from the real record every frame:** a per-frame trace
+  of writing a rising y showed the game's value back each frame (wrote 115.338, read 115.062). Writing it does
+  nothing lasting.
+- **Crashes:** game.py's 48-byte WAKE written after one of these copies (over the second position) crashed the game,
+  twice. So did test-writing loosely matched look-alikes (1.0 tolerance, 12 matches). Nothing is now written past a
+  position unless the bytes there are all zero or plausible floats, and doubles there mark a copy.
+- **Now:** levitate scans the heap like game.py (16 MiB per frame, regions nearest the actor first) for a match
+  within 0.3 that is followed by float motion state, not doubles, and test-lifts each (at most 6). Not yet
+  confirmed in game.
 
 ## 6. Things that do not work
 

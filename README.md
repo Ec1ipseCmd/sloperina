@@ -1,96 +1,68 @@
-# ootmenu
+# sloperinaGZ
 
-A gz-style practice menu for **The Legend of Zelda: Ocarina of Time (Switch 2)** running in the **Lichii**
-emulator on Windows. It's an overlay that reads and writes the game's live memory, plus a small code patch that
-lets the game run its own inventory and UI code on request.
+A gz-style practice menu for **The Legend of Zelda: Ocarina of Time (Switch 2)**, built the way gz is: C code
+the game loads and runs itself (an exefs module, `subsdk9`, plus a 67-byte IPS patch to main). It works from
+Atmosphère's LayeredFS, an emulator's mod folder (Lichii / Eden: `load/`) or an offline patcher.
 
 Supported version: program `0400486024DEC000`, update v131072 (main build `E0F3CCFA…`). Other versions have
 different addresses and won't work.
 
-**Start here if you want to work on it:** [`docs/FINDINGS.md`](docs/FINDINGS.md) documents how the game's data
-works, the code patch, every problem solved so far (cause, fix, how it was found) and the approaches that don't
-work. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the build and test routine.
+- [`INSTALL.md`](INSTALL.md): installing it, languages, settings.
+- [`BUILDING.md`](BUILDING.md): building it, how it loads, what's verified.
+- [`docs/FINDINGS.md`](docs/FINDINGS.md): how the game's data works and every problem solved so far (cause, fix,
+  how it was found) and the approaches that don't work. **Start here if you want to work on it.**
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): the build and test routine. [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and
+  [`THANKS.md`](THANKS.md): who made it and special thanks (both shown in the about menu, read at build time).
+
+Open the menu with **R + right stick down**. **L** selects, the D-pad moves and changes values, **R + D-left**
+goes back.
 
 ## Features
 
-Dimmed entries in the menu are placeholders that aren't wired up yet.
-
-- **link**: map, health, rupees, wallet; **x / y / z** move Link (D-left/right, by **move step**), also while
-  the game is paused (he moves when it runs) and while floating. **equips** shows what Link wears.
-- **levitate**, like gz's: tap **L3** to float and tap again to drop (soft landing, no fall damage); hold **R3** to
-  keep the current height (a notice shows ON/OFF; the **levitate** watch shows off / rising / holding /
-  landing); the left stick moves Link relative to the camera while he floats, and walls stop him
-  (settings > **levitate through walls** lets him pass through instead).
-  Rise and move speeds are in settings (`levitate_combo`, `levitate_hold_combo`, `levitate_rise_speed`,
-  `levitate_move_speed`, `levitate_through_walls`).
-- **inventory**: items, owned gear, ammo, capacities, magic, bottles, upgrades, quest items, songs, dungeon items,
-  small keys. Ticking and unticking goes through the game's own code where the game needs it:
-  - **Ocarinas** are given and removed the way the game does it: Link holds a playable ocarina, the D-pad appears,
-    the HUD redraws.
-  - **Upgrades** (wallet, bags, quiver, strength, scale, magic meter, double defense) hold the real pouch items, so
-    the pause screen and story checks see them.
-  - **Unticking** worn gear takes it off Link; unticking a button item clears it from the item buttons.
-  - **Dungeon map / compass / boss key** update the pause map screen at once.
-- **warps**: any map and spawn point.
-- **scene > collision > show air walls**: draws the map's invisible walls over the game (cyan; red when Link is inside one).
-  The **air wall** watch shows how deep Link is in one and which side the game will push him out of.
-- **cheats**: infinite energy, rupees, magic, ammo.
-- **story / flags**: quest stages, tutorial guides, event flags (`flags.py` searches and sets them from the command
-  line).
-- **watches**: health, rupees, map, position, custom memory watches.
-
-## Requirements
-
-- Windows, Lichii with the game, run windowed or borderless fullscreen (not exclusive fullscreen).
-- Python 3.11+ with `numpy` (`pip install -r requirements.txt`).
-- For the research tools only: `capstone`, `keystone-engine`, `evfl`, `zstandard`.
-
-No game files are included. The data files here (field names, hashes, warp lists) are derived from the game and
-from community tools; you need your own copy of the game.
-
-## Use
-
-1. Double-click `run.bat`. A notice shows briefly in the top-left corner, then ootmenu waits in the background.
-   Run `run.bat` again to stop it.
-2. The first time (and after updates), the menu installs its code patch and shows "patch updated, please restart
-   the game": restart the game in Lichii once.
-3. Open the menu with **RB + right stick down** (the "R + C-down" equivalent), or **F3**.
-
-| Button | Action |
-|---|---|
-| D-pad / arrow keys | Move; Left/Right change a value |
-| LB / Enter | Select |
-| `return` item / Backspace | Back one menu |
-| RB + D-Left | Close the menu |
-
-By default the emulator is paused (its F4 hotkey) while the menu is open; changes that need the game's own code
-run when you close the menu. Settings save to `settings.json` (created on first change); button names are
-`A B X Y LB RB LT RT START BACK DUP DDOWN DLEFT DRIGHT LSTICK RSTICK C-UP C-DOWN C-LEFT C-RIGHT`.
-
-`python ootmenu.pyw --test` opens the menu as a normal window without the emulator. The log is
-`%TEMP%\ootmenu.log`.
+- **link**: health, heart containers, rupees, age and reload map; position, speed and map.
+- **warps**: any map and spawn point, at once, with the game's own fade.
+- **scene**: reload the map; the map's air walls drawn over the game (collision).
+- **cheats**: infinite health, rupees, magic and ammo; 2x movement speed.
+- **inventory**: items, equipment, collection (upgrades, strength, scale, magic), bottles, quest items, songs,
+  dungeon items and small keys, all through the game's own code where it needs it.
+- **equips**, **story** (quest stages, tutorials).
+- **watches**: gz's watch list: built-in watches (position, speed, angles, camera, input, timer, lag...) and
+  memory watches, with display types, labels (gz's keyboard), show/hide, reordering and the wrench to see the value
+  in memory; the box can go in any corner or anywhere.
+- **debug**: heap and gz's memory viewer (edit, add watches, follow pointers).
+- **settings**: language, menu size and background, the input display (gz's row or a Switch 2 Pro Controller),
+  levitate (L3), frame advance (L or R) with gz's pause icons.
+- gz's log of what was done, bottom right.
 
 ## Layout
 
-- `ootmenu.pyw` — the overlay, controls and menu contents.
-- `menu.py` — menu model. A feature becomes live once its item gets a handler.
-- `game.py` — finds the game in memory; save fields, strings, Link, warps, equipment objects.
-- `patch.py` — the code patch (bytes, install, request protocol) and the helpers that use it
-  (`give_gear`, `unequip`, `clear_buttons`, `set_upgrade`, `refresh_screen`).
-- `win32.py` — emulator window, overlay, keyboard/XInput, process memory.
-- `airwall.py` — air wall placement maths, inside tests and screen projection (data: `airwalls.json`).
-- `flags.py` — search and set flags from the command line; `python flags.py backup` copies your saves.
-- `gamedata.py`, `guestmem.py`, `scan.py` — research helpers (MurmurHash3, RAM block, value scanner).
-- `*.json` — field names and types, story stages, warp points (see `docs/FINDINGS.md` §1).
-- `tools/` — research tools: patch assembler (`hook_asm.py`), static analysis (`re64.py`), game files
-  (`nupfs.py`, `byml.py`, `gamefiles.py`, `evdump.py`, `airwalls.py`; set `OOTMENU_NUP` to the dump's path),
-  physics recording (`wallwatch.py`), finding a meter on Link by recording it (`linkwatch.py`), snapshots (`snap.py`), GDB watchpoint tools (`dpadwatch.py`,
-  `readwatch.py`, `magicwatch.py`).
-- `docs/` — findings (`FINDINGS.md`) and a browsable field/quest/tutorial reference (`index.html`; rebuild the
-  generated pages with `python docs/build.py`).
+- `src/ootgz/`: the module (C). `data.c` is generated, by `tools/gendata.py`.
+- `src/host/mkips.c`: makes the IPS patch. `lib/`: linker script and the list of symbols it may import.
+- `Makefile`, `docker-make`: the build (devkitA64, or the devkitpro/devkita64 Docker image).
+- `*.json`: the game's field names, hashes, story stages, warp and spawn points, air walls (inputs of
+  `tools/gendata.py` and `docs/build.py`; see `docs/FINDINGS.md` §1).
+- `tools/`: development tools in Python (not needed to play):
+  - `gendata.py` regenerates `src/ootgz/data.c` from the JSON files; `lang_template.py` writes
+    `lang/template.json` for translators.
+  - Reading the game's files from a dump (set `OOTMENU_NUP` to the `.nup`): `nupfs.py`, `byml.py`,
+    `gamefiles.py`, `airwalls.py` (→ `airwalls.json`), `spawnstarters.py` (→ `spawn_starters.json`), `evdump.py`
+    (event flows).
+  - `re64.py`: static analysis of a dump of main (cross-references, disassembly with field names).
+  - `requirements.txt` lists what they need.
+- `lang/`: the translation template.
+- `docs/`: findings and a browsable field / quest / tutorial reference (`index.html`; rebuild with
+  `python docs/build.py`).
+
+The first version was a Python overlay for Lichii (ootmenu) that read and wrote the game's memory from outside;
+FINDINGS.md still names its files where they're how something was found. It's in this repository's history
+(commit `6d8cdba` and before) and archived next to it (`ootmenu-python-overlay-2026-11-09.tar.gz`).
+
+No game files are included. The data files here are derived from the game and from community tools; you need
+your own copy of the game.
 
 ## Credits
 
+- Based on the work of OoT N64's Practice ROM, gz, by glankk. Font: Press Start 2P (codeman38, OFL).
 - Link's health and the guest address mapping come from the oot26-tools Cheat Engine table
   (github.com/mrissaoussama/oot26-tools), which also provided the warp list.
 - `.nup` layout from Hookshot's `nx2/nup.py`.
