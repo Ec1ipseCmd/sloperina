@@ -72,8 +72,8 @@ static void start(bool walls)
   pressed = 0;
   stick_x = 0;
   record = (uintptr_t)physics;
-  record_motion = false;
-  state = L_READY;
+  record_has_motion = false;
+  search_state = SEARCH_READY;
   sync_drawn();
   float_start();
 }
@@ -88,7 +88,7 @@ static void test_release(void)
 {
   for (int disable = 0; disable <= 1; disable++) {
     start(true);
-    record_motion = true;
+    record_has_motion = true;
     float motion[12];
     for (int i = 0; i < 12; i++) motion[i] = (float)(i + 1);
     motion[(0x2C - 24) / 4] = motion[(0x44 - 24) / 4] = -80;
@@ -100,7 +100,7 @@ static void test_release(void)
     if (disable) levitate_enabled = false;
     else pressed = BTN_LSTICK;
     levitate_frame(false);
-    assert(!floating && !writing);
+    assert(!floating && !moving_link);
     assert(velocity_resets == 1 && landing_actor == link_actor());
     assert(!memcmp(physics, expected, sizeof(expected))); /* no position or horizontal writes */
     pressed = 0;
@@ -123,10 +123,10 @@ static void test_release(void)
   }
   for (int invalid = 0; invalid < 4; invalid++) {
     start(true);
-    record_motion = true;
+    record_has_motion = true;
     if (invalid == 0) mapped = false;
     if (invalid == 1) drawn_pos.x += 100; /* stale record after relocation */
-    if (invalid == 2) record_motion = false;
+    if (invalid == 2) record_has_motion = false;
     if (invalid == 3) { /* implausible motion */
       uint32_t nan = 0x7FC00000;
       memcpy((char *)physics + 24, &nan, sizeof(nan));
@@ -135,7 +135,7 @@ static void test_release(void)
     memcpy(before, physics, sizeof(before));
     pressed = BTN_LSTICK;
     levitate_frame(false);
-    assert(!floating && !writing && !memcmp(before, physics, sizeof(before)));
+    assert(!floating && !moving_link && !memcmp(before, physics, sizeof(before)));
   }
   puts("PASS: L3 controller reset once, long-drop landing protection, no later clamp; invalid records untouched");
 }
@@ -147,11 +147,11 @@ static void test_vertical_controls(void)
     levitate_speed = speed;
     held = BTN_X;
     step();
-    assert(vy > 0 && physics[1] > 100);
+    assert(vel_y > 0 && physics[1] > 100);
     held = 0;
     double height = physics[1];
     step();
-    assert(vy == 0 && physics[1] == height);
+    assert(vel_y == 0 && physics[1] == height);
     held = BTN_B;
     stick_x = 32767;
     for (int i = 0; i < 30; i++) {
@@ -159,34 +159,34 @@ static void test_vertical_controls(void)
       physics[0] -= 0.2; /* simultaneous wall push-back */
       step();
     }
-    assert(physics[1] < 97 && physics[0] > 5 && vy < 0);
+    assert(physics[1] < 97 && physics[0] > 5 && vel_y < 0);
     held = 0;
     height = physics[1];
     step();
-    assert(physics[1] == height && vy == 0);
+    assert(physics[1] == height && vel_y == 0);
     physics[1] += 0.5; /* floor support resumes after releasing B */
     step();
     assert(physics[1] == height + 0.5);
 
     held = BTN_X;
     step();
-    assert(vy > 0);
+    assert(vel_y > 0);
     held = BTN_B;
     step();
-    assert(vy < 0); /* no remaining upward momentum on reversal */
+    assert(vel_y < 0); /* no remaining upward momentum on reversal */
     held = BTN_X;
     step();
-    assert(vy > 0);
+    assert(vel_y > 0);
     height = physics[1];
     held = BTN_X | BTN_B;
     step();
-    assert(vy == 0 && physics[1] == height);
+    assert(vel_y == 0 && physics[1] == height);
     held = BTN_B | BTN_RSTICK;
     step();
-    assert(vy == 0 && physics[1] == height);
+    assert(vel_y == 0 && physics[1] == height);
     held = BTN_B;
     float_step(1.0 / 30.0, true);
-    assert(vy == 0 && physics[1] == height);
+    assert(vel_y == 0 && physics[1] == height);
   }
   start(false);
   held = BTN_B;
@@ -195,7 +195,7 @@ static void test_vertical_controls(void)
   assert(physics[1] > 100.9); /* collision mode retains the floor correction */
 
   start(true);
-  floating = writing = false;
+  floating = moving_link = false;
   held = BTN_X;
   pressed = BTN_LSTICK;
   levitate_frame(false);
@@ -252,7 +252,7 @@ int main(void)
   for (int i = 0; i < 60; i++) {
     physics[1] -= 0.1; /* simulated gravity */
     step();
-    assert(physics[1] == 100 && physics[0] == 0 && physics[2] == 0 && vy == 0);
+    assert(physics[1] == 100 && physics[0] == 0 && physics[2] == 0 && vel_y == 0);
   }
   stick_x = 32767;
   for (int i = 0; i < 30; i++) {
@@ -264,16 +264,16 @@ int main(void)
   start(true);
   held = BTN_X;
   step();
-  assert(vy > 0);
+  assert(vel_y > 0);
   double rising_height = physics[1];
   levitate_speed = 0;
   held = 0;
   step();
-  assert(vy == 0 && physics[1] == rising_height);
+  assert(vel_y == 0 && physics[1] == rising_height);
   levitate_speed = 4;
   held = BTN_X;
   step();
-  assert(vy > 0 && physics[1] > rising_height);
+  assert(vel_y > 0 && physics[1] > rising_height);
   puts("PASS: hover with zero legacy speed, horizontal push-back bypass, stop and resume ascent");
 
   for (int walls = 0; walls <= 1; walls++) {
@@ -295,16 +295,16 @@ int main(void)
   stick_x = 32767;
   for (int i = 0; i < 30; i++) {
     physics[0] -= 0.2; /* horizontal wall pushes back */
-    physics[1] = i % 2 ? py - 0.1 : py + 0.05;
+    physics[1] = i % 2 ? pos_y - 0.1 : pos_y + 0.05;
     step();
   }
   assert(physics[0] > 5 && fabs(physics[1] - 100.75) < 1e-9);
 
   start(false);
   stick_x = 32767;
-  clock = 1;
-  steady_at = 2;
-  vx = head_x = refs[0][0] = refs[1][0] = 6;
+  float_clock = 1;
+  next_heading_sample = 2;
+  vel_x = heading_x = past_headings[0][0] = past_headings[1][0] = 6;
   physics[0] = -0.2;
   physics[1] = 100.4;
   step();
@@ -327,7 +327,7 @@ int main(void)
   start(true);
   mapped = false;
   levitate_frame(false);
-  assert(state == L_IDLE && !floating && !writing && !record && physics[1] == 100);
+  assert(search_state == SEARCH_IDLE && !floating && !moving_link && !record && physics[1] == 100);
   start(true); /* new record/scene starts from its own height, not an old floor */
   physics[1] = 20;
   sync_drawn();
