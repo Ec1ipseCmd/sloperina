@@ -107,6 +107,29 @@ int main(void)
   assert(clears>100);
   FILE *file=fopen("obj/tests/collision-overlay.ppm","wb");assert(file);
   fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
+  memset(pixels,30,sizeof(pixels));surface_edges_reset();
+  int n=0;void_draw_t dense={dots,&n,&cam};
+  for (int i=0;i<1000;i++) {
+    float x=-3+(float)(i%40)*.15f,y=-2+(float)(i/40)*.15f;
+    vec3f_t v[3]={{x,y,5},{x+.2f,y,5},{x+.1f,y+.2f,5}};
+    draw_surface(v,COLLISION_FLOOR,&dense);
+  }
+  vec3f_t outline[3]={{-4,-3,6},{4,-3,6},{0,3,6}};
+  draw_surface(outline,COLLISION_TRIGGER,&dense);draw_surface_edges(&dense);
+  assert(n>0 && n<=SURFACE_RECTS && surface_width<SURFACE_WIDTH);
+  draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
+  /* Every pixel in the accepted raster reaches the actual NVN rectangle draw;
+   * the drawing cap cannot silently truncate its lower/farther edges. */
+  for (int y=0;y<surface_height;y++) for (int x=0;x<surface_width;x++)
+    if (surface_mask[y*surface_width+x]) {
+      /* Coordinates pass through the overlay's 16-bit normalized space. */
+      int px=(int)((uint64_t)((2*x+1)*65535/(2*surface_width))*640/65535);
+      int py=(int)((uint64_t)((2*y+1)*65535/(2*surface_height))*360/65535);
+      assert(pixels[py][px][0]!=30 || pixels[py][px][1]!=30 || pixels[py][px][2]!=30);
+    }
+  file=fopen("obj/tests/collision-dense.ppm","wb");assert(file);
+  fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
+  printf("Dense scene: %u projected edges, %dx%d raster, %d rectangles\n",surface_line_count,surface_width,surface_height,n);
   puts("PASS: production surface projection and NVN colors/raster");
   return 0;
 }

@@ -29,7 +29,7 @@ bool airwalls_shown, airwalls_all;
 #define MAX_WALLS 256
 #define MAX_POINTS 4096
 #define MAX_EDGES 8192
-#define MAX_DOTS 3000
+#define MAX_DOTS 12000
 #define MAX_DOTS_PER_EDGE 2000
 #define REF_WIDTH 1920    /* the picture is worked out in pixels of a 1920x1080 one */
 #define REF_HEIGHT 1080
@@ -543,12 +543,74 @@ static void draw_surface(const vec3f_t v[3],int kind,void *arg)
   }
 }
 
-/* Share the rectangle budget across the whole projected view. The old early
- * cutoff spent everything on the nearest few edges, regardless of range. */
+/* Rasterize complete edges, then merge equal horizontal runs vertically. Never
+ * drop individual pieces of a line to meet the command budget. Dense views are
+ * retried at a coarser image resolution, keeping every projected edge. */
+#define SURFACE_WIDTH 640
+#define SURFACE_HEIGHT 360
+#define SURFACE_RECTS 8000
+static uint8_t surface_mask[SURFACE_WIDTH*SURFACE_HEIGHT];
+static struct { float x0,y0,x1,y1; uint8_t color; } surface_lines[SURFACE_EDGES];
+static struct { uint16_t x0,y0,x1,y1; uint8_t color; } surface_rects[SURFACE_RECTS];
+static unsigned surface_line_count;
+static int surface_width,surface_height;
+
+static int surface_coord(float value,int size)
+{
+  int p=(int)(value*size);
+  return p<0?0:p>=size?size-1:p;
+}
+
+static void surface_rasterize(int width,int height)
+{
+  memset(surface_mask,0,(size_t)width*height);
+  for (unsigned i=0;i<surface_line_count;i++) {
+    int x=surface_coord(surface_lines[i].x0,width),y=surface_coord(surface_lines[i].y0,height);
+    int x1=surface_coord(surface_lines[i].x1,width),y1=surface_coord(surface_lines[i].y1,height);
+    int dx=x1>x?x1-x:x-x1,dy=y1>y?y-y1:y1-y;
+    int sx=x<x1?1:-1,sy=y<y1?1:-1,error=dx+dy;
+    for (;;) {
+      surface_mask[y*width+x]=surface_lines[i].color;
+      if (x==x1 && y==y1) break;
+      int twice=error*2;
+      if (twice>=dy) { error+=dy;x+=sx; }
+      if (twice<=dx) { error+=dx;y+=sy; }
+    }
+  }
+}
+
+/* -1 means retry at lower resolution; no partial image is published. */
+static int surface_pack(int width,int height,int limit)
+{
+  int previous[SURFACE_WIDTH],current[SURFACE_WIDTH],count=0;
+  for (int x=0;x<width;x++) previous[x]=-1;
+  for (int y=0;y<height;y++) {
+    for (int x=0;x<width;x++) current[x]=-1;
+    for (int x=0;x<width;) {
+      uint8_t color=surface_mask[y*width+x];
+      if (!color) { x++;continue; }
+      int end=x+1;
+      while (end<width && surface_mask[y*width+end]==color) end++;
+      int at=previous[x];
+      if (at>=0 && surface_rects[at].x1==end && surface_rects[at].color==color) {
+        surface_rects[at].y1=(uint16_t)(y+1);
+      } else {
+        if (count>=limit) return -1;
+        at=count++;
+        surface_rects[at].x0=(uint16_t)x;surface_rects[at].x1=(uint16_t)end;
+        surface_rects[at].y0=(uint16_t)y;surface_rects[at].y1=(uint16_t)(y+1);
+        surface_rects[at].color=color;
+      }
+      current[x]=at;x=end;
+    }
+    memcpy(previous,current,(size_t)width*sizeof(*previous));
+  }
+  return count;
+}
+
 static void draw_surface_edges(void_draw_t *draw)
 {
-  static struct { float x,y,dx,dy; unsigned cost; uint8_t color; bool level,straight; } lines[SURFACE_EDGES];
-  unsigned nlines=0,total=0;
+  surface_line_count=0;
   for (unsigned i=0;i<surface_edge_count;i++) {
     vec3f_t a=surface_edges[i].a,b=surface_edges[i].b;
     float p[3]={a.x,a.y,a.z},q[3]={b.x,b.y,b.z},va[3],vb[3];
@@ -558,34 +620,29 @@ static void draw_surface_edges(void_draw_t *draw)
     to_screen(draw->cam,va,&x,&y);to_screen(draw->cam,vb,&x1,&y1);
     x*=REF_WIDTH;x1*=REF_WIDTH;y*=REF_HEIGHT;y1*=REF_HEIGHT;
     if (!clip_to_picture(&x,&y,&x1,&y1)) continue;
-    float dx=x1-x,dy=y1-y,ax=dx<0?-dx:dx,ay=dy<0?-dy:dy;
-    float major=ax>ay?ax:ay,minor=ax>ay?ay:ax;
-    bool straight=minor<=major*STRAIGHT;
-    unsigned cost=(unsigned)(straight?minor/LINE_WIDTH:major/DOT_SPACING)+1;
-    lines[nlines].x=x;lines[nlines].y=y;lines[nlines].dx=dx;lines[nlines].dy=dy;
-    lines[nlines].cost=cost;lines[nlines].level=ax>=ay;lines[nlines].straight=straight;
-    lines[nlines++].color=(uint8_t)(AW_FLOOR+surface_edges[i].kind);total+=cost;
+    unsigned at=surface_line_count++;
+    surface_lines[at].x0=x/REF_WIDTH;surface_lines[at].y0=y/REF_HEIGHT;
+    surface_lines[at].x1=x1/REF_WIDTH;surface_lines[at].y1=y1/REF_HEIGHT;
+    surface_lines[at].color=(uint8_t)(AW_FLOOR+surface_edges[i].kind);
   }
-  int available=MAX_DOTS*2/3-*draw->n;
-  if (available<=0 || !total) return;
-  unsigned budget=total<(unsigned)available?total:(unsigned)available;
-  unsigned accumulated=0,assigned=0;
-  for (unsigned i=0;i<nlines;i++) {
-    accumulated+=lines[i].cost;
-    unsigned end=(unsigned)((uint64_t)accumulated*budget/total),samples=end-assigned;
-    assigned=end;
-    for (unsigned j=0;j<samples;j++) {
-      /* Sample the original staircase pieces, without stretching rectangles
-       * into false surfaces when a crowded view needs a sparser outline. */
-      unsigned piece=(unsigned)((uint64_t)(2*j+1)*lines[i].cost/(2*samples));
-      float ta=(float)piece/lines[i].cost,tb=(float)(piece+1)/lines[i].cost;
-      float t=(ta+tb)*.5f,x=lines[i].x,y=lines[i].y,dx=lines[i].dx,dy=lines[i].dy;
-      if (lines[i].straight && lines[i].level)
-        add_rect(draw->dots,draw->n,x+dx*ta,y+dy*t,x+dx*tb,y+dy*t,lines[i].color);
-      else if (lines[i].straight)
-        add_rect(draw->dots,draw->n,x+dx*t,y+dy*ta,x+dx*t,y+dy*tb,lines[i].color);
-      else add_rect(draw->dots,draw->n,x+dx*t,y+dy*t,x+dx*t,y+dy*t,lines[i].color);
+  int available=SURFACE_RECTS-*draw->n;
+  if (available<=0 || !surface_line_count) return;
+  surface_width=SURFACE_WIDTH;surface_height=SURFACE_HEIGHT;
+  /* Four bounded attempts: 640x360, 320x180, 160x90, 80x45. The last has
+   * fewer pixels than the surface budget, even with every pixel a new run. */
+  for (int attempt=0;attempt<4;attempt++) {
+    surface_rasterize(surface_width,surface_height);
+    int count=surface_pack(surface_width,surface_height,available);
+    if (count>=0) {
+      for (int i=0;i<count;i++)
+        add_rect(draw->dots,draw->n,
+                 (float)surface_rects[i].x0*REF_WIDTH/surface_width,
+                 (float)surface_rects[i].y0*REF_HEIGHT/surface_height,
+                 (float)surface_rects[i].x1*REF_WIDTH/surface_width,
+                 (float)surface_rects[i].y1*REF_HEIGHT/surface_height,surface_rects[i].color);
+      return;
     }
+    if (attempt<3) { surface_width/=2;surface_height/=2; }
   }
 }
 

@@ -926,3 +926,22 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
   frozen game. Legacy collision-respecting movement and 2x speed retain their search; its failure text
   now identifies the movement record. Host tests cover no-scan startup, stationary hover/resume,
   ascent/descent, pause/menu, release and invalid/replaced objects. Native-only movement requires runtime testing.
+
+### 9.8 Broken collision lines (0.0.10-test4)
+
+- The user reported the collision view looked normal but its lines were very broken. Test3 distributed
+  a limited number of rectangles over all edges by skipping pieces of each staircase/dotted line.
+  This preserved coverage but deliberately introduced gaps; increasing the range made them more apparent.
+- Surface edges now rasterize end-to-end into a bounded color mask. Equal horizontal runs are merged
+  across rows into rectangles and submitted through the existing scissor-clear renderer. No new shaders,
+  game assets, graphics API imports, gameplay writes or settings are needed.
+- Start at 640x360. If the complete mask cannot fit, retry at 320x180, 160x90, then 80x45. Only a complete
+  packed image is published; never sample fragments from its lines. The surface budget is 8000 rectangles,
+  the shared outline buffer 12000, and command memory 2 MiB per slot (previously 256 KiB), retaining
+  command-free-space guards. Coarser images can thicken/merge nearby outlines; this is a bounded preview,
+  not a full-resolution GPU wireframe renderer. Original void/barrier line style is unchanged.
+- Host tests verify connected components/endpoints for line slopes/directions and boundary/zero-length
+  cases, exact reconstruction of the packed mask, clipping, colors, distant edges and buffer bounds.
+  A synthetic 3003-edge scene selects 320x180 and 3419 rectangles; every raster pixel survives production
+  NVN rectangle drawing. Headless simple and dense images were inspected. Runtime appearance and the
+  performance impact of the larger drawing budget still need user confirmation.

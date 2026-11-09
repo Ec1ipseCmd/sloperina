@@ -1,18 +1,22 @@
 # Collision view
 
-**0.0.10-test3:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`.
+**0.0.10-test4:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`.
 **Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
 (pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
 Selections persist. Existing invisible-barrier and void-sensor controls are independent.
 
 This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
-per frame. Complete views stay visible until the next scan finishes, and the drawing budget is shared
-across all projected edges rather than exhausted by the nearest few. Range defaults to 12 world units;
+per frame. Complete views stay visible until the next scan finishes. Range defaults to 12 world units;
 existing saved ranges are preserved. **preview grid** defaults to 1 world unit: vertices are rounded to
 a fixed world grid, collapsed faces discarded and duplicates merged. This improves coverage but can omit
 small features and move a vertex by up to half a grid step per axis. Choose **0.5**, **0.25**, or **exact**
 for finer inspection. Static triggers and void bounds are never snapped. Only the visualization changes.
-Dense views use sparser outlines; the 3000-rectangle overlay limit is unchanged. Geometry refresh takes
+Surface edges are continuous raster lines, not sampled dots. Adjacent pixels are merged into rectangles
+for the existing shader-free renderer. The image starts at 640x360 and can fall back to 320x180, 160x90,
+or 80x45 to fit a bounded 8000-rectangle surface budget. Crowded views therefore have coarser/thicker
+outlines instead of missing pieces along every edge. The shared overlay limit is 12000 rectangles and
+command memory is 2 MiB per render slot, with the existing free-space guard retained. Void/barrier outlines
+still use their previous drawing style. Geometry refresh takes
 several frames and can take longer in dense maps. It draws
 through scenery. Unsupported shapes are skipped; capsules/spheres, moving actor collision, and unclassified
 scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
@@ -20,8 +24,10 @@ scripted voids are not included. Convex hulls omit the solver's contact-radius e
 No extracted collision files are distributed. Read-only checks located live tiles and the decoder was
 compared with `tools/phive.py` on loaded Castle Town data. Native build, synthetic malformed-data and
 lifecycle tests, and headless menu/projection tests pass. The user confirmed geometry appears in test2,
-but reported flicker and poor coverage. Test3 addresses both in host tests; its appearance and performance
-still need in-game confirmation. The historical research and future GPU-rendering plan follow; the native
+but reported flicker and poor coverage. After test3 the user described the view as normal but its lines
+as very broken. Test4 removes the line-piece sampling; connectivity, dense fallback, lossless packing and
+production drawing pass host tests. Test4's in-game appearance and performance still need confirmation.
+The historical research and future GPU-rendering plan follow; the native
 loaded-resource chain described above resolves the earlier question of finding collision in memory.
 
 The goal: **scene > collision > show collision** draws the floors, walls and ceilings around Link (like gz's

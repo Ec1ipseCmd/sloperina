@@ -110,8 +110,9 @@ and you'll come out at the chosen place. Under **return**: the **current** map a
 **surfaces / triggers** opens the static collision filters. Turn on **show surfaces**, then select
 **floors**, **walls**, **ceilings**, and/or **static triggers**. Green is floor, blue wall, pink ceiling,
 yellow a door/general-area sensor. The range is 4, 8, 12, or 20 world units around Link. Settings persist.
-Up to 2048 supported preview triangles are selected. Completed views remain visible between scans and
-the drawing budget is spread over all projected edges. **preview grid** defaults to **1** world unit,
+Up to 2048 supported preview triangles are selected. Completed views remain visible between scans.
+Surface lines are continuous; dense views automatically use a coarser image to fit the drawing budget,
+so outlines may become thicker. **preview grid** defaults to **1** world unit,
 merging tiny faces for coverage; vertices can move by half that step per axis and small features can
 disappear. Choose **0.5**, **0.25**, or **exact** for finer detail. Static triggers and void bounds retain
 their original coordinates. The default range is 12; saved ranges are preserved. This preview draws through scenery.

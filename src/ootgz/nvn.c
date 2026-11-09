@@ -210,7 +210,7 @@ void *nvn_bootstrap_hook(const char *name)
 /* --- overlay ---------------------------------------------------------------------------------- */
 
 #define SLOTS 2
-#define CMD_SIZE 0x40000  /* command memory per slot (see-through: a copy per sampled row) */
+#define CMD_SIZE 0x200000 /* bounded solid collision raster plus panels; free-space checks remain */
 #define CTRL_SIZE 0x4000  /* control memory per slot */
 #define PAGE_SIZE 0x1000
 #define RGBA8_BYTES 4     /* bytes per pixel of an RGBA8 picture (the see-through path's only format) */
