@@ -109,6 +109,25 @@ static void write_abyss_hook(FILE *f)
   write_record(f, Z64HD_ABYSS_SITE, site, sizeof(site));
 }
 
+/* Mid-function hook: x19 is Player, w8 is the selected abyss type. x16 is
+ * dead on both continuations. With no module, replay the displaced store. */
+static void write_void_state_hook(FILE *f)
+{
+  uint32_t stub_at = Z64HD_CAVE_START + OOTGZ_VOID_STATE_STUB_OFF;
+  uint32_t code[6] = {
+    insn_adrp(X16, stub_at, Z64HD_VOID_STATE_HOOK_SLOT),
+    insn_ldr_x(X16, X16, Z64HD_VOID_STATE_HOOK_SLOT & 0xFFF),
+    insn_cbz_x(X16, stub_at + 8, stub_at + 16), insn_br(X16),
+    0xB9191E68u, /* str w8, [x19, #0x191c] */
+    insn_b(stub_at + 20, Z64HD_VOID_STATE_SITE + 4),
+  };
+  uint8_t stub[24], site[4];
+  for (int i = 0; i < 6; i++) put_le32(stub + 4 * i, code[i]);
+  put_le32(site, insn_b(Z64HD_VOID_STATE_SITE, stub_at));
+  write_record(f, stub_at, stub, sizeof(stub));
+  write_record(f, Z64HD_VOID_STATE_SITE, site, sizeof(site));
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 2) {
@@ -121,6 +140,10 @@ int main(int argc, char **argv)
   _Static_assert(OOTGZ_STUB_OFF + STUB_SIZE <= OOTGZ_ABYSS_STUB_OFF &&
                  OOTGZ_ABYSS_STUB_OFF + 24 <= OOTGZ_SAND_STUB_OFF, "overlapping stubs");
   _Static_assert((Z64HD_ABYSS_HOOK_SLOT & 7) == 0 && (Z64HD_SAND_HOOK_SLOT & 7) == 0, "unaligned void slot");
+  _Static_assert(OOTGZ_SAND_STUB_OFF + STUB_SIZE <= OOTGZ_VOID_STATE_STUB_OFF &&
+                 Z64HD_CAVE_START + OOTGZ_VOID_STATE_STUB_OFF + 24 <= Z64HD_CAVE_END,
+                 "state hook outside cave or overlapping");
+  _Static_assert((Z64HD_VOID_STATE_HOOK_SLOT & 7) == 0, "unaligned state slot");
 
   uint8_t marker[MARKER_SIZE] = { 0 };
   memcpy(marker, OOTGZ_MARKER, 8);
@@ -153,6 +176,7 @@ int main(int argc, char **argv)
   write_abyss_hook(f);
   write_call_hook(f, Z64HD_SAND_SITE, Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF,
                   Z64HD_SAND_HOOK_SLOT, Z64HD_SAND_SEND);
+  write_void_state_hook(f);
   fwrite("EEOF", 1, 4, f);
   if (fclose(f) != 0) {
     perror(argv[1]);

@@ -134,7 +134,7 @@ The two lines under them count the walls in this map and those near you, and say
 | Item | What it does |
 |---|---|
 | **show voids** | Draw recognized player void-sensor bounds within 60 units. Amber: active logic; grey: its condition is false. Saved between launches. |
-| **void-outs** | **normal**, **off while levitating**, or **off**. Only Link's abyss messages and sand-sensor messages are filtered. Resets to normal at launch. |
+| **void-outs** | **normal**, **off while levitating**, or **off**. Filters Link's abyss/sand messages and blocks new abyss reactions before camera/event dispatch. Shows `void-out blocked` when intercepted. Enable before entering a trigger; does not cancel an event already running. Resets to normal at launch. |
 
 The summary counts recognized sensors, supported bounds and unavailable bounds. When none are identified,
 it says so explicitly; this does not prove the area has no voids. Areas with multiple sensor controllers

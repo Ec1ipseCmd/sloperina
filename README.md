@@ -1,7 +1,7 @@
 # sloperinaGZ
 
 A gz-style practice menu for **The Legend of Zelda: Ocarina of Time (Switch 2)**, built the way gz is: C code
-the game loads and runs itself (an exefs module, `subsdk9`, plus a 143-byte IPS patch to main). It works from
+the game loads and runs itself (an exefs module, `subsdk9`, plus a 183-byte IPS patch to main). It works from
 Atmosphère's LayeredFS, an emulator's mod folder (Lichii / Eden: `load/`) or an offline patcher.
 
 Supported version: program `0400486024DEC000`, update v131072 (main build `E0F3CCFA…`). Other versions have

@@ -1934,7 +1934,7 @@ static void build_scene(void)
   if (void_show) void_show->hint = "amber: bounds; grey: condition inactive; curved sensors use bounding boxes";
   menu_item_t *void_mode = menu_add_option(&m_collision, "void-outs", VOIDS_MODE_COUNT, voids_mode_names,
                                           get_voids_mode, set_voids_mode, 0);
-  if (void_mode) void_mode->hint = "Player pit/sand sensors only; session setting, normal after restart";
+  if (void_mode) void_mode->hint = "Blocks new player abyss reactions; normal after restart";
   menu_add_text(&m_collision, text_voids, 0);
   menu_add_return(&m_collision);
 }

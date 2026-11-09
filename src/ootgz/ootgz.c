@@ -363,9 +363,12 @@ static const char *patch_problem(void)
   if (*(const uint32_t *)MAIN(Z64HD_ABYSS_SITE) !=
         encode_branch(MAIN(Z64HD_ABYSS_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_ABYSS_STUB_OFF)) ||
       *(const uint32_t *)MAIN(Z64HD_SAND_SITE) !=
-        (encode_branch(MAIN(Z64HD_SAND_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF)) | 0x80000000u))
+        (encode_branch(MAIN(Z64HD_SAND_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_SAND_STUB_OFF)) | 0x80000000u) ||
+      *(const uint32_t *)MAIN(Z64HD_VOID_STATE_SITE) !=
+        encode_branch(MAIN(Z64HD_VOID_STATE_SITE), MAIN(Z64HD_CAVE_START + OOTGZ_VOID_STATE_STUB_OFF)))
     return "void hook sites do not match: install the matching .ips";
-  if (*(volatile uintptr_t *)MAIN(Z64HD_ABYSS_HOOK_SLOT) || *(volatile uintptr_t *)MAIN(Z64HD_SAND_HOOK_SLOT))
+  if (*(volatile uintptr_t *)MAIN(Z64HD_ABYSS_HOOK_SLOT) || *(volatile uintptr_t *)MAIN(Z64HD_SAND_HOOK_SLOT) ||
+      *(volatile uintptr_t *)MAIN(Z64HD_VOID_STATE_HOOK_SLOT))
     return "void hook slots are not empty; not hooking";
   return 0;
 }
@@ -381,6 +384,7 @@ __attribute__((used)) void ootgz_module_init(void)
   *(volatile uintptr_t *)MAIN(Z64HD_HOOK_SLOT) = (uintptr_t)ootgz_frame_entry;
   *(volatile uintptr_t *)MAIN(Z64HD_ABYSS_HOOK_SLOT) = (uintptr_t)voids_abyss_message;
   *(volatile uintptr_t *)MAIN(Z64HD_SAND_HOOK_SLOT) = (uintptr_t)voids_sand_message;
+  *(volatile uintptr_t *)MAIN(Z64HD_VOID_STATE_HOOK_SLOT) = (uintptr_t)void_state_entry;
   log_raw("frame hook installed");
 
   /* main's imports: NVN for drawing, nn::hid to hide input while the menu is open */

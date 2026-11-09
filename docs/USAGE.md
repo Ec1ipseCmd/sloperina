@@ -136,8 +136,11 @@ the next frame.
 - **scene > collision > show voids** draws recognized player void-sensor bounds in amber. Grey means
   the sensor's logic condition is currently false. This works independently of the air-wall checkbox.
 - **void-outs**: **normal**, **off while levitating**, or **off**. The middle choice protects Link only
-  while L3 floating is active. These modes filter player abyss/sand messages; they do not disable ordinary
-  damage, scripted warps, or global actor cleanup. Suppression is session-only and starts normal.
+  while L3 floating is active. These modes filter player abyss/sand messages and block new native abyss
+  reactions before the camera/event/respawn sequence starts. An intercepted attempt shows **void-out blocked**.
+  Enable protection before entering a trigger; it does not cancel an event already running. Ordinary
+  damage, normal area exits and independent scripted warps remain active. Suppression is session-only
+  and starts normal. Leaving an area still turns levitation off.
 
 The viewer shows supported live sensor bounds, not every possible scripted death or floor. Curved
 sensors use bounding boxes; unsupported bounds are counted as unavailable. New build code needs a game

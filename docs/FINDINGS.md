@@ -945,3 +945,31 @@ Entries 1 to 4 and 14 were empty; 35 and 40 had no name getter.
   A synthetic 3003-edge scene selects 320x180 and 3419 rectangles; every raster pixel survives production
   NVN rectangle drawing. Headless simple and dense images were inspected. Runtime appearance and the
   performance impact of the larger drawing budget still need user confirmation.
+
+
+### Abyss reaction still starts with sensor suppression (0.0.10-test5)
+
+Symptom: the user reports a void reaction while levitating even though Link's position survives.
+The existing hooks cover abyss/sand messages, not all native abyss classification paths.
+Static analysis found the shared classifier at `main+82C510`: its only nonzero Player+191C store
+is `main+82C690`, followed by the global abyss notification at `+82C6A8`. It selects types
+1, 3, 4, 5, 7, 8 and 9. These are abyss classifications, NOT the death-message reason enum.
+The scheduler at `+82BC08` and event path at `+27D4E50` call it and immediately dispatch using
+Player+191C; the event query at `+2A3827C` reads the derived +1C38 bit 5.
+
+Patch v3 intercepts the state commit. For the protected Link only, it branches to the classifier's
+native epilogue (+82C614), before state/global notification, instead of restoring a position later.
+Unprotected/unrecognized cases replay the original store and continuation. The predicate verifies
+Player+18's actor type/ID and the reverse actor+270 -> +358 chain. It changes no native data.
+The shim preserves w8 and LR; continuation/epilogue analysis verifies other volatile registers and
+NZCV are dead. Existing message filters remain. Interceptions publish an atomic bitmask; the frame
+callback coalesces notifications to at most once per 120 frames, with a HUD notice and log entry.
+Bits 1/3/4/5/7/8/9 are classifier types; bits 16/17 are abyss/sand messages.
+
+A read-only check against the running process confirmed the original instruction at the new site
+and an empty hook slot. Host checks cover ownership, all emitted types, mode changes, untouched
+native objects, notification throttling and IPS fallback/branch targets. This is not confirmation
+that the user's exact trigger is fixed in-game. Already-running events and unrelated scripted
+warps are not cancelled. Test after installing both files and restarting; enable protection before
+entering the trigger, check there is no void camera/fade/respawn, then return to safe ground and
+verify normal mode and ordinary area transitions still work.

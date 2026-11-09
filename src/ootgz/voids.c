@@ -1,6 +1,7 @@
 #include "voids.h"
 #include "actors.h"
 #include "levitate.h"
+#include "gfx.h"
 #include "sys.h"
 #include "z64hd.h"
 #include "ootgz_version.h"
@@ -16,6 +17,8 @@ const char *const voids_mode_names[VOIDS_MODE_COUNT] = { "normal", "off while le
 #define NO_ACTOR UINT32_MAX
 
 static uint32_t protected_actor = NO_ACTOR;
+static uint32_t pending_blocks;
+static unsigned notice_cooldown;
 static struct { vec3f_t corners[8]; bool active; } boxes[MAX_VOID_BOXES];
 static int box_count, sensor_count, missing_bounds;
 static bool list_ready;
@@ -148,6 +151,15 @@ void voids_frame(void)
     if (actor && sys_ptr(actor) == MAIN(Z64HD_VT_LINKOBJ)) sys_read32(actor + 0x3E8, &id);
   }
   __atomic_store_n(&protected_actor, id, __ATOMIC_RELEASE);
+  /* Hooks can run outside this frame callback. Only the callback touches the
+   * HUD/logger; coalesce repeated sensor hits without flooding either one. */
+  uint32_t blocked = __atomic_exchange_n(&pending_blocks, 0, __ATOMIC_ACQ_REL);
+  if (notice_cooldown) notice_cooldown--;
+  if (blocked && !notice_cooldown) {
+    gfx_notice("void-out blocked");
+    log_printf("void-out blocked: sources/types 0x%X", (unsigned)blocked);
+    notice_cooldown = 120;
+  }
   box_count = sensor_count = missing_bounds = 0;
   list_ready = false;
   if (voids_shown) {
@@ -178,6 +190,7 @@ static bool protects(const uint32_t *target, uint32_t kind)
 int32_t voids_abyss_message(uintptr_t sender, uintptr_t arg, const uint32_t *target, const uint32_t *payload)
 {
   if (payload && payload[0] == FALL_INTO_ABYSS && protects(target, ABYSS_MESSAGE)) {
+    __atomic_fetch_or(&pending_blocks, 1u << 16, __ATOMIC_RELAXED);
     return -1;
   }
   /* The fallback trampoline executes the displaced PACIBSP and resumes at
@@ -190,8 +203,30 @@ int32_t voids_abyss_message(uintptr_t sender, uintptr_t arg, const uint32_t *tar
 int32_t voids_sand_message(uintptr_t sender, uintptr_t arg, const uint32_t *target, const uint32_t *payload)
 {
   if (protects(target, SAND_MESSAGE)) {
+    __atomic_fetch_or(&pending_blocks, 1u << 17, __ATOMIC_RELAXED);
     return -1;
   }
   return MAIN_FN(int32_t (*)(uintptr_t, uintptr_t, const uint32_t *, const uint32_t *), Z64HD_SAND_SEND)
     (sender, arg, target, payload);
+}
+
+uintptr_t voids_transition_target(uintptr_t player, uint32_t abyss_type)
+{
+  /* The classifier at main+82C510 funnels its nonzero results through
+   * main+82C690. Its callers immediately dispatch the pre-abyss reaction or
+   * event using Player+191C. Block BEFORE that store and the global abyss
+   * notification at +82C6A8, not by restoring position after the fact.
+   * Do not cancel an already-running event or interfere with map requests. */
+  uint32_t id = __atomic_load_n(&protected_actor, __ATOMIC_ACQUIRE), actual;
+  uintptr_t actor = next(player, 0x18);
+  bool known_type = abyss_type == 1 || abyss_type == 3 || abyss_type == 4 ||
+                    abyss_type == 5 || abyss_type == 7 || abyss_type == 8 || abyss_type == 9;
+  if (id != NO_ACTOR && known_type && readable(actor, 0x3EC) && next(actor, 0) == MAIN(Z64HD_VT_LINKOBJ) &&
+      next(next(actor, 0x270), 0x358) == player &&
+      sys_read32(actor + 0x3E8, &actual) && actual == id) {
+    __atomic_fetch_or(&pending_blocks, 1u << abyss_type, __ATOMIC_RELAXED);
+    return MAIN(Z64HD_VOID_STATE_RETURN);
+  }
+  /* Replay the native store, then continue. No guessed field writes here. */
+  return MAIN(Z64HD_CAVE_START + OOTGZ_VOID_STATE_STUB_OFF + 16);
 }

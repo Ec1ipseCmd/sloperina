@@ -23,7 +23,7 @@ Outputs, per game version (only `v131072` exists so far):
 | File | What |
 |---|---|
 | `bin/v131072/subsdk9` | the module (NSO), added to the game's exefs |
-| `bin/v131072/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips` | IPS32 patch for main (143 bytes) |
+| `bin/v131072/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips` | IPS32 patch for main (183 bytes) |
 | `dist/` | install trees, see [INSTALLATION.md](../INSTALLATION.md) |
 
 The link fails if the module imports a symbol that isn't in `lib/imports.txt` (the functions main
@@ -110,7 +110,7 @@ without touching the game's files:
    `subsdk1`-`9` are free. rtld loads every module present, links imports by name and calls
    each module's `DT_INIT`. ootgz imports `nnMain` from main (to find main's base: no memory
    scanning) and `nn::hid`, `vsnprintf`, `memcpy`... from sdk. It exports nothing.
-2. **The IPS** uses seven records (patch format version 2):
+2. **The IPS** uses nine records (patch format version 3):
    - `main+0x3c46400`: marker `OOTGZ\0\0\0` + patch version (the module checks it)
    - `main+0x3c46440`: a 5-instruction stub: load the pointer in `main+0x4e9a4d0`; if set,
      jump to it, else run the original GameData unlock
@@ -122,6 +122,11 @@ without touching the game's files:
      Link's `FallIntoAbyss` reason; other targets/reasons retain the original call and arguments.
    - `main+0x31e6a54`: the sand-abyss sensor's call branches through `main+0x3c46480`, with the
      original sender as fallback. The two additional slots are `main+0x4e9a4d8` and `main+0x4e9a4e0`.
+
+   - `main+0x82c690`: the abyss classifier's state commit branches through `main+0x3c464a0`,
+     using slot `main+0x4e9a4e8`. Without protection, the fallback replays the original store.
+     Protection branches to the classifier's own epilogue before either its state write or global
+     abyss notification. The module shim preserves the live state register and native frame.
 
    `ootgz_module_init` (DT_INIT) checks the marker, version, all hook sites and empty pointer slots,
    then stores the frame and message callbacks in their slots. The stub falls back to the original code if the
@@ -253,7 +258,7 @@ See [INSTALLATION.md](../INSTALLATION.md).
 ## Enemy Health and voids test build
 
 Build and install with `make dist` (or `./docker-make dist`), then replace **both** mod files and
-restart the game. Patch version 2 is required; a v1 IPS paired with this module is rejected.
+restart the game. Patch version 3 is required; an older IPS paired with this module is rejected.
 No original game file is an input to compilation or included in the mod package.
 
 Additional host checks (pass `--cc /path/to/gcc` when needed):
@@ -275,3 +280,15 @@ Enable Scene > Collision > show voids near a known pit. Check the bounds and sum
 void-outs = off while levitating and cross the same trigger with L3 floating active. Return to safe ground
 and normal mode to verify restoration. Visibility persists; suppression returns to normal after restart.
 Read-only field validation and host checks are not in-game verification of these new features.
+
+
+### Abyss classifier hook execution check (0.0.10-test5)
+
+`tests/run_voids.py` now also checks the classifier gate, all emitted abyss types, owner
+validation, deferred notifications and patch v3's original-store fallback. After a native build,
+optional `python tests/run_void_hook.py --tool-prefix /path/to/aarch64-none-elf-` executes the
+compiled assembly shim and IPS dispatch in Unicorn (`python -m pip install unicorn`). It checks
+module-absent, forwarded and blocked paths, the native store, stack alignment, live registers
+and LR with an ABI-clobbering mock predicate. It requires no game files and is not an in-game test.
+The full build and existing host suites passed; the collision menu was rendered and inspected.
+The earlier-entry protection still requires testing against the user's failing trigger.

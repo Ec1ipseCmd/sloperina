@@ -21,6 +21,10 @@
 #define Z64HD_HOOK_SLOT         0x4E9A4D0
 #define Z64HD_ABYSS_HOOK_SLOT   0x4E9A4D8
 #define Z64HD_SAND_HOOK_SLOT    0x4E9A4E0
+#define Z64HD_VOID_STATE_HOOK_SLOT 0x4E9A4E8
+/* Abyss classifier's sole nonzero state commit, before camera/event dispatch. */
+#define Z64HD_VOID_STATE_SITE   0x82C690
+#define Z64HD_VOID_STATE_RETURN 0x82C614
 #define Z64HD_ABYSS_SITE        0x2654B20 /* message sender entry; original PACIBSP */
 #define Z64HD_ABYSS_SEND        0x2654B20
 #define Z64HD_SAND_SITE         0x31E6A54

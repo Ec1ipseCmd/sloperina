@@ -14,9 +14,12 @@ uintptr_t z64hd_main = 0x100000000ull;
 static uintptr_t blocked, player_actor;
 static bool floating, good_list = true;
 static int calls, drawn;
+static int notices, logs;
 static bool active_box;
 static vec3f_t drawn_corners[8];
 static const uint32_t *forward_target, *forward_payload;
+void gfx_notice(const char *text) { assert(!strcmp(text,"void-out blocked")); notices++; }
+void log_printf(const char *fmt, ...) { assert(strstr(fmt,"void-out blocked:")); logs++; }
 
 bool sys_mapped(uintptr_t a, size_t n, uint32_t perm)
 {
@@ -116,5 +119,40 @@ int main(void)
   target[0]=42; assert(voids_sand_message(123,456,target,payload)==17);
   target[0]=99; target[1]=ABYSS_MESSAGE; assert(voids_sand_message(123,456,target,payload)==17);
   player_actor=0; run(); assert(voids_abyss_message(123,456,target,payload)==17);
+
+  /* The classifier gate precedes BOTH the Player state write and the global
+   * event notification. It must not mutate native objects or block another
+   * component, actor, an unknown type, or normal/unlevitated play. */
+  setup();
+  uintptr_t pass=MAIN(Z64HD_CAVE_START+OOTGZ_VOID_STATE_STUB_OFF+16);
+  uintptr_t stop=MAIN(Z64HD_VOID_STATE_RETURN);
+  uintptr_t player=A(23);
+  ptr(player+0x18,player_actor); ptr(player_actor+0x270,A(20)); ptr(A(20)+0x358,player);
+  run(); assert(voids_transition_target(player,1)==pass);
+  voids_mode=VOIDS_WHILE_LEVITATING; run(); assert(voids_transition_target(player,1)==pass);
+  floating=true; run();
+  notice_cooldown=0; notices=logs=0; pending_blocks=0;
+  memcpy(before,objects,sizeof(objects));
+  for (unsigned type=0; type<32; type++) {
+    bool abyss=type==1 || type==3 || type==4 || type==5 || type==7 || type==8 || type==9;
+    assert(voids_transition_target(player,type)==(abyss?stop:pass));
+  }
+  assert(!memcmp(before,objects,sizeof(objects)));
+  assert(pending_blocks==0x3BA);
+  assert(!notices && !logs); /* hook never calls HUD/logger on a worker */
+  run(); assert(notices==1 && logs==1 && !pending_blocks);
+  for (int i=0; i<119; i++) { assert(voids_transition_target(player,1)==stop); run(); }
+  assert(notices==1); assert(voids_transition_target(player,1)==stop); run(); assert(notices==2);
+  floating=false; run(); assert(voids_transition_target(player,1)==pass);
+  voids_mode=VOIDS_DISABLED; run(); assert(voids_transition_target(player,1)==stop);
+  ptr(A(20)+0x358,A(22)); assert(voids_transition_target(player,1)==pass); ptr(A(20)+0x358,player);
+  ptr(player_actor,0); assert(voids_transition_target(player,1)==pass); ptr(player_actor,MAIN(Z64HD_VT_LINKOBJ));
+  integer(player_actor+0x3E8,99); assert(voids_transition_target(player,1)==pass);
+  run(); assert(voids_transition_target(player,1)==stop);
+  blocked=A(23); assert(voids_transition_target(player,1)==pass); blocked=0;
+  assert(voids_transition_target(0,1)==pass);
+  assert(voids_transition_target(UINTPTR_MAX-7,1)==pass);
+  player_actor=0; run(); assert(voids_transition_target(player,1)==pass);
+  puts("void state: all native abyss types, owner validation, no object writes, modes and deferred notices passed");
   puts("voids: sensor association, target/reason/condition filters, bounds, read-only inspection and suppression modes passed");
 }
