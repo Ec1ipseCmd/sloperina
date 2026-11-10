@@ -8,13 +8,13 @@
 #define VIEW_LINES 16384
 /* Zero is transparent; every occupied pixel is blended exactly once. */
 enum { VIEW_VOID=1, VIEW_BLOCKS, VIEW_INSIDE, VIEW_OTHER,
-       VIEW_FLOOR, VIEW_WALL, VIEW_CEILING, VIEW_TRIGGER, VIEW_COLORS };
+       VIEW_FLOOR, VIEW_WALL, VIEW_CEILING, VIEW_TRIGGER, VIEW_VOID_EDGE, VIEW_COLORS };
 typedef struct { float x0,y0,x1,y1;uint8_t color; } view_line_t;
 typedef struct {
   uint8_t mask[VOID_VIEW_PIXELS];
   view_line_t lines[VIEW_LINES];
   unsigned count;
-  float link[4]; /* conservative projected actor rectangle; no overlay over Link */
+  float link[4]; /* projected feet/head axis for the tapered body approximation */
   bool hide_link;
 } view_image_t;
 void void_view_line(vec3f_t a,vec3f_t b,uint8_t color);

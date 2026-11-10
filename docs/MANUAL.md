@@ -127,7 +127,7 @@ separate from ordinary terrain, drawn as outlines over the game.
 | **include other actors** | Also draw the walls meant for enemies, NPCs and objects. |
 
 The two lines under them count the walls in this map and those near you, and say whether Link is inside one
-(how deep, and which way the game will push him out). Outlines are one output pixel wide and 50% transparent. Supported loaded solid collision hides covered
+(how deep, and which way the game will push him out). Outlines are one output pixel wide and 75% opaque. Supported loaded solid collision hides covered
 lines. A conservative projected area around Link is left unpainted, so it can leave a small gap around him.
 
 **void sensors** adds independent controls:
@@ -402,4 +402,5 @@ volumes show a 50% red-orange fill on visible faces, including from inside the b
 Visibility uses supported loaded solid collision, not the renderer's depth buffer: visual-only objects
 and unsupported shapes may not hide it. The view waits for a complete collision scan and hides
 fragments outside its bounded coverage. The same visibility checks apply to surface and barrier lines.
-The body mask around Link is conservative, not an exact skinned-model silhouette. An empty view does not prove that an area is safe. Protection and visualization remain independent controls.
+The narrow body mask tapers along Link's feet/head axis and stops above his feet; it is not an exact
+skinned-model silhouette and does not cover every animated limb or piece of equipment. An empty view does not prove that an area is safe. Protection and visualization remain independent controls.

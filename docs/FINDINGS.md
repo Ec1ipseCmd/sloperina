@@ -1138,3 +1138,38 @@ retry recovery and readback/upload timeouts. Every batch must finish GPU use bef
 storage is reused. Native build and host validation do not verify the new in-game
 appearance or performance: bounded batches require additional GPU waits, especially
 with the smallest fallback buffer. Restart is required to load the corrected module.
+
+
+### Slow world rendering, faint edges and hidden standing surfaces (0.0.10-test11)
+
+Read-only inspection of the user's running Kokiri Forest session found a **128 KiB** world
+copy buffer, not the requested 2 MiB. Late heap fragmentation forced the small fallback, multiplying
+synchronous readback/upload batches. The renderer also copied almost-empty full-width strips. Reserve
+2 MiB within the existing 4 MiB command allocation: two 1 MiB command slots and a disjoint 2 MiB
+world pool. No extra large heap allocation is needed when the viewer is enabled. Plan tight occupied
+regions from 32x8 tiles, merge matching vertical strips, pack at cache-line rather than page granularity,
+and submit the final upload with the ordinary HUD/menu commands. Intermediate copies still fence before
+reuse; the next readback fence covers the previous final upload before any CPU write to its pixels.
+Keep planning and blend scratch separate so flushing a full plan cannot corrupt the band being scanned.
+
+A second CPU cost was insertion-sorting a copied max heap of up to 2048 triangles: near reverse order
+caused quadratic moves. Sort that existing heap in O(n log n) with no allocation. Geometry priorities,
+limits, kinds, saved settings and gameplay behavior are unchanged. Surface/barrier/void-boundary lines
+now blend once at 75%; broad void fill remains 50%. Line width stays one output pixel.
+
+The rectangular player exclusion caused the reported box and hid the floor near Link. Replace it with
+a narrow, tapered feet/head-axis approximation stopping above his feet; near-plane crossings never
+mask the full screen. This cannot perfectly protect animated limbs/equipment without verified skinned
+GPU depth. During the user's stair check, exact preview mode was already selected, all four kinds were
+enabled, and **828 selected triangles within two units of Link were present**. Thus missing local input
+or coarse preview did not explain that live location. The broad mask was an identified rendering issue;
+the precise stair appearance still needs in-game verification. Independently, coarse preview could round
+small treads/risers to zero area, so selection now keeps exact detail within two units of Link.
+
+Production host checks compare every output pixel/crop through 1440p/4K, 64 KiB fallback, a reserved
+2 MiB buffer with only 128 KiB late allocation available, full-plan flushes, fences/cache ordering,
+75% edge color on black/white, 50% fill, under-foot mask visibility, and small tread/riser retention.
+A 24-by-32 wire grid at 2560x1440 copies 1068 KiB in 2360 regions with one blocking readback wait;
+test10 copied 14720 KiB and waited 16 times with a full 2 MiB buffer (more with 128 KiB). This measures
+copy work and synchronization in the mock, not native FPS. The process closed before further live
+camera/occlusion sampling; no new-build runtime appearance or performance verification is claimed.

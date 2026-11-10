@@ -1,15 +1,16 @@
 # Collision view
 
-**0.0.10-test10:** surfaces and invisible barriers use continuous **one-output-pixel lines at 50%
+**0.0.10-test11:** surfaces and invisible barriers use continuous **one-output-pixel lines at 75%
 opacity**. Thickness does not change with menu size, distance, display resolution or scene density.
 The old coarse-raster enlargement and opaque rectangle drawing are removed. Crossings blend once.
 Supported loaded solid collision hides covered portions, independently of which display filters are on.
-A conservative projected body/attachment envelope keeps the overlay off Link; it can leave empty space
-around him. This is not an exact character silhouette or the game's GPU depth buffer. Visual-only
-objects and unsupported collision shapes may not hide the overlay.
+A narrow, tapered mask follows Link's projected feet/head axis and stops above his feet. It
+replaces the large rectangular exclusion, leaving standing surfaces and surrounding polygons visible.
+This is an approximation, not the game's skinned-model depth; animated limbs and equipment may extend
+outside it. Visual-only objects and unsupported collision shapes may not hide the overlay.
 
 **Scene > Collision > show voids** displays active recognized void bounds directly in the world:
-50% red-orange faces and thin boundary edges. There is **no warning panel, crosshair, distance text,
+50% red-orange faces and thin 75% boundary edges. There is **no warning panel, crosshair, distance text,
 or inside-warning HUD**. Large faces remain visible when their perimeter is off-screen. Inactive
 sensors, off-screen faces and covered portions are hidden. The fill indicates the mapped sensor
 volume, not a guessed safe height. Curved sensors can occupy only part of their box, and unsupported
@@ -19,8 +20,9 @@ scripted deaths are not mapped. No visible boundary does not establish safety or
 triggers (yellow). Enable **show surfaces**; range is 4/8/12/20 world units. **preview grid** keeps its
 saved values but now only selects representative faces: rendered vertices stay at their original
 positions so grid snapping cannot move an edge behind its own occluder. Coarse sampling can omit small
-features; choose **exact** for individual triangle detail. The bounded surface preview retains at most
-2048 triangles and 6144 unique edges. Geometry beyond the line capacity is omitted, never thickened.
+features; choose **exact** for individual triangle detail. Faces within two world units of Link
+retain exact detail even with a coarser preview grid, so small stair treads/risers are not rounded away.
+The bounded surface preview retains at most 2048 triangles and 6144 unique edges. Geometry beyond the line capacity is omitted, never thickened.
 Visibility and void-protection settings remain independent, with existing saved selections preserved.
 
 The shared renderer collects up to 32768 exact solid triangles within 64 units of Link, scanning at
@@ -32,15 +34,19 @@ positions to prevent self-occlusion gaps on slopes. Visible segments stay in flo
 coordinates until one-pixel rasterization at the actual viewport size. Up to 16384 segments and the
 void face mask are published together. The renderer reads current-frame RGBA8 bands, fences and
 flushes the queue, blends only marked pixels, flushes CPU cache, and copies back before menus/watches.
-Copies use one reusable pool capped at 2 MiB, with fallback down to 64 KiB. Each batch
-finishes its readback and upload before storage is reused; full-screen coverage no longer
-retains a separate allocation for every strip. Temporary allocation failures retry.
-Unavailable formats/cache/queue support are logged and retried. The extra GPU waits
-and CPU work still need native performance testing.
+Copies use compact occupied regions, with matching strips merged vertically. Storage stays capped at
+2 MiB, reserved from the former 4 MiB command allocation (now two 1 MiB command slots plus 2 MiB of
+copy storage), so late heap fragmentation cannot reduce it to 128 KiB. The final upload joins the
+normal overlay submission without another blocking CPU wait. Intermediate batches still fence both
+copies before reusing storage. API/pool failures retry; unsupported formats are logged. Dense fills
+and scenes can still require multiple batches and GPU waits. Appearance and performance need native
+testing. Completed triangle snapshots use heap sort rather than quadratic insertion sort.
 
 Host checks cover line width from 640 to 3840 pixels, steep/reversed slopes, occlusion, body exclusion,
-odd cropped regions, single-alpha crossings, unavailable sources and scene transitions. Production
-headless band rendering is exercised in `tests/run_void_view.py`. Appearance and performance of test10
+odd cropped regions, single-alpha crossings, under-foot visibility, tiny stair faces, unavailable
+sources and scene transitions. A synthetic 1440p wire grid needs 1068 KiB and one blocking readback
+wait, versus 14720 KiB and 16 waits in test10 with a full 2 MiB buffer; this is not an in-game FPS measurement.
+Production headless band rendering is exercised in `tests/run_void_view.py`. Appearance and performance of test11
 have not been verified in-game. No game assets are added by this display update.
 
 The historical research and future GPU-rendering plan follow; the native

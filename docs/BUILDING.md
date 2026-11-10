@@ -341,3 +341,12 @@ floor/wall/ceiling filters, then close the menu. The log should report
 `world overlay ready: ... KiB reusable buffer`, without the old per-band allocation
 failure. Check camera movement, area changes and frame rate; host tests cannot
 confirm the new rendering or performance in the running game.
+
+
+Test11: the same host suites cover compact-region planning, full-plan flushes, startup-reserved
+copy memory, final-upload deferral, 75% lines/50% fills, a tapered body mask with visible ground
+underfoot, exact nearby stair detail and heap-sort order. The 1440p wire-grid check reports copy
+bytes and blocking readback count; these are not measured native FPS. Build/install both files and
+restart. Confirm `world overlay ready: 2048 KiB reusable buffer` in the log, check frame rate while
+moving the camera, and inspect stairs under Link with floors and walls enabled. No graphics changes
+hot-load into an already-running session.

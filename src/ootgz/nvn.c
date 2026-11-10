@@ -210,7 +210,8 @@ void *nvn_bootstrap_hook(const char *name)
 /* --- overlay ---------------------------------------------------------------------------------- */
 
 #define SLOTS 2
-#define CMD_SIZE 0x200000 /* bounded solid collision raster plus panels; free-space checks remain */
+#define CMD_SIZE 0x100000 /* per slot; the former coarse rectangle raster is gone */
+#define WORLD_BUFFER_MAX (2*1024*1024)
 #define CTRL_SIZE 0x4000  /* control memory per slot */
 #define PAGE_SIZE 0x1000
 #define RGBA8_BYTES 4     /* bytes per pixel of an RGBA8 picture (the see-through path's only format) */
@@ -247,7 +248,7 @@ void *nvn_bootstrap_hook(const char *name)
 
 static enum { OV_NONE, OV_READY, OV_FAILED } overlay_state;
 static nvn_obj_t cmd_buffer, pixel_pool, command_pool, slot_sync[SLOTS];
-static uint8_t *pixel_mem, *command_mem, *control_mem;
+static uint8_t *pixel_mem, *command_mem, *control_mem, *world_reserved;
 /* Opaque: the menu panel changes only on input, so it has one buffer, rewritten after waiting
  * for the GPU; the other panels change every frame, so they have one buffer per slot. */
 static const int buffers_per_panel[GFX_PANELS] = { 1, SLOTS, SLOTS, SLOTS };
@@ -362,12 +363,15 @@ static bool overlay_init(void)
     }
   }
   pixel_mem = aligned_alloc(PAGE_SIZE, total);
-  command_mem = aligned_alloc(PAGE_SIZE, CMD_SIZE * SLOTS);
+  command_mem = aligned_alloc(PAGE_SIZE, CMD_SIZE * SLOTS + WORLD_BUFFER_MAX);
   control_mem = aligned_alloc(PAGE_SIZE, CTRL_SIZE * SLOTS);
   if (!pixel_mem || !command_mem || !control_mem) {
     overlay_fail("out of memory");
     return false;
   }
+  /* Same 4 MiB allocation as before: split it between two command slots and
+   * guaranteed world-copy storage before the heap becomes fragmented. */
+  world_reserved = command_mem + CMD_SIZE * SLOTS;
   if (!make_pool(&pixel_pool, pixel_mem, total, POOL_CPU_UNCACHED | POOL_GPU_UNCACHED) ||
       !make_pool(&command_pool, command_mem, CMD_SIZE * SLOTS, POOL_CPU_UNCACHED | POOL_GPU_CACHED)) {
     overlay_fail("memory pool");
@@ -1471,22 +1475,30 @@ static void record_readback(nvn_texture_t *tex, const panel_draw_t *draw)
 }
 
 /* Read the current picture, blend visible world pixels, and copy them back in
- * bounded batches. One pool is reused only after both GPU copies have finished.
+ * compact batches. One pool is reused only after both GPU copies have finished.
  * Retaining a full screen of separate strips could exhaust buffer/pool resources. */
 #define VOID_FILL_ROWS 64
-#define VOID_FILL_BANDS 64
-#define WORLD_BUFFER_MAX (2*1024*1024)
+#define WORLD_COPIES 3072
+#define WORLD_PLANS 8192
+#define WORLD_TILE_W 32
+#define WORLD_TILE_H 8
 #define WORLD_BUFFER_MIN (64*1024)
 static nvn_obj_t world_pool;
 static uint32_t *world_pixels;
 static size_t world_capacity;
 static unsigned world_retry;
+static int world_count;
+static size_t world_used;
+static nvn_region_t world_plans[WORLD_PLANS];
+static unsigned world_plan_count;
+static uint16_t world_plan_slots[16384];
 static struct {
   nvn_region_t region;
   size_t offset;
-} world_copies[VOID_FILL_BANDS];
+} world_copies[WORLD_COPIES];
 static view_image_t world_view;
 static uint8_t world_band[4096*VOID_FILL_ROWS];
+static uint8_t world_read_band[4096*VOID_FILL_ROWS];
 static bool world_warned;
 static void (*void_fill_flush)(const nvn_obj_t *,ptrdiff_t,size_t);
 static void (*void_fill_queue_flush)(nvn_queue_t *);
@@ -1510,34 +1522,105 @@ static bool world_commands_finish(nvn_queue_t *queue,int slot)
   overlay_fail("GPU didn't finish world overlay copy");return false;
 }
 
-static bool world_batch(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,
-                        int slot,int count,size_t bytes)
+static bool world_command_space(void)
+{
+  if (fn.cmd_free(&cmd_buffer)>=4096) return true;
+  fn.cmd_end(&cmd_buffer); /* discard, never submit an overflowing command list */
+  overlay_fail("world overlay command capacity");return false;
+}
+
+/* The last upload joins the ordinary overlay submission. Its pixels remain
+ * untouched until the next readback's fence, which also covers that upload. */
+static bool copy_world_fill(nvn_texture_t *tex)
+{
+  for (int i=0;i<world_count;i++) {
+    if (!world_command_space()) return false;
+    fn.cmd_copy_to_texture(&cmd_buffer,fn.pool_address(&world_pool)+world_copies[i].offset,
+                          tex,0,&world_copies[i].region,0);
+  }
+  return true;
+}
+
+static bool world_batch(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,int slot,bool final)
 {
   world_commands_begin(slot);
-  for (int i=0;i<count;i++)
+  for (int i=0;i<world_count;i++) {
+    if (!world_command_space()) return false;
     fn.cmd_copy_to_buffer(&cmd_buffer,tex,0,&world_copies[i].region,
                          fn.pool_address(&world_pool)+world_copies[i].offset,0);
+  }
   if (!world_commands_finish(queue,slot)) return false;
-  fn.pool_invalidate(&world_pool,0,bytes);
-  for (int i=0;i<count;i++) {
-    nvn_region_t r=world_copies[i].region;
-    uint32_t *pixels=world_pixels+world_copies[i].offset/4;
-    void_view_band(&world_view,area.w,area.h,r.y-area.y,r.h,world_band);
-    for (int y=0;y<r.h;y++) for (int x=0;x<r.w;x++) {
-      uint8_t color=world_band[y*area.w+r.x-area.x+x];
-      if (color) pixels[y*r.w+x]=void_view_color(pixels[y*r.w+x],color);
+  fn.pool_invalidate(&world_pool,0,world_used);
+  int top=area.h,bottom=0;
+  for (int i=0;i<world_count;i++) {
+    nvn_region_t r=world_copies[i].region;r.y-=area.y;
+    if (r.y<top) top=r.y;
+    if (r.y+r.h>bottom) bottom=r.y+r.h;
+  }
+  for (int y=top;y<bottom;y+=VOID_FILL_ROWS) {
+    int h=bottom-y<VOID_FILL_ROWS?bottom-y:VOID_FILL_ROWS;
+    void_view_band(&world_view,area.w,area.h,y,h,world_read_band);
+    for (int i=0;i<world_count;i++) {
+      nvn_region_t r=world_copies[i].region;r.x-=area.x;r.y-=area.y;
+      int first=r.y>y?r.y:y,last=r.y+r.h<y+h?r.y+r.h:y+h;
+      uint32_t *pixels=world_pixels+world_copies[i].offset/4;
+      for (int yy=first;yy<last;yy++) for (int x=0;x<r.w;x++) {
+        uint8_t color=world_read_band[(yy-y)*area.w+r.x+x];
+        if (color) {
+          size_t at=(size_t)(yy-r.y)*r.w+x;
+          pixels[at]=void_view_color(pixels[at],color);
+        }
+      }
     }
   }
-  void_fill_flush(&world_pool,0,bytes);
+  void_fill_flush(&world_pool,0,world_used);
 #if defined(__aarch64__)
   __asm__ volatile("dsb sy" ::: "memory"); /* complete CPU stores before upload */
 #endif
-  world_commands_begin(slot);
-  for (int i=0;i<count;i++)
-    fn.cmd_copy_to_texture(&cmd_buffer,fn.pool_address(&world_pool)+world_copies[i].offset,
-                          tex,0,&world_copies[i].region,0);
-  /* Wait before reusing either the pixels or this slot's command memory. */
-  return world_commands_finish(queue,slot);
+  if (final) return true;
+  world_commands_begin(slot);if (!copy_world_fill(tex)) return false;
+  if (!world_commands_finish(queue,slot)) return false;
+  world_count=0;world_used=0;return true;
+}
+
+static bool world_plan_draw(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,int slot,bool final)
+{
+  for (unsigned i=0;i<world_plan_count;i++) {
+    nvn_region_t r=world_plans[i];
+    int max_rows=(int)(world_capacity/((size_t)r.w*4));
+    for (int y=0;y<r.h;) {
+      int h=r.h-y<max_rows?r.h-y:max_rows;
+      size_t bytes=((size_t)r.w*h*4+63)&~(size_t)63;
+      if (world_count && (world_count==WORLD_COPIES || world_used+bytes>world_capacity))
+        if (!world_batch(queue,tex,area,slot,false)) return false;
+      world_copies[world_count].region=(nvn_region_t){area.x+r.x,area.y+r.y+y,0,r.w,h,1};
+      world_copies[world_count++].offset=world_used;world_used+=bytes;y+=h;
+    }
+  }
+  if (world_count && !world_batch(queue,tex,area,slot,final)) return false;
+  world_plan_count=0;memset(world_plan_slots,0,sizeof(world_plan_slots));return true;
+}
+
+static bool world_region(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,
+                         int slot,int band_y,int x,int y,int w,int h)
+{
+  if (world_plan_count==WORLD_PLANS && !world_plan_draw(queue,tex,area,slot,false)) return false;
+  y+=band_y;
+  /* Join matching strips vertically before issuing copies. Long thin edges
+   * should be a single rectangle, not hundreds of tiny GPU operations. */
+  unsigned hash=((unsigned)x*31+(unsigned)w*131)&16383,entry=16384;
+  for (unsigned probe=0;probe<32;probe++) {
+    unsigned at=(hash+probe)&16383;
+    if (!world_plan_slots[at]) { entry=at;break; }
+    nvn_region_t *old=&world_plans[world_plan_slots[at]-1];
+    if (old->x==x && old->w==w) {
+      if (old->y+old->h==y) { old->h+=h;return true; }
+      entry=at;break;
+    }
+  }
+  world_plans[world_plan_count++]=(nvn_region_t){x,y,0,w,h,1};
+  if (entry<16384) world_plan_slots[entry]=(uint16_t)world_plan_count;
+  return true;
 }
 
 static bool draw_world_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,int slot)
@@ -1557,13 +1640,13 @@ static bool draw_world_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t are
   if (!world_pixels) {
     bool allocated=false;
     for (size_t size=WORLD_BUFFER_MAX;size>=WORLD_BUFFER_MIN;size/=2) {
-      uint32_t *pixels=aligned_alloc(PAGE_SIZE,size);
+      uint32_t *pixels=world_reserved?(uint32_t *)world_reserved:aligned_alloc(PAGE_SIZE,size);
       if (!pixels) continue;
       allocated=true;
       if (make_pool(&world_pool,pixels,size,POOL_CPU_CACHED|POOL_GPU_UNCACHED)) {
         world_pixels=pixels;world_capacity=size;break;
       }
-      free(pixels);
+      if (!world_reserved) free(pixels);
     }
     if (!world_pixels) {
       if (!world_warned)
@@ -1573,27 +1656,40 @@ static bool draw_world_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t are
     log_printf("world overlay ready: %u KiB reusable buffer",(unsigned)(world_capacity/1024));
   }
   world_warned=false;
-  int rows=(int)(world_capacity/((size_t)area.w*4));
-  if (rows>VOID_FILL_ROWS) rows=VOID_FILL_ROWS;
-  bool any=false;int count=0;size_t used=0;
+  int rows=VOID_FILL_ROWS;
+  bool any=false;world_count=0;world_used=0;world_plan_count=0;
+  memset(world_plan_slots,0,sizeof(world_plan_slots));
   for (int y=0;y<area.h;y+=rows) {
     int h=area.h-y<rows?area.h-y:rows;
     void_view_band(&world_view,area.w,area.h,y,h,world_band);
-    int x0=area.w,x1=0;
-    for (int yy=0;yy<h;yy++) for (int x=0;x<area.w;x++) if (world_band[yy*area.w+x]) {
-      if (x<x0) x0=x;
-      if (x+1>x1) x1=x+1;
+    for (int ty=0;ty<h;ty+=WORLD_TILE_H) {
+      int end_y=ty+WORLD_TILE_H<h?ty+WORLD_TILE_H:h;
+      int run_x=0,run_end=0,run_y=0,run_bottom=0;
+      for (int tx=0;tx<=area.w;tx+=WORLD_TILE_W) {
+        int end_x=tx+WORLD_TILE_W<area.w?tx+WORLD_TILE_W:area.w;
+        int x0=area.w,x1=0,y0=end_y,y1=ty;
+        for (int yy=ty;yy<end_y;yy++) for (int x=tx;x<end_x;x++)
+          if (world_band[yy*area.w+x]) {
+            if (x<x0) x0=x;
+            if (x+1>x1) x1=x+1;
+            if (yy<y0) y0=yy;
+            if (yy+1>y1) y1=yy+1;
+          }
+        bool merge=x1>x0 && run_end>run_x && y0==run_y && y1==run_bottom && x0<=run_end+8;
+        if (run_end>run_x && !merge) {
+          if (!world_region(queue,tex,area,slot,y,run_x,run_y,run_end-run_x,run_bottom-run_y)) return false;
+          run_end=run_x=0;any=true;
+        }
+        if (x1>x0) {
+          if (!merge) { run_x=x0;run_y=y0;run_bottom=y1; }
+          run_end=x1;
+        }
+        /* The last partial tile still needs a sentinel to flush its run. */
+        if (tx<area.w && end_x==area.w) tx=area.w-WORLD_TILE_W;
+      }
     }
-    if (x1<=x0) continue;
-    size_t bytes=round_page((size_t)(x1-x0)*h*4);
-    if (count && (count==VOID_FILL_BANDS || used+bytes>world_capacity)) {
-      if (!world_batch(queue,tex,area,slot,count,used)) return false;
-      count=0;used=0;
-    }
-    world_copies[count].region=(nvn_region_t){area.x+x0,area.y+y,0,x1-x0,h,1};
-    world_copies[count++].offset=used;used+=bytes;any=true;
   }
-  if (count && !world_batch(queue,tex,area,slot,count,used)) return false;
+  if (world_plan_count && !world_plan_draw(queue,tex,area,slot,true)) return false;
   return any;
 }
 
@@ -1720,6 +1816,7 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   fn.cmd_add_command(&cmd_buffer, &command_pool, frame.slot * CMD_SIZE, CMD_SIZE);
   fn.cmd_add_control(&cmd_buffer, control_mem + frame.slot * CTRL_SIZE, CTRL_SIZE);
   fn.cmd_begin(&cmd_buffer);
+  if (has_void_fill && !copy_world_fill(tex)) return;
   if (n_health)
     draw_enemy_labels(health_labels, n_health, tex, frame.area, th, frame.scale);
   if (pause_icon)

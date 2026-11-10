@@ -120,7 +120,8 @@ static bool preview_triangle(triangle_t *item)
 {
   static const float grids[]={0,.25f,.5f,1};
   float grid=collision_detail>=0 && collision_detail<4?grids[collision_detail]:1;
-  if (grid && item->kind!=COLLISION_TRIGGER) {
+  /* Keep foot-level detail: coarse cells can collapse stair treads/risers. */
+  if (grid && item->distance>4 && item->kind!=COLLISION_TRIGGER) {
     for (int i=0;i<3;i++) {
       float p[3]={item->v[i].x,item->v[i].y,item->v[i].z};
       for (int j=0;j<3;j++) {
@@ -217,6 +218,23 @@ static void collect(const vec3f_t v[3], int kind, void *ctx)
   }
 }
 
+/* The candidates already form a max heap. Sort its copy in O(n log n), rather
+ * than insertion-sorting a nearly reverse-ordered array every completed scan. */
+static void sort_visible(void)
+{
+  for (unsigned end=visible_count;end>1;) {
+    triangle_t largest=visible[0],last=visible[--end];visible[end]=largest;
+    unsigned at=0;
+    while (at*2+1<end) {
+      unsigned child=at*2+1;
+      if (child+1<end && visible[child+1].distance>visible[child].distance) child++;
+      if (visible[child].distance<=last.distance) break;
+      visible[at]=visible[child];at=child;
+    }
+    visible[at]=last;
+  }
+}
+
 void collision_frame(void)
 {
   bool loading=false,changing=false;
@@ -265,11 +283,7 @@ void collision_frame(void)
   if (scan.remaining) {
     visible_count=count;
     memcpy(visible,candidates,sizeof(triangle_t)*count);
-    for (unsigned i=1;i<count;i++) {
-      triangle_t v=visible[i]; unsigned at=i;
-      while (at && visible[at-1].distance>v.distance) { visible[at]=visible[at-1]; at--; }
-      visible[at]=v;
-    }
+    sort_visible();
     ready=true;
     if (needs_occlusion()) {
       occluder_count=occluder_candidate_count;occluder_centre=centre;

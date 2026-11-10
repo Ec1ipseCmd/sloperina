@@ -41,7 +41,7 @@ int main(void) {
   for (unsigned i=0;i<view.count;i++) assert(view.lines[i].color==VIEW_FLOOR);
   voids_shown=true;collision_shown=false;airwall_frame();assert(void_view_snapshot(&view));
   assert(view.count>0 && view.hide_link);
-  for (unsigned i=0;i<view.count;i++) assert(view.lines[i].color==VIEW_VOID);
+  for (unsigned i=0;i<view.count;i++) assert(view.lines[i].color==VIEW_VOID_EDGE);
   paused=true;airwall_frame();assert(!void_view_snapshot(&view));paused=false;
   ready=false;airwall_frame();assert(!void_view_snapshot(&view));ready=true;
   player_ready=false;airwall_frame();assert(!void_view_snapshot(&view));player_ready=true;

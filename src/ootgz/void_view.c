@@ -106,7 +106,7 @@ void void_view_box(const vec3f_t corners[8],bool active,void *ctx)
   (void)ctx;
   if (!active || visible_range<=0) return;
   for (int i=0;i<8;i++) for (int axis=0;axis<3;axis++)
-    if (!(i&(1<<axis))) void_view_line(corners[i],corners[i|(1<<axis)],VIEW_VOID);
+    if (!(i&(1<<axis))) void_view_line(corners[i],corners[i|(1<<axis)],VIEW_VOID_EDGE);
   for (int axis=0;axis<3;axis++) for (int side=0;side<2;side++) {
     int a=side<<axis,u=1<<((axis+1)%3),v=1<<((axis+2)%3);
     vec3f_t face[4]={corners[a],corners[a|u],corners[a|u|v],corners[a|v]};
@@ -244,43 +244,14 @@ void void_view_line(vec3f_t from,vec3f_t to,uint8_t color)
 
 bool void_view_link(vec3f_t feet,vec3f_t head)
 {
-  /* The renderer has no verified skinned-player depth target. Reserve the
-   * projected body/attachment envelope so geometry never paints over Link.
-   * This deliberately leaves some empty space around him, not a fake silhouette. */
-  float low[3]={feet.x-.7f,feet.y-.06f,feet.z-.7f};
-  float high[3]={feet.x+.7f,head.y+.05f,feet.z+.7f};
+  pending.hide_link=false;
   if (!(head.y>=feet.y && head.y-feet.y<5)) return false;
-  if (head.x-.7f<low[0]) low[0]=head.x-.7f;
-  if (head.x+.7f>high[0]) high[0]=head.x+.7f;
-  if (head.z-.7f<low[2]) low[2]=head.z-.7f;
-  if (head.z+.7f>high[2]) high[2]=head.z+.7f;
-  pending.link[0]=pending.link[1]=1;pending.link[2]=pending.link[3]=0;
-  float vertices[8][3],nearest=1e30f,farthest=-1e30f;
-  for (int i=0;i<8;i++) {
-    float p[3];
-    for (int axis=0;axis<3;axis++) p[axis]=i&(1<<axis)?high[axis]:low[axis];
-    to_view(&camera_view,p,vertices[i]);
-    if (vertices[i][2]<nearest) nearest=vertices[i][2];
-    if (vertices[i][2]>farthest) farthest=vertices[i][2];
-  }
-  if (farthest<=.05f) return true; /* Link entirely behind the camera */
-  if (nearest<=.05f) {
-    pending.link[0]=pending.link[1]=0;pending.link[2]=pending.link[3]=1;
-    pending.hide_link=true;return true;
-  }
-  for (int i=0;i<8;i++) {
-    float *v=vertices[i],x,y;
-    to_screen(&camera_view,v,&x,&y);
-    if (x<pending.link[0]) pending.link[0]=x;
-    if (y<pending.link[1]) pending.link[1]=y;
-    if (x>pending.link[2]) pending.link[2]=x;
-    if (y>pending.link[3]) pending.link[3]=y;
-  }
-  if (pending.link[2]<0 || pending.link[0]>1 || pending.link[3]<0 || pending.link[1]>1) return true;
-  for (int i=0;i<4;i++) {
-    if (pending.link[i]<0) pending.link[i]=0;
-    if (pending.link[i]>1) pending.link[i]=1;
-  }
+  float a[3]={feet.x,feet.y,feet.z},b[3]={head.x,head.y,head.z},va[3],vb[3];
+  to_view(&camera_view,a,va);to_view(&camera_view,b,vb);
+  /* Never turn a near-plane crossing into a full-screen exclusion. */
+  if (!(va[2]>.05f && vb[2]>.05f)) return true;
+  to_screen(&camera_view,va,&pending.link[0],&pending.link[1]);
+  to_screen(&camera_view,vb,&pending.link[2],&pending.link[3]);
   pending.hide_link=true;return true;
 }
 
@@ -324,17 +295,29 @@ void void_view_band(const view_image_t *view,int width,int height,int y,int rows
       int x=(int)(x0+dx*t+.5f),yy=(int)(y0+dy*t+.5f)-y;
       if (x>=0 && x<width && yy>=0 && yy<rows) {
         unsigned at=(unsigned)(yy*width+x);
-        if (out[at]!=VIEW_VOID) out[at]=line.color;
+        if (line.color==VIEW_VOID_EDGE || (out[at]!=VIEW_VOID && out[at]!=VIEW_VOID_EDGE)) out[at]=line.color;
       }
     }
   }
   if (view->hide_link) {
-    int x0=(int)(view->link[0]*width)-1,x1=(int)(view->link[2]*width)+1;
-    int y0=(int)(view->link[1]*height)-1,y1=(int)(view->link[3]*height)+1;
-    if (x0<0) x0=0;
-    if (x1>=width) x1=width-1;
-    for (int yy=0;yy<rows;yy++) if (y+yy>=y0 && y+yy<=y1 && x1>=x0)
-      memset(out+(size_t)yy*width+x0,0,(size_t)(x1-x0+1));
+    /* Narrow, tapered body approximation, not an axis-aligned empty box. Stop
+     * above the feet so the standing surface remains visible. Native skinned
+     * depth is unavailable; animated limbs can extend outside this mask. */
+    float fx=view->link[0]*width,fy=view->link[1]*height;
+    float hx=view->link[2]*width,hy=view->link[3]*height,dx=hx-fx,dy=hy-fy;
+    float length2=dx*dx+dy*dy;
+    float radius=.2f*(__builtin_fabsf(dx)+__builtin_fabsf(dy));
+    float left=(fx<hx?fx:hx)-radius,right=(fx>hx?fx:hx)+radius;
+    if (length2>1 && left<width && right>=0) {
+      int x0=left>0?(int)left:0,x1=right<width?(int)right:width-1;
+      for (int yy=0;yy<rows;yy++) for (int x=x0;x<=x1;x++) if (out[yy*width+x]) {
+        float px=x+.5f-fx,py=y+yy+.5f-fy,t=(px*dx+py*dy)/length2;
+        if (t<=.02f || t>=1) continue;
+        float taper=t<.2f?t*5:t>.8f?(1-t)*5:1;
+        float cross=px*dy-py*dx;
+        if (cross*cross<=.0169f*length2*length2*taper*taper) out[yy*width+x]=0;
+      }
+    }
   }
 }
 
@@ -343,10 +326,14 @@ uint32_t void_view_color(uint32_t background,uint8_t color)
   static const uint8_t palette[VIEW_COLORS][3]={
     [VIEW_VOID]={255,64,40},[VIEW_BLOCKS]={59,214,255},[VIEW_INSIDE]={255,71,71},
     [VIEW_OTHER]={153,140,255},[VIEW_FLOOR]={77,255,89},[VIEW_WALL]={64,166,255},
-    [VIEW_CEILING]={255,89,191},[VIEW_TRIGGER]={255,242,64}
+    [VIEW_CEILING]={255,89,191},[VIEW_TRIGGER]={255,242,64},[VIEW_VOID_EDGE]={255,64,40}
   };
   if (!color || color>=VIEW_COLORS) return background;
   uint32_t result=background&0xff000000u;
-  for (int c=0;c<3;c++) result|=(((background>>(8*c)&255)+palette[color][c]+1)/2)<<(8*c);
+  for (int c=0;c<3;c++) {
+    uint32_t under=(background>>(8*c))&255;
+    uint32_t value=color==VIEW_VOID?(under+palette[color][c]+1)/2:(under+3*palette[color][c]+2)/4;
+    result|=value<<(8*c);
+  }
   return result;
 }

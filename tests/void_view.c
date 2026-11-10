@@ -91,16 +91,21 @@ static void test_lines(void)
   }
   void_view_begin(&cam,60);
   void_view_line((vec3f_t){-2,0,8},(vec3f_t){2,0,8},VIEW_FLOOR);
+  void_view_line((vec3f_t){-2,-.6f,4},(vec3f_t){2,-.6f,4},VIEW_FLOOR);
   void_view_link((vec3f_t){0,-.5f,4},(vec3f_t){0,1.8f,4});
   void_view_finish();assert(void_view_snapshot(&view) && view.hide_link);
   void_view_band(&view,640,360,160,64,band);
-  for (int y=0;y<64;y++) for (int x=260;x<=380;x++) assert(!band[y*640+x]);
-  assert(void_view_color(0x12000000u,VIEW_WALL)==0x12805320u);
+  assert(!band[20*640+320]); /* torso */
+  assert(band[20*640+260] && band[20*640+380]); /* no surrounding box */
+  assert(band[46*640+320]); /* ground below the feet remains visible */
+  assert(void_view_color(0x12000000u,VIEW_WALL)==0x12bf7d30u);
   assert(void_view_color(0x12345678u,0)==0x12345678u);
+  assert(void_view_color(0x12ffffffu,VIEW_WALL)==0x12ffbc70u);
+  assert(void_view_color(0x12000000u,VIEW_VOID)==0x12142080u);
   void_view_begin(&cam,60);
   assert(void_view_link((vec3f_t){0,0,-4},(vec3f_t){0,2,-4}) && !pending.hide_link);
   assert(!void_view_link((vec3f_t){0},(vec3f_t){0,20,0}));
-  puts("PASS: line occlusion, sloped-face continuity, one-pixel width across resolutions, single 50% tint, Link exclusion");
+  puts("PASS: line occlusion, sloped-face continuity, one-pixel width across resolutions, single 75% line tint, Link exclusion");
 }
 static void render_world(void)
 {

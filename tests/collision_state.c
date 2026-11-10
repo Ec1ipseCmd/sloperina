@@ -76,9 +76,28 @@ static void draw(const vec3f_t v[3],int kind,void *ctx)
 }
 static void finish(void)
 { unsigned frames=0;do { collision_frame();assert(++frames<8); } while (collecting); }
+static void test_stairs_and_sort(void)
+{
+  reset();memset(seen,0,sizeof(seen));centre=(vec3f_t){0};
+  collision_shown=true;collision_kinds=7;collision_detail=3;
+  for (int i=0;i<8;i++) {
+    float y=i*.12f,z=i*.18f;
+    vec3f_t tread[3]={{-.2f,y,z},{.2f,y,z},{.2f,y,z+.18f}};
+    vec3f_t riser[3]={{-.2f,y,z},{.2f,y,z},{.2f,y+.12f,z}};
+    collect(tread,COLLISION_FLOOR,NULL);collect(riser,COLLISION_WALL,NULL);
+  }
+  assert(count==16); /* one-unit preview rounding previously erased these */
+  for (unsigned i=0;i<count;i++) assert(candidates[i].v[0].x==-.2f);
+  /* Worst-shaped max heap, distinct keys: output order and contents preserved. */
+  visible_count=TRIANGLE_MAX;
+  for (unsigned i=0;i<visible_count;i++) visible[i].distance=(float)(visible_count-i);
+  sort_visible();
+  for (unsigned i=0;i<visible_count;i++) assert(visible[i].distance==(float)(i+1));
+  reset();
+}
 int main(void)
 {
-  test_actor_sources();
+  test_actor_sources();test_stairs_and_sort();
   put(A(0)+0x1F0,A(1));put(A(1)+0x58,A(2));put(A(2)+0x50,A(3));
   put(A(3),MAIN(Z64HD_VT_STATIC_MGR));put(A(3)+0x720,A(4));
   put(A(4),MAIN(Z64HD_VT_STATIC_BODY));put(A(4)+0x10,A(5));
