@@ -7,7 +7,9 @@
 static cam_t camera_view;
 static float visible_range;
 static float solid_depth[VOID_VIEW_PIXELS],void_depth[VOID_VIEW_PIXELS]; /* reciprocal view Z */
-static uint8_t mask[VOID_VIEW_PIXELS],published[VOID_VIEW_PIXELS];
+static uint8_t mask[VOID_VIEW_PIXELS];
+static float solid_dx[VOID_VIEW_PIXELS],solid_dy[VOID_VIEW_PIXELS];
+static view_image_t pending,published;
 static bool have_pixels;
 static unsigned char publishing;
 
@@ -49,7 +51,13 @@ static void triangle(const float a[3],const float b[3],const float c[3],float *d
     if (w0<-.00001f || w1<-.00001f || w2<-.00001f) continue;
     float z=w0*a[2]+w1*b[2]+w2*c[2];
     unsigned at=(unsigned)(y*VOID_VIEW_WIDTH+x);
-    if (z>depth[at]) depth[at]=z;
+    if (z>depth[at]) {
+      depth[at]=z;
+      if (depth==solid_depth) {
+        solid_dx[at]=((b[1]-c[1])*(a[2]-c[2])+(c[1]-a[1])*(b[2]-c[2]))*inverse;
+        solid_dy[at]=((c[0]-b[0])*(a[2]-c[2])+(a[0]-c[0])*(b[2]-c[2]))*inverse;
+      }
+    }
   }
 }
 
@@ -85,6 +93,7 @@ static void polygon(const vec3f_t *vertices,int count,float *depth)
 void void_view_begin(const cam_t *cam,float range)
 {
   camera_view=*cam;visible_range=range>0?range:0;
+  pending.count=0;pending.hide_link=false;
   memset(solid_depth,0,sizeof(solid_depth));memset(void_depth,0,sizeof(void_depth));
   memset(mask,0,sizeof(mask));
 }
@@ -96,6 +105,8 @@ void void_view_box(const vec3f_t corners[8],bool active,void *ctx)
 {
   (void)ctx;
   if (!active || visible_range<=0) return;
+  for (int i=0;i<8;i++) for (int axis=0;axis<3;axis++)
+    if (!(i&(1<<axis))) void_view_line(corners[i],corners[i|(1<<axis)],VIEW_VOID);
   for (int axis=0;axis<3;axis++) for (int side=0;side<2;side++) {
     int a=side<<axis,u=1<<((axis+1)%3),v=1<<((axis+2)%3);
     vec3f_t face[4]={corners[a],corners[a|u],corners[a|u|v],corners[a|v]};
@@ -125,14 +136,15 @@ void void_view_finish(void)
     mask[at]=1;any=true;
   }
   if (!__atomic_test_and_set(&publishing,__ATOMIC_ACQUIRE)) {
-    memcpy(published,mask,sizeof(mask));have_pixels=any;
+    memcpy(pending.mask,mask,sizeof(mask));published=pending;
+    have_pixels=any || pending.count;
     __atomic_clear(&publishing,__ATOMIC_RELEASE);
   }
 }
 
 void void_view_clear(void)
 {
-  memset(mask,0,sizeof(mask));
+  memset(mask,0,sizeof(mask));pending.count=0;
   if (!__atomic_test_and_set(&publishing,__ATOMIC_ACQUIRE)) {
     have_pixels=false;
     __atomic_clear(&publishing,__ATOMIC_RELEASE);
@@ -142,7 +154,7 @@ void void_view_clear(void)
 bool void_view_copy(uint8_t out[VOID_VIEW_PIXELS])
 {
   if (__atomic_test_and_set(&publishing,__ATOMIC_ACQUIRE)) return false;
-  bool any=have_pixels;if (any) memcpy(out,published,sizeof(published));
+  bool any=have_pixels;if (any) memcpy(out,published.mask,sizeof(published.mask));
   __atomic_clear(&publishing,__ATOMIC_RELEASE);
   return any;
 }
@@ -174,4 +186,167 @@ uint32_t void_view_blend(uint32_t background)
   uint32_t g=(((background>>8)&255)+64+1)/2;
   uint32_t b=(((background>>16)&255)+40+1)/2;
   return (background&0xFF000000u)|r|(g<<8)|(b<<16);
+}
+
+/* Clip world edges before projection, then split only where visibility changes.
+ * Keep screen coordinates as floats: line width is chosen in actual output
+ * pixels, never by enlarging a coarse coverage raster. */
+static void line_run(const float a[3],const float b[3],float start,float end,uint8_t color)
+{
+  if (pending.count==VIEW_LINES) return;
+  pending.lines[pending.count++]=(view_line_t){a[0]+(b[0]-a[0])*start,a[1]+(b[1]-a[1])*start,
+                                             a[0]+(b[0]-a[0])*end,a[1]+(b[1]-a[1])*end,color};
+}
+
+void void_view_line(vec3f_t from,vec3f_t to,uint8_t color)
+{
+  if (visible_range<=0 || !color || color>=VIEW_COLORS) return;
+  float wa[3]={from.x,from.y,from.z},wb[3]={to.x,to.y,to.z},a[3],b[3];
+  to_view(&camera_view,wa,a);to_view(&camera_view,wb,b);
+  for (int plane=0;plane<5;plane++) {
+    float da=plane_distance(a,plane),db=plane_distance(b,plane);
+    if (!(da>=0) && !(db>=0)) return;
+    if ((da>=0)!=(db>=0)) {
+      float t=da/(da-db),cut[3];
+      for (int j=0;j<3;j++) cut[j]=a[j]+t*(b[j]-a[j]);
+      memcpy(da<0?a:b,cut,sizeof(cut));
+    }
+  }
+  for (int i=0;i<2;i++) {
+    float *p=i?b:a,x,y;to_screen(&camera_view,p,&x,&y);
+    if (!(x>-.001f && x<1.001f && y>-.001f && y<1.001f && p[2]>.049f)) return;
+    p[0]=x;p[1]=y;p[2]=1/p[2];
+  }
+  float dx=__builtin_fabsf(b[0]-a[0])*VOID_VIEW_WIDTH,dy=__builtin_fabsf(b[1]-a[1])*VOID_VIEW_HEIGHT;
+  int steps=(int)((dx>dy?dx:dy)*2)+1,begin=-1;
+  for (int i=0;i<=steps;i++) {
+    float t=(float)i/steps,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
+    float inverse=a[2]+(b[2]-a[2])*t,z=1/inverse;
+    float rx=(x*2-1)*camera_view.tan_x,ry=(1-y*2)*camera_view.tan_y;
+    int ix=(int)(x*VOID_VIEW_WIDTH),iy=(int)(y*VOID_VIEW_HEIGHT);
+    if (ix<0) ix=0;
+    if (iy<0) iy=0;
+    if (ix>=VOID_VIEW_WIDTH) ix=VOID_VIEW_WIDTH-1;
+    if (iy>=VOID_VIEW_HEIGHT) iy=VOID_VIEW_HEIGHT-1;
+    unsigned at=(unsigned)(iy*VOID_VIEW_WIDTH+ix);
+    float blocker=solid_depth[at];
+    /* Evaluate the selected triangle's depth at the edge's subpixel location.
+     * This avoids a staircase of self-occlusion on sloped floors and walls. */
+    if (blocker>0) blocker+=solid_dx[at]*(x*VOID_VIEW_WIDTH-ix-.5f)+solid_dy[at]*(y*VOID_VIEW_HEIGHT-iy-.5f);
+    bool visible=z*z*(1+rx*rx+ry*ry)<visible_range*visible_range &&
+                 (!(blocker>0) || z<=1/blocker+.015f);
+    if (visible && begin<0) begin=i;
+    if ((!visible || i==steps) && begin>=0) {
+      line_run(a,b,(float)begin/steps,(float)(visible?i:i-1)/steps,color);begin=-1;
+    }
+  }
+}
+
+bool void_view_link(vec3f_t feet,vec3f_t head)
+{
+  /* The renderer has no verified skinned-player depth target. Reserve the
+   * projected body/attachment envelope so geometry never paints over Link.
+   * This deliberately leaves some empty space around him, not a fake silhouette. */
+  float low[3]={feet.x-.7f,feet.y-.06f,feet.z-.7f};
+  float high[3]={feet.x+.7f,head.y+.05f,feet.z+.7f};
+  if (!(head.y>=feet.y && head.y-feet.y<5)) return false;
+  if (head.x-.7f<low[0]) low[0]=head.x-.7f;
+  if (head.x+.7f>high[0]) high[0]=head.x+.7f;
+  if (head.z-.7f<low[2]) low[2]=head.z-.7f;
+  if (head.z+.7f>high[2]) high[2]=head.z+.7f;
+  pending.link[0]=pending.link[1]=1;pending.link[2]=pending.link[3]=0;
+  float vertices[8][3],nearest=1e30f,farthest=-1e30f;
+  for (int i=0;i<8;i++) {
+    float p[3];
+    for (int axis=0;axis<3;axis++) p[axis]=i&(1<<axis)?high[axis]:low[axis];
+    to_view(&camera_view,p,vertices[i]);
+    if (vertices[i][2]<nearest) nearest=vertices[i][2];
+    if (vertices[i][2]>farthest) farthest=vertices[i][2];
+  }
+  if (farthest<=.05f) return true; /* Link entirely behind the camera */
+  if (nearest<=.05f) {
+    pending.link[0]=pending.link[1]=0;pending.link[2]=pending.link[3]=1;
+    pending.hide_link=true;return true;
+  }
+  for (int i=0;i<8;i++) {
+    float *v=vertices[i],x,y;
+    to_screen(&camera_view,v,&x,&y);
+    if (x<pending.link[0]) pending.link[0]=x;
+    if (y<pending.link[1]) pending.link[1]=y;
+    if (x>pending.link[2]) pending.link[2]=x;
+    if (y>pending.link[3]) pending.link[3]=y;
+  }
+  if (pending.link[2]<0 || pending.link[0]>1 || pending.link[3]<0 || pending.link[1]>1) return true;
+  for (int i=0;i<4;i++) {
+    if (pending.link[i]<0) pending.link[i]=0;
+    if (pending.link[i]>1) pending.link[i]=1;
+  }
+  pending.hide_link=true;return true;
+}
+
+bool void_view_snapshot(view_image_t *out)
+{
+  if (__atomic_test_and_set(&publishing,__ATOMIC_ACQUIRE)) return false;
+  bool any=have_pixels;if (any) *out=published;
+  __atomic_clear(&publishing,__ATOMIC_RELEASE);return any;
+}
+
+void void_view_band(const view_image_t *view,int width,int height,int y,int rows,uint8_t *out)
+{
+  memset(out,0,(size_t)width*rows);
+  for (int yy=0;yy<rows;yy++) {
+    const uint8_t *row=view->mask+(y+yy)*VOID_VIEW_HEIGHT/height*VOID_VIEW_WIDTH;
+    for (int x=0;x<VOID_VIEW_WIDTH;) {
+      if (!row[x]) { x++;continue; }
+      int start=x++;
+      while (x<VOID_VIEW_WIDTH && row[x]) x++;
+      int x0=(start*width+VOID_VIEW_WIDTH-1)/VOID_VIEW_WIDTH;
+      int x1=(x*width+VOID_VIEW_WIDTH-1)/VOID_VIEW_WIDTH;
+      memset(out+(size_t)yy*width+x0,VIEW_VOID,(size_t)(x1-x0));
+    }
+  }
+  for (unsigned i=0;i<view->count;i++) {
+    view_line_t line=view->lines[i];
+    float x0=(float)(int)(line.x0*(width-1)+.5f),y0=(float)(int)(line.y0*(height-1)+.5f);
+    float dx=(float)(int)(line.x1*(width-1)+.5f)-x0,dy=(float)(int)(line.y1*(height-1)+.5f)-y0;
+    if ((y0<y-1 && y0+dy<y-1) || (y0>y+rows && y0+dy>y+rows)) continue;
+    float ax=__builtin_fabsf(dx),ay=__builtin_fabsf(dy);
+    int steps=(int)(ax>ay?ax:ay);if (!steps) steps=1;
+    int first=0,last=steps;
+    if (dy>1 || dy<-1) {
+      float a=(y-1-y0)/dy,b=(y+rows-y0)/dy;
+      if (a>b) { float temp=a;a=b;b=temp; }
+      if (a>0) first=(int)(a*steps);
+      if (b<1) last=(int)(b*steps)+1;
+    }
+    for (int step=first;step<=last;step++) {
+      float t=(float)step/steps;
+      int x=(int)(x0+dx*t+.5f),yy=(int)(y0+dy*t+.5f)-y;
+      if (x>=0 && x<width && yy>=0 && yy<rows) {
+        unsigned at=(unsigned)(yy*width+x);
+        if (out[at]!=VIEW_VOID) out[at]=line.color;
+      }
+    }
+  }
+  if (view->hide_link) {
+    int x0=(int)(view->link[0]*width)-1,x1=(int)(view->link[2]*width)+1;
+    int y0=(int)(view->link[1]*height)-1,y1=(int)(view->link[3]*height)+1;
+    if (x0<0) x0=0;
+    if (x1>=width) x1=width-1;
+    for (int yy=0;yy<rows;yy++) if (y+yy>=y0 && y+yy<=y1 && x1>=x0)
+      memset(out+(size_t)yy*width+x0,0,(size_t)(x1-x0+1));
+  }
+}
+
+uint32_t void_view_color(uint32_t background,uint8_t color)
+{
+  static const uint8_t palette[VIEW_COLORS][3]={
+    [VIEW_VOID]={255,64,40},[VIEW_BLOCKS]={59,214,255},[VIEW_INSIDE]={255,71,71},
+    [VIEW_OTHER]={153,140,255},[VIEW_FLOOR]={77,255,89},[VIEW_WALL]={64,166,255},
+    [VIEW_CEILING]={255,89,191},[VIEW_TRIGGER]={255,242,64}
+  };
+  if (!color || color>=VIEW_COLORS) return background;
+  uint32_t result=background&0xff000000u;
+  for (int c=0;c<3;c++) result|=(((background>>(8*c)&255)+palette[color][c]+1)/2)<<(8*c);
+  return result;
 }

@@ -317,3 +317,16 @@ the danger fill is wanted. Test an exposed void, then move a solid wall/floor be
 camera: the covered portion should disappear. Pan away and back, approach an opening, and change
 areas. Check for frame-rate loss or stale fill while moving. Rendering uses supported collision
 rather than GPU depth; an invisible result does not certify safety. This needs in-game confirmation.
+
+
+Test9 supersedes the test7/test8 warning-panel renders. `tests/run_void_view.py` writes
+`obj/tests/world-thin-visible.ppm` using production native-resolution line/band rasterization.
+It checks one-pixel width across 640/1280/1920/2560/3840-wide viewports, slope continuity, masked
+Link coverage, occlusion and exact 50% color. `run_voids.py` tests the shared world-view integration;
+`render_collision.py` still checks the actual filter menus. Existing watch/health/levitation and
+AArch64 hook suites remain applicable. Build with `make dist`, install both mod files and restart.
+Enable the desired Scene > Collision filters, close the menu, and check thin lines against foreground
+walls and Link. Enable **show voids** for in-world faces/edges only: the banner and crosshair are gone.
+Move toward an exposed mapped boundary, pan the camera, and change scenes. Check performance as well
+as coverage. The projected player envelope can leave a gap around Link; collision-based visibility
+and mapped sensor bounds do not guarantee an exact safe distance or coverage of every death trigger.

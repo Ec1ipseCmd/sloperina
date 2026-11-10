@@ -116,7 +116,7 @@ int main(void)
   /* Nonzero crop, odd size, last partial band, holes and disconnected coverage. */
   nvn_rect_t area={17,11,641,367};
   for (int y=0;y<VOID_VIEW_HEIGHT;y++) for (int x=0;x<VOID_VIEW_WIDTH;x++)
-    void_fill_mask[y*VOID_VIEW_WIDTH+x]=(y%3!=0 && x%7<3);
+    world_view.mask[y*VOID_VIEW_WIDTH+x]=(y%3!=0 && x%7<3);
   for (int frame=0;frame<2;frame++) {
     for (int y=0;y<400;y++) for (int x=0;x<700;x++)
       texture.pixels[y][x]=0x7f000000u|((x*123+y*789+frame*55555)&0xffffff);
@@ -128,10 +128,28 @@ int main(void)
     for (int y=0;y<400;y++) for (int x=0;x<700;x++) {
       uint32_t expected=original.pixels[y][x];
       if (x>=area.x && x<area.x+area.w && y>=area.y && y<area.y+area.h &&
-          void_fill_mask[(y-area.y)*VOID_VIEW_HEIGHT/area.h*VOID_VIEW_WIDTH+(x-area.x)*VOID_VIEW_WIDTH/area.w])
+          world_view.mask[(y-area.y)*VOID_VIEW_HEIGHT/area.h*VOID_VIEW_WIDTH+(x-area.x)*VOID_VIEW_WIDTH/area.w])
         expected=void_view_blend(expected);
       assert(texture.pixels[y][x]==expected);
     }
+  }
+  /* Lines alone must allocate/read/copy their bands, with one-pixel thickness,
+   * the same 50% alpha, and no tint across the reserved player region. */
+  memset(&world_view,0,sizeof(world_view));world_view.count=2;
+  world_view.lines[0]=(view_line_t){0,.5f,1,.5f,VIEW_WALL};
+  world_view.lines[1]=(view_line_t){.5f,0,.5f,1,VIEW_WALL};
+  world_view.hide_link=true;
+  world_view.link[0]=world_view.link[1]=.4f;world_view.link[2]=world_view.link[3]=.6f;
+  texture=original;
+  assert(prepare_void_fill(NULL,&texture,area,0));begin(&cmd_buffer);copy_void_fill(&texture);
+  nvn_handle_t handle=end(&cmd_buffer);submit(NULL,1,&handle);queue_flush(NULL);assert(slot_finished(0));
+  for (int y=0;y<400;y++) for (int x=0;x<700;x++) {
+    uint32_t expected=original.pixels[y][x];int xx=x-area.x,yy=y-area.y;
+    bool inside=xx>=0 && xx<area.w && yy>=0 && yy<area.h;
+    bool player=xx>=(int)(.4f*area.w)-1 && xx<=(int)(.6f*area.w)+1 &&
+                yy>=(int)(.4f*area.h)-1 && yy<=(int)(.6f*area.h)+1;
+    if (inside && !player && (xx==(area.w-1)/2 || yy==(area.h-1)/2)) expected=void_view_color(expected,VIEW_WALL);
+    assert(texture.pixels[y][x]==expected);
   }
   for (int failure=0;failure<6;failure++) {
     reset();

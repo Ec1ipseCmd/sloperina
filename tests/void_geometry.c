@@ -1,130 +1,50 @@
-/* Exercise the production void outline projection, clipping and shared dot cap. */
+/* Production frame integration: shared visible geometry, no HUD rectangles. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#define read_camera test_read_camera
 #include "../src/ootgz/airwall.c"
-
-const airshape_t data_airshapes[1] = {0};
-const airwall_t data_airwalls[1] = {0};
-const airmap_t data_airmaps[1] = {0};
-const int data_n_airmaps = 0;
-bool voids_shown;
-bool collision_shown;
+#undef read_camera
+const airshape_t data_airshapes[1]={0};
+const airwall_t data_airwalls[1]={0};
+const airmap_t data_airmaps[1]={0};
+const int data_n_airmaps=0;
+bool voids_shown,collision_shown;
+static bool paused,ready=true,player_ready=true;
 void collision_frame(void) {}
-float collision_occlusion_range(vec3f_t p) { (void)p;return 0; }
-void collision_each_occluder(void (*f)(const vec3f_t[3],int,void *),void *ctx) { (void)f;(void)ctx; }
-void collision_each_triangle(void (*draw)(const vec3f_t [3],int,void *),void *ctx) { (void)draw;(void)ctx; }
+float collision_occlusion_range(vec3f_t p) { (void)p;return ready?60:0; }
+void collision_each_occluder(void (*f)(const vec3f_t[3],int,void *),void *ctx) {
+  vec3f_t v[3]={{-20,-20,20},{20,-20,20},{0,20,20}};f(v,COLLISION_WALL,ctx);
+}
+void collision_each_triangle(void (*f)(const vec3f_t[3],int,void *),void *ctx) {
+  vec3f_t v[3]={{-2,-1,8},{2,-1,8},{0,2,8}};f(v,COLLISION_FLOOR,ctx);f(v,COLLISION_FLOOR,ctx);
+}
 const char *T(const char *s) { return s; }
 const char *TF(const char *s) { return s; }
-const char *gd_get_str(int i) { (void)i; return NULL; }
-void log_printf(const char *fmt, ...) { (void)fmt; }
-static bool position_ready,nearest_ready;
-static void_nearest_t fake_nearest;
-bool link_drawn_pos(vec3f_t *out) { *out=(vec3f_t){0};return position_ready; }
-bool voids_nearest(vec3f_t position,void_nearest_t *out) { (void)position;*out=fake_nearest;return nearest_ready; }
-bool gd_get_bool(uint32_t h, bool *out) { (void)h; *out=false; return true; }
-bool gd_get_int(uint32_t h, int32_t *out) { (void)h; *out=0; return true; }
-void voids_each_box(void (*draw)(const vec3f_t [8], bool, void *), void *ctx) { (void)draw; (void)ctx; }
-uintptr_t camera(void) { return 0; }
-bool sys_mapped(uintptr_t a, size_t n, uint32_t p) { (void)a; (void)n; (void)p; return false; }
-
-static void test_continuous_lines(void)
-{
-  /* Every slope, direction, clipped boundary and zero-length segment forms one
-   * connected raster component, including both endpoints. */
-  static uint8_t visited[SURFACE_WIDTH*SURFACE_HEIGHT];
-  static unsigned queue[SURFACE_WIDTH*SURFACE_HEIGHT];
-  for (int slope=0;slope<16;slope++) for (int reverse=0;reverse<2;reverse++) {
-    float endpoints[4]={.5f,.5f,(slope%4)/3.0f,(slope/4)/3.0f};
-    surface_line_count=1;
-    surface_lines[0].x0=endpoints[reverse?2:0];surface_lines[0].y0=endpoints[reverse?3:1];
-    surface_lines[0].x1=endpoints[reverse?0:2];surface_lines[0].y1=endpoints[reverse?1:3];
-    surface_lines[0].color=AW_WALL;
-    surface_rasterize(640,360);
-    memset(visited,0,sizeof(visited));
-    unsigned head=0,tail=0,total=0;
-    for (unsigned i=0;i<sizeof(surface_mask);i++) if (surface_mask[i]) total++;
-    unsigned first=(unsigned)(surface_coord(surface_lines[0].y0,360)*640+surface_coord(surface_lines[0].x0,640));
-    assert(surface_mask[first]==AW_WALL);queue[tail++]=first;visited[first]=1;
-    while (head<tail) {
-      unsigned at=queue[head++];int x=(int)(at%640),y=(int)(at/640);
-      for (int dy=-1;dy<=1;dy++) for (int dx=-1;dx<=1;dx++) {
-        int xx=x+dx,yy=y+dy;
-        if (xx<0 || xx>=640 || yy<0 || yy>=360) continue;
-        unsigned next=(unsigned)(yy*640+xx);
-        if (!visited[next] && surface_mask[next]) { visited[next]=1;queue[tail++]=next; }
-      }
-    }
-    unsigned end=(unsigned)(surface_coord(surface_lines[0].y1,360)*640+surface_coord(surface_lines[0].x1,640));
-    assert(visited[end] && tail==total);
-  }
-  surface_lines[0].x0=surface_lines[0].x1=.5f;
-  surface_lines[0].y0=surface_lines[0].y1=.5f;
-  surface_rasterize(640,360);
-  assert(surface_pack(640,360,1)==1);
+const char *gd_get_str(int i) { (void)i;return NULL; }
+void log_printf(const char *s,...) { (void)s; }
+bool link_drawn_pos(vec3f_t *p) { *p=(vec3f_t){0,0,4};return player_ready; }
+uintptr_t link_actor(void) { return 123; }
+bool actor_label_position(uintptr_t a,vec3f_t *p) { assert(a==123);*p=(vec3f_t){0,1.8f,4};return player_ready; }
+bool gd_get_bool(uint32_t h,bool *out) { (void)h;*out=paused;return true; }
+bool gd_get_int(uint32_t h,int32_t *out) { (void)h;*out=0;return true; }
+void voids_each_box(void (*f)(const vec3f_t[8],bool,void *),void *ctx) {
+  vec3f_t box[8];for (int i=0;i<8;i++) box[i]=(vec3f_t){i&1?2:-2,i&2?2:-2,i&4?12:8};f(box,true,ctx);
 }
-
-int main(void)
-{
-  test_continuous_lines();
-  cam_t cam = { .right={1,0,0}, .up={0,1,0}, .forward={0,0,1}, .tan_x=1, .tan_y=1 };
-  aw_dot_t output[MAX_DOTS+1];
-  memset(output,0x5A,sizeof(output));
-  int n=0;
-  void_draw_t draw={output,&n,&cam};
-  const unsigned char *guard=(const unsigned char *)&output[MAX_DOTS];
-  vec3f_t corners[8];
-  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?1:-1,i&2?1:-1,i&4?7:5};
-  void_view_begin(&cam,60);void_view_box(corners,true,NULL);void_view_finish();
-  position_ready=nearest_ready=true;fake_nearest=(void_nearest_t){.point={0,0,5},.distance=5};
-  void_hint_t hint;
-  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.marker && !hint.inside);
-  assert(strstr(hint.text,"5.00 u") && strstr(hint.text,"marked"));
-  fake_nearest.inside=true;
-  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.inside && hint.marker);
-  assert(strstr(hint.text,"INSIDE"));
-  void_view_clear();publish_void_hint(&cam,true);
-  assert(airwall_void_hint(&hint) && hint.inside && !hint.marker && strstr(hint.text,"out of view"));
-  fake_nearest.inside=false;publish_void_hint(&cam,true);
-  assert(airwall_void_hint(&hint) && strstr(hint.text,"no mapped boundary visible"));
-  publish_void_hint(&cam,false);assert(!airwall_void_hint(&hint));
-  position_ready=false;
-  vec3f_t triangle[3]={{-1,-1,5},{1,-1,5},{0,1,5}};
-  for (int kind=0;kind<COLLISION_KINDS;kind++) {
-    n=0;surface_edges_reset();
-    draw_surface(triangle,kind,&draw);
-    draw_surface_edges(&draw);
-    assert(n>0 && n<=MAX_DOTS);
-    for (int i=0;i<n;i++) assert(output[i].color==AW_FLOOR+kind);
-    int original=n;
-    unsigned edges=surface_edge_count;
-    draw_surface(triangle,kind,&draw); assert(n==original && surface_edge_count==edges); /* shared edges */
-  }
-  /* Dense near geometry must not exhaust the budget before a distant edge. */
-  n=0;surface_edges_reset();
-  for (int i=0;i<1000;i++) {
-    float x=-3+(float)(i%40)*.15f,y=-2+(float)(i/40)*.15f;
-    vec3f_t v[3]={{x,y,5},{x+.2f,y,5},{x+.1f,y+.2f,5}};
-    draw_surface(v,COLLISION_FLOOR,&draw);
-  }
-  vec3f_t distant[3]={{-4,-3,6},{4,-3,6},{0,3,6}};
-  draw_surface(distant,COLLISION_TRIGGER,&draw);draw_surface_edges(&draw);
-  assert(n>0 && n<=SURFACE_RECTS && surface_width<SURFACE_WIDTH);
-  unsigned distant_dots=0;
-  for (int i=0;i<n;i++) if (output[i].color==AW_TRIGGER) distant_dots++;
-  assert(distant_dots>0);
-  /* Packing must retain every colored pixel, even after the dense scene forces
-   * a coarser raster. No sampling or budget truncation of individual edges. */
-  static uint8_t rebuilt[SURFACE_WIDTH*SURFACE_HEIGHT];
-  memset(rebuilt,0,sizeof(rebuilt));
-  for (int i=0;i<n;i++) {
-    assert(surface_rects[i].x1<=surface_width && surface_rects[i].y1<=surface_height);
-    for (int y=surface_rects[i].y0;y<surface_rects[i].y1;y++)
-      for (int x=surface_rects[i].x0;x<surface_rects[i].x1;x++)
-        rebuilt[y*surface_width+x]=surface_rects[i].color;
-  }
-  assert(!memcmp(rebuilt,surface_mask,(size_t)surface_width*surface_height));
-  for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
-  puts("PASS: continuous collision lines, lossless rectangle packing, dense-view fallback, distant geometry, clipping and shared budget");
-  return 0;
+uintptr_t camera(void) { return 0; }
+bool sys_mapped(uintptr_t a,size_t n,uint32_t p) { (void)a;(void)n;(void)p;return false; }
+bool test_read_camera(cam_t *cam) { *cam=(cam_t){.right={1,0,0},.up={0,1,0},.forward={0,0,1},.tan_x=1,.tan_y=1};return true; }
+int main(void) {
+  static view_image_t view;
+  collision_shown=true;airwall_frame();assert(void_view_snapshot(&view));
+  assert(surface_edge_count==3 && view.count==3 && view.hide_link);
+  for (unsigned i=0;i<view.count;i++) assert(view.lines[i].color==VIEW_FLOOR);
+  voids_shown=true;collision_shown=false;airwall_frame();assert(void_view_snapshot(&view));
+  assert(view.count>0 && view.hide_link);
+  for (unsigned i=0;i<view.count;i++) assert(view.lines[i].color==VIEW_VOID);
+  paused=true;airwall_frame();assert(!void_view_snapshot(&view));paused=false;
+  ready=false;airwall_frame();assert(!void_view_snapshot(&view));ready=true;
+  player_ready=false;airwall_frame();assert(!void_view_snapshot(&view));player_ready=true;
+  voids_shown=false;airwall_frame();assert(!void_view_snapshot(&view));
+  puts("PASS: world-only geometry frame, unique edges, independent toggles, player mask, pause/unavailable clearing");
 }

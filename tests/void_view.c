@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 #include <time.h>
 #include "../src/ootgz/void_view.c"
 
@@ -25,7 +26,7 @@ static unsigned finish(void)
   void_view_finish();memset(result,0,sizeof(result));
   bool any=void_view_copy(result);unsigned count=0;
   for (unsigned i=0;i<sizeof(result);i++) count+=result[i]!=0;
-  assert(any==(count!=0));return count;
+  assert(!count || any);return count;
 }
 static void start(void) { void_view_begin(&cam,60);void_view_box(box,true,NULL); }
 static void render(const char *path,bool foreground)
@@ -40,8 +41,104 @@ static void render(const char *path,bool foreground)
   }
   fclose(f);
 }
+static void test_lines(void)
+{
+  static view_image_t view;
+  static uint8_t band[3840*64];
+  void_view_begin(&cam,60);
+  wall(-100,100,-100,100,4,COLLISION_WALL);
+  void_view_line((vec3f_t){-2,0,8},(vec3f_t){2,0,8},VIEW_WALL);
+  void_view_finish();assert(!void_view_snapshot(&view));
+  /* A diagonal edge on a sloped solid keeps its full length; per-cell depth
+   * gradients prevent alternating visible/hidden pieces along the same face. */
+  void_view_begin(&cam,60);
+  vec3f_t slope[3]={{-3,-2,6},{3,-2,10},{0,3,8}};
+  void_view_occluder(slope,COLLISION_WALL,NULL);
+  void_view_line(slope[0],slope[1],VIEW_WALL);
+  void_view_finish();assert(void_view_snapshot(&view) && view.count==1);
+  void_view_begin(&cam,60);slope[2].z=12;
+  void_view_occluder(slope,COLLISION_WALL,NULL);
+  void_view_line(slope[0],slope[2],VIEW_WALL);
+  void_view_finish();assert(void_view_snapshot(&view) && view.count==1);
+  const int widths[]={640,1280,1920,2560,3840};
+  for (unsigned size=0;size<sizeof(widths)/sizeof(*widths);size++) {
+    int width=widths[size];
+    int height=width*9/16;
+    memset(&view,0,sizeof(view));view.count=2;
+    view.lines[0]=(view_line_t){0,.5f,1,.5f,VIEW_WALL};
+    view.lines[1]=(view_line_t){0,.5f,1,.5f,VIEW_WALL}; /* duplicate never adds opacity */
+    unsigned pixels=0;
+    for (int y=0;y<height;y+=64) {
+      int rows=height-y<64?height-y:64;
+      void_view_band(&view,width,height,y,rows,band);
+      for (int row=0;row<rows;row++) for (int x=0;x<width;x++) if (band[row*width+x]) {
+        pixels++;assert(row+y==(int)(.5f*(height-1)+.5f));
+        assert(band[row*width+x]==VIEW_WALL);
+      }
+    }
+    assert(pixels==(unsigned)width); /* exactly one physical pixel, every scale */
+  }
+  for (int slope=0;slope<16;slope++) for (int reverse=0;reverse<2;reverse++) {
+    float x=(slope%4)/3.0f,y=(slope/4)/3.0f;
+    memset(&view,0,sizeof(view));view.count=1;
+    view.lines[0]=reverse?(view_line_t){x,y,.5f,.5f,VIEW_WALL}:(view_line_t){.5f,.5f,x,y,VIEW_WALL};
+    void_view_band(&view,128,72,0,72,band);
+    int x0=64,y0=36,x1=(int)(x*127+.5f),y1=(int)(y*71+.5f);
+    int dx=abs(x1-x0),dy=abs(y1-y0),count=0;
+    assert(band[y0*128+x0] && band[y1*128+x1]);
+    for (int i=0;i<128*72;i++) count+=band[i]!=0;
+    assert(count==(dx>dy?dx:dy)+1); /* no widening on steep edges or reversal */
+  }
+  void_view_begin(&cam,60);
+  void_view_line((vec3f_t){-2,0,8},(vec3f_t){2,0,8},VIEW_FLOOR);
+  void_view_link((vec3f_t){0,-.5f,4},(vec3f_t){0,1.8f,4});
+  void_view_finish();assert(void_view_snapshot(&view) && view.hide_link);
+  void_view_band(&view,640,360,160,64,band);
+  for (int y=0;y<64;y++) for (int x=260;x<=380;x++) assert(!band[y*640+x]);
+  assert(void_view_color(0x12000000u,VIEW_WALL)==0x12805320u);
+  assert(void_view_color(0x12345678u,0)==0x12345678u);
+  void_view_begin(&cam,60);
+  assert(void_view_link((vec3f_t){0,0,-4},(vec3f_t){0,2,-4}) && !pending.hide_link);
+  assert(!void_view_link((vec3f_t){0},(vec3f_t){0,20,0}));
+  puts("PASS: line occlusion, sloped-face continuity, one-pixel width across resolutions, single 50% tint, Link exclusion");
+}
+static void render_world(void)
+{
+  static view_image_t view;
+  static uint8_t band[1920*64];
+  void_view_begin(&cam,60);
+  wall(-100,-1,-100,100,6,COLLISION_WALL);
+  vec3f_t floor[2][3]={{{-20,-1,2},{20,-1,2},{20,-1,30}},{{-20,-1,2},{20,-1,30},{-20,-1,30}}};
+  for (int i=0;i<2;i++) void_view_occluder(floor[i],COLLISION_FLOOR,NULL);
+  for (int i=0;i<8;i++) box[i]=(vec3f_t){i&1?3:-3,i&2?2:-3,i&4?12:9};
+  void_view_box(box,true,NULL);
+  for (int i=-8;i<=8;i++) {
+    void_view_line((vec3f_t){i,-1,2},(vec3f_t){i,-1,25},VIEW_FLOOR);
+    if (i>=2) void_view_line((vec3f_t){-8,-1,i},(vec3f_t){8,-1,i},VIEW_FLOOR);
+  }
+  void_view_link((vec3f_t){0,-1,4},(vec3f_t){0,.8f,4});
+  void_view_finish();assert(void_view_snapshot(&view));
+  FILE *f=fopen("obj/tests/world-thin-visible.ppm","wb");assert(f);fprintf(f,"P6\n1920 1080\n255\n");
+  for (int y=0;y<1080;y+=64) {
+    int rows=1080-y<64?1080-y:64;void_view_band(&view,1920,1080,y,rows,band);
+    for (int yy=0;yy<rows;yy++) for (int x=0;x<1920;x++) {
+      uint32_t p=(x/80+(y+yy)/80)&1?0xff554738u:0xff625342u;
+      if (x<800 && y+yy<=630) p=0xff383838u; /* foreground wall, floor in front */
+      if (x>900 && x<1020 && y+yy>440 && y+yy<680) p=0xff44722cu; /* synthetic player */
+      p=void_view_color(p,band[yy*1920+x]);
+      unsigned char rgb[3]={p&255,(p>>8)&255,(p>>16)&255};fwrite(rgb,1,3,f);
+    }
+  }
+  fclose(f);
+  clock_t before=clock();
+  for (int frame=0;frame<10;frame++) for (int y=0;y<1080;y+=64)
+    void_view_band(&view,1920,1080,y,1080-y<64?1080-y:64,band);
+  printf("World overlay: production 1080p thin-line render, %.2f ms per synthetic band pass\n",1000.0*(clock()-before)/CLOCKS_PER_SEC/10);
+}
 int main(void)
 {
+  test_lines();
+  render_world();
   bounds(0,0,10,2);start();unsigned clear=finish();assert(clear>3000 && clear<4000);
   void_nearest_t nearest;assert(void_view_nearest((vec3f_t){0},&nearest));
   assert(nearest.distance>=8 && nearest.distance<8.01f);

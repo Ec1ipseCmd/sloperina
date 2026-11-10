@@ -127,13 +127,14 @@ separate from ordinary terrain, drawn as outlines over the game.
 | **include other actors** | Also draw the walls meant for enemies, NPCs and objects. |
 
 The two lines under them count the walls in this map and those near you, and say whether Link is inside one
-(how deep, and which way the game will push him out). Outlines are drawn on top of everything, through scenery.
+(how deep, and which way the game will push him out). Outlines are one output pixel wide and 50% transparent. Supported loaded solid collision hides covered
+lines. A conservative projected area around Link is left unpainted, so it can leave a small gap around him.
 
 **void sensors** adds independent controls:
 
 | Item | What it does |
 |---|---|
-| **show voids** | Fill visible active player void-sensor bounds with a 50% red-orange tint. Loaded solid collision masks covered faces; inactive sensors and off-screen faces are hidden. Includes distance/cross to the nearest visible part and an inside-bounds warning. Saved between launches. |
+| **show voids** | Fill visible active player void-sensor bounds with a 50% red-orange tint. Loaded solid collision masks covered faces; inactive sensors and off-screen faces are hidden. Thin boundary edges and filled faces are drawn in the world; there is no distance panel, crosshair or inside-warning HUD. Saved between launches. |
 | **void-outs** | **normal**, **off while levitating**, or **off**. Filters Link's abyss/sand messages and blocks new abyss reactions before camera/event dispatch. Shows `void-out blocked` when intercepted. Enable before entering a trigger; does not cancel an event already running. Resets to normal at launch. |
 
 The summary counts recognized sensors, supported bounds and unavailable bounds. When none are identified,
@@ -400,4 +401,5 @@ To inspect the tower death barrier, enable Scene > Collision > show voids. Large
 volumes show a 50% red-orange fill on visible faces, including from inside the bounds.
 Visibility uses supported loaded solid collision, not the renderer's depth buffer: visual-only objects
 and unsupported shapes may not hide it. The view waits for a complete collision scan and hides
-fragments outside its bounded coverage. An empty view does not prove that an area is safe. Protection and visualization remain independent controls.
+fragments outside its bounded coverage. The same visibility checks apply to surface and barrier lines.
+The body mask around Link is conservative, not an exact skinned-model silhouette. An empty view does not prove that an area is safe. Protection and visualization remain independent controls.

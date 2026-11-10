@@ -5,7 +5,7 @@
 static uint64_t objects[19][2560],original[19][2560];
 #define A(i) ((uintptr_t)objects[i])
 uintptr_t z64hd_main=0x100000000ull;
-bool voids_shown;
+bool voids_shown,airwalls_shown;
 static bool loading,changing,mapped=true;
 static uintptr_t actor=123;
 static unsigned drawn;
@@ -85,13 +85,12 @@ int main(void)
   put(A(5),MAIN(Z64HD_VT_STATIC_RESOURCE));put(A(5)+8,A(6));put(A(5)+0x10,0x1000);
   collision_shown=true;
   memcpy(original,objects,sizeof(original));
-  collision_frame();assert(collecting&&cursor==4096&&!visible_count);
-  for (int i=0;i<3;i++) { collision_frame();assert(!visible_count); }
+  collision_frame();assert(collecting&&cursor==16384&&!visible_count);
   collision_frame();assert(!collecting&&ready&&visible_count>0&&visible_count<TRIANGLE_MAX);
-  collision_each_triangle(draw,NULL);assert(drawn==visible_count && farthest>=5);
+  collision_each_triangle(draw,NULL);assert(drawn==visible_count && farthest>=4.5f);
   triangle_t snapshot[TRIANGLE_MAX];memcpy(snapshot,visible,sizeof(snapshot));
   unsigned saved_count=visible_count;
-  for (int i=0;i<4;i++) {
+  for (int i=0;i<1;i++) {
     collision_frame();assert(collecting && visible_count==saved_count);
     assert(!memcmp(snapshot,visible,sizeof(snapshot))); /* no partial replacements */
   }
@@ -136,6 +135,9 @@ int main(void)
   collect(near_trigger,COLLISION_TRIGGER,NULL);
   assert(occluder_candidates[0].distance>=far*far-.01f);
   voids_shown=false;collision_shown=false;collision_frame();assert(!occluder_count);
+  airwalls_shown=true;finish();assert(occluder_count && !visible_count);
+  assert(collision_occlusion_range((vec3f_t){0})>63);
+  airwalls_shown=false;collision_frame();assert(!occluder_count);
   assert(!memcmp(original,objects,sizeof(original)));
   memset(seen,0,sizeof(seen));
   triangle_t trigger={.v={{.1f,.1f,3},{.2f,.1f,3},{.1f,.2f,3}},.kind=COLLISION_TRIGGER};

@@ -22,7 +22,6 @@
 #include "nvn.h"
 
 #include "font.h"
-#include "airwall.h"
 #include "void_view.h"
 #include "enemy_health.h"
 #include "gfx.h"
@@ -1144,106 +1143,6 @@ static void compose_see_through(int p, uint8_t *dst, const uint8_t *under, int u
   }
 }
 
-/* Air wall outlines (airwall.c): each dot is a small square cleared into the picture with a scissor
- * rectangle, which needs no shader. Before the panels, so the menu stays on top. Stops well before
- * the command memory runs out. */
-#define DOT_COORD_MAX 65535 /* aw_dot_t's coordinates: 0..65535 across the visible picture */
-#define MIN_DOT_SIZE 2
-
-static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, nvn_rect_t area, int texture_height,
-                              int scale)
-{
-  static const float colours[AW_NCOLORS][4] = {
-    [AW_BLOCKS] = { 0.23f, 0.84f, 1.0f, 1.0f }, /* cyan: stops Link */
-    [AW_INSIDE] = { 1.0f, 0.28f, 0.28f, 1.0f }, /* red: Link is inside it */
-    [AW_OTHER] = { 0.60f, 0.55f, 1.0f, 1.0f },  /* violet: other kinds */
-    [AW_VOID] = { 1.0f, 0.20f, 0.15f, 1.0f }, /* reserved legacy void-outline color */
-    [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* reserved legacy inactive-outline color */
-    [AW_FLOOR] = { 0.30f, 1.0f, 0.35f, 1.0f },
-    [AW_WALL] = { 0.25f, 0.65f, 1.0f, 1.0f },
-    [AW_CEILING] = { 1.0f, 0.35f, 0.75f, 1.0f },
-    [AW_TRIGGER] = { 1.0f, 0.95f, 0.25f, 1.0f },
-  };
-  (void)scale;
-  int size = MIN_DOT_SIZE; /* line width is independent of menu text size */
-  set_render_target(tex);
-  int rectangles=0;
-  for (int i = 0; i < n; i++) {
-    if (command_memory_low(rectangles++)) {
-      reset_scissor();
-      return;
-    }
-    const aw_dot_t *dot = &dots[i];
-    /* to texture pixels; a side thinner than the line width is widened to it, about its middle */
-    int x = (int)((int64_t)dot->x0 * area.w / DOT_COORD_MAX);
-    int x1 = (int)((int64_t)dot->x1 * area.w / DOT_COORD_MAX);
-    int y = (int)((int64_t)dot->y0 * area.h / DOT_COORD_MAX);
-    int y1 = (int)((int64_t)dot->y1 * area.h / DOT_COORD_MAX);
-    int w = x1 - x;
-    int h = y1 - y;
-    if (w < size) {
-      x = (x + x1 - size) / 2;
-      w = size;
-    }
-    if (h < size) {
-      y = (y + y1 - size) / 2;
-      h = size;
-    }
-    /* kept inside the visible area */
-    x = x < 0 ? 0 : x + w > area.w ? area.w - w : x;
-    y = y < 0 ? 0 : y + h > area.h ? area.h - h : y;
-    clear_scissored(area.x + x, area.y + y, w, h, texture_height, colours[dot->color < AW_NCOLORS ? dot->color : 0]);
-  }
-  reset_scissor();
-}
-
-static void void_hint_text(const char *text,int x,int y,int scale,int texture_height,
-                           const float color[4],int *rectangles)
-{
-  int length=(int)strlen(text);
-  for (int row=0;row<FONT_H;row++) for (int col=0;col<length*FONT_W;) {
-    if (!font_pixel((unsigned char)text[col/FONT_W],col%FONT_W,row)) { col++;continue; }
-    int start=col++;
-    while (col<length*FONT_W && font_pixel((unsigned char)text[col/FONT_W],col%FONT_W,row)) col++;
-    if (command_memory_low((*rectangles)++)) return;
-    int x0=font_to_screen_ceil(start,scale),x1=font_to_screen_ceil(col,scale);
-    int y0=font_to_screen_ceil(row,scale),y1=font_to_screen_ceil(row+1,scale);
-    clear_scissored(x+x0,y+y0,x1-x0,y1-y0,texture_height,color);
-  }
-}
-
-static void draw_void_hint(const void_hint_t *hint,nvn_texture_t *tex,nvn_rect_t area,
-                           int texture_height,int menu_scale)
-{
-  static const float black[4]={.035f,.035f,.035f,1},white[4]={1,1,1,1};
-  static const float red[4]={1,.20f,.15f,1},amber[4]={1,.8f,.25f,1};
-  int scale=menu_scale<SC_ONE?SC_ONE:menu_scale>2*SC_ONE?2*SC_ONE:menu_scale;
-  int len=(int)strlen(hint->text),detail=(int)strlen(hint->detail);
-  int longest=len>detail?len:detail;
-  while (scale>SC_ONE && font_to_screen_ceil(longest*FONT_W+4,scale)>area.w-8) scale--;
-  int w=font_to_screen_ceil(longest*FONT_W+4,scale),h=font_to_screen_ceil(FONT_H*2+8,scale);
-  if (w>area.w-8 || h>area.h-8 || command_memory_low(0)) return;
-  int x=area.x+(area.w-w)/2,y=area.y+area.h-h-8,rectangles=1;
-  set_render_target(tex);
-  clear_scissored(x,y,w,h,texture_height,black);
-  const float *color=hint->inside||hint->near?red:amber;
-  clear_scissored(x,y,w,2,texture_height,color);
-  int margin=font_to_screen_ceil(2,scale);
-  void_hint_text(hint->text,x+margin,y+margin,scale,texture_height,color,&rectangles);
-  void_hint_text(hint->detail,x+margin,y+font_to_screen_ceil(FONT_H+5,scale),scale,texture_height,white,&rectangles);
-  if (hint->marker && !command_memory_low(0)) {
-    int mx=area.x+(int)((int64_t)hint->x*area.w/65535),my=area.y+(int)((int64_t)hint->y*area.h/65535);
-    int radius=8;
-    if (mx>=area.x+radius && mx<area.x+area.w-radius && my>=area.y+radius && my<area.y+area.h-radius) {
-      clear_scissored(mx-radius,my-2,radius*2,5,texture_height,black);
-      clear_scissored(mx-2,my-radius,5,radius*2,texture_height,black);
-      clear_scissored(mx-radius,my-1,radius*2,3,texture_height,red);
-      clear_scissored(mx-1,my-radius,3,radius*2,texture_height,red);
-    }
-  }
-  reset_scissor();
-}
-
 /* Projected enemy labels use the same font and scissored rendering as clear
  * panels. A small dark backing keeps current/max readable over scenery. */
 static void draw_enemy_labels(const enemy_label_t *labels, int count, nvn_texture_t *tex,
@@ -1582,7 +1481,8 @@ static struct {
   nvn_region_t region;
   bool ready;
 } void_fill_bands[VOID_FILL_BANDS];
-static uint8_t void_fill_mask[VOID_VIEW_PIXELS];
+static view_image_t world_view;
+static uint8_t world_band[4096*VOID_FILL_ROWS];
 static bool void_fill_failed;
 static void (*void_fill_flush)(const nvn_obj_t *,ptrdiff_t,size_t);
 static void (*void_fill_queue_flush)(nvn_queue_t *);
@@ -1596,20 +1496,22 @@ static bool prepare_void_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t a
     void_fill_queue_flush=(void (*)(nvn_queue_t *))real_getproc(device,"nvnQueueFlush");
   if (!is_rgba8(swapchain_format) || !void_fill_flush || !void_fill_queue_flush ||
       area.h>VOID_FILL_ROWS*VOID_FILL_BANDS || area.w>4096) {
-    log_printf("void fill unavailable: format %d, viewport %dx%d, cache/queue APIs %d/%d",
+    log_printf("world overlay unavailable: format %d, viewport %dx%d, cache/queue APIs %d/%d",
                swapchain_format,area.w,area.h,void_fill_flush!=NULL,void_fill_queue_flush!=NULL);
     void_fill_failed=true;return false;
   }
+  bool any=false;
   for (int band=0;band<VOID_FILL_BANDS;band++) {
     void_fill_bands[band].ready=false;
     int y=band*VOID_FILL_ROWS;if (y>=area.h) continue;
     int h=area.h-y<VOID_FILL_ROWS?area.h-y:VOID_FILL_ROWS;
-    int low=VOID_VIEW_WIDTH,high=-1;
-    int y0=y*VOID_VIEW_HEIGHT/area.h,y1=(y+h-1)*VOID_VIEW_HEIGHT/area.h;
-    for (int yy=y0;yy<=y1;yy++) for (int x=0;x<VOID_VIEW_WIDTH;x++)
-      if (void_fill_mask[yy*VOID_VIEW_WIDTH+x]) { if (x<low) low=x;if (x>high) high=x; }
-    if (high<low) continue;
-    int x0=low*area.w/VOID_VIEW_WIDTH,x1=((high+1)*area.w+VOID_VIEW_WIDTH-1)/VOID_VIEW_WIDTH;
+    void_view_band(&world_view,area.w,area.h,y,h,world_band);
+    int x0=area.w,x1=0;
+    for (int yy=0;yy<h;yy++) for (int x=0;x<area.w;x++) if (world_band[yy*area.w+x]) {
+      if (x<x0) x0=x;
+      if (x+1>x1) x1=x+1;
+    }
+    if (x1<=x0) continue;
     size_t bytes=(size_t)(x1-x0)*h*4;
     if (!void_fill_bands[band].pixels) {
       size_t capacity=round_page((size_t)fn.tex_width(tex)*VOID_FILL_ROWS*4);
@@ -1617,17 +1519,19 @@ static bool prepare_void_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t a
       void_fill_bands[band].capacity=capacity;
       if (!void_fill_bands[band].pixels ||
           !make_pool(&void_fill_bands[band].pool,void_fill_bands[band].pixels,capacity,POOL_CPU_CACHED|POOL_GPU_UNCACHED)) {
-        log_printf("void fill unavailable: allocation/pool for band %d (%u bytes)",band,(unsigned)capacity);
+        log_printf("world overlay unavailable: allocation/pool for band %d (%u bytes)",band,(unsigned)capacity);
         void_fill_failed=true;return false;
       }
     }
     if (bytes>void_fill_bands[band].capacity) {
-      log_printf("void fill unavailable: resolution increased beyond allocated storage; restart required");
+      log_printf("world overlay unavailable: resolution increased beyond allocated storage; restart required");
       void_fill_failed=true;return false;
     }
     void_fill_bands[band].region=(nvn_region_t){area.x+x0,area.y+y,0,x1-x0,h,1};
     void_fill_bands[band].ready=true;
+    any=true;
   }
+  if (!any) return false;
   fn.cmd_add_command(&cmd_buffer,&command_pool,slot*CMD_SIZE,CMD_SIZE);
   fn.cmd_add_control(&cmd_buffer,control_mem+slot*CTRL_SIZE,CTRL_SIZE);
   fn.cmd_begin(&cmd_buffer);
@@ -1640,17 +1544,15 @@ static bool prepare_void_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t a
   /* Present normally flushes later. This readback must reach the GPU before
    * the CPU waits, while still inside the present hook. */
   void_fill_queue_flush(queue);
-  if (!slot_finished(slot)) { overlay_fail("GPU didn't finish void readback");return false; }
+  if (!slot_finished(slot)) { overlay_fail("GPU didn't finish world overlay readback");return false; }
   for (int i=0;i<VOID_FILL_BANDS;i++) if (void_fill_bands[i].ready) {
     nvn_region_t r=void_fill_bands[i].region;size_t bytes=(size_t)r.w*r.h*4;
     fn.pool_invalidate(&void_fill_bands[i].pool,0,bytes);
     uint32_t *pixels=void_fill_bands[i].pixels;
-    for (int y=0;y<r.h;y++) {
-      int my=(r.y-area.y+y)*VOID_VIEW_HEIGHT/area.h;
-      for (int x=0;x<r.w;x++) {
-        int mx=(r.x-area.x+x)*VOID_VIEW_WIDTH/area.w;
-        if (void_fill_mask[my*VOID_VIEW_WIDTH+mx]) pixels[y*r.w+x]=void_view_blend(pixels[y*r.w+x]);
-      }
+    void_view_band(&world_view,area.w,area.h,r.y-area.y,r.h,world_band);
+    for (int y=0;y<r.h;y++) for (int x=0;x<r.w;x++) {
+      uint8_t color=world_band[y*area.w+r.x-area.x+x];
+      if (color) pixels[y*r.w+x]=void_view_color(pixels[y*r.w+x],color);
     }
     void_fill_flush(&void_fill_bands[i].pool,0,bytes);
   }
@@ -1668,13 +1570,9 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   const gfx_screen_t *screen = gfx_published();
   enemy_label_t health_labels[ENEMY_LABEL_MAX];
   int n_health = enemy_health_copy(health_labels);
-  int n_dots;
-  const aw_dot_t *dots = airwall_published(&n_dots);
-  void_hint_t void_hint;
-  bool has_void_hint=airwall_void_hint(&void_hint);
-  bool has_void_fill=void_view_copy(void_fill_mask);
+  bool has_void_fill=void_view_snapshot(&world_view);
   int pause_icon = gfx_pause_icon;
-  if ((!screen && !n_dots && !n_health && !pause_icon && !has_void_hint && !has_void_fill) || overlay_state == OV_FAILED)
+  if ((!screen && !n_health && !pause_icon && !has_void_fill) || overlay_state == OV_FAILED)
     return;
   if (index < 0 || index >= swapchain_texture_count) {
     static bool warned;
@@ -1778,23 +1676,19 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
     draw->scale = scale;
     n++;
   }
-  if (!n && !n_dots && !n_health && !pause_icon && !has_void_hint && !has_void_fill)
+  if (!n && !n_health && !pause_icon && !has_void_fill)
     return;
   if (has_void_fill && !prepare_void_fill(queue,tex,frame.area,frame.slot)) {
     if (overlay_state==OV_FAILED) return;
     has_void_fill=false;
-    if (has_void_hint) snprintf(void_hint.detail,sizeof(void_hint.detail),"Void fill unavailable; see log");
   }
+  if (!n && !n_health && !pause_icon && !has_void_fill) return;
   __asm__ volatile("dsb sy" ::: "memory"); /* pixels reach memory before the GPU copies them */
 
   fn.cmd_add_command(&cmd_buffer, &command_pool, frame.slot * CMD_SIZE, CMD_SIZE);
   fn.cmd_add_control(&cmd_buffer, control_mem + frame.slot * CTRL_SIZE, CTRL_SIZE);
   fn.cmd_begin(&cmd_buffer);
   if (has_void_fill) copy_void_fill(tex);
-  if (n_dots)
-    draw_airwall_dots(dots, n_dots, tex, frame.area, th, frame.scale);
-  if (has_void_hint)
-    draw_void_hint(&void_hint,tex,frame.area,th,frame.scale);
   if (n_health)
     draw_enemy_labels(health_labels, n_health, tex, frame.area, th, frame.scale);
   if (pause_icon)

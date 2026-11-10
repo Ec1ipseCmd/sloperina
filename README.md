@@ -28,8 +28,8 @@ goes back.
 - **link**: health, heart containers, rupees, age and reload map; position, speed and map.
 - **warps**: any map and spawn point, at once, with the game's own fade.
 - **scene**: reload the map; separate nearby floor, wall, ceiling, and static-trigger filters; invisible barriers
-  and supported player void-sensor bounds with a 50% fill, masked by loaded solid collision,
-  with optional void-out suppression.
+  and supported player void-sensor bounds. Thin lines and void fill use 50% opacity, with loaded-solid
+  visibility checks and a reserved area around Link. Optional void-out suppression is independent.
 - **cheats**: infinite health, rupees, magic and ammo; 2x movement speed.
 - **inventory**: items, equipment, collection (upgrades, strength, scale, magic), bottles, quest items, songs,
   dungeon items and small keys, all through the game's own code where it needs it.

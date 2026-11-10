@@ -1,18 +1,11 @@
-/* Air walls: port of airwall.py (FINDINGS §5.11), drawn as dotted outlines.
- *
- * Walls come from data.c (airwalls.json, built from the map layouts by tools/airwalls.py). A wall's
- * world point for a local shape point p is t + R (s * p), with R = Rz Ry Rx from its rotation, as
- * sead's makeR. Each frame the walls within AW_RANGE of the camera are projected with the game's
- * camera (+0x38 position, +0x44 look-at, +0x130 vertical fov, +0x140 aspect) and their edges turned
- * into rectangles, nearest wall first, which nvn.c draws by clearing them (no shaders). Edges within
- * about 19 degrees of level or upright are solid lines of a few long rectangles (a staircase); steeper
- * ones are dots, which takes fewer clears than a staircase there. (FINDINGS §5.11 had see-through
- * faces; here only the outlines, and like the Python view they show through scenery.) */
+/* Loaded collision, invisible barriers and void bounds share a thin, blended,
+ * visibility-tested world overlay. The original air-wall watch is retained. */
 #include "airwall.h"
 #include "world_view.h"
 #include "voids.h"
 #include "void_view.h"
 #include "collision.h"
+#include "actors.h"
 
 #include "data.h"
 #include "gamedata.h"
@@ -30,14 +23,6 @@ bool airwalls_shown, airwalls_all;
 #define MAX_WALLS 256
 #define MAX_POINTS 4096
 #define MAX_EDGES 8192
-#define MAX_DOTS 12000
-#define MAX_DOTS_PER_EDGE 2000
-#define REF_WIDTH 1920    /* the picture is worked out in pixels of a 1920x1080 one */
-#define REF_HEIGHT 1080
-#define DOT_SPACING 6.0f  /* reference pixels between dots */
-#define LINE_WIDTH 2.0f   /* reference pixels: a line's thickness, one staircase step at most */
-#define STRAIGHT 0.344f   /* tan 19 degrees: up to this slope a staircase takes fewer clears */
-#define NEAR_PLANE 0.05f
 #define PHYS_Y 0.585f     /* Link's physics position is this far above his drawn one */
 #define FACE_UPRIGHT 0.7f /* a face normal with more height than this points up (or down) */
 
@@ -312,147 +297,11 @@ void airwall_link_text(char *buf, int len)
              T(link_up > 0 ? "up" : link_up < 0 ? "down" : "sideways"));
 }
 
-/* --- projection to dots ------------------------------------------------------------------------- */
-
-/* Two buffers: the game thread fills one while the render thread draws the other. */
-static aw_dot_t dots[2][MAX_DOTS];
-static int n_dots[2];
-static volatile int published = -1; /* the buffer to draw, or -1 for none */
 static int n_walls_near;
 
-/* 0..size to 0..65535, clamped */
-static uint16_t to_unit16(float v, float size)
-{
-  v = v / size * 65535;
-  return (uint16_t)(v < 0 ? 0 : v > 65535 ? 65535 : v);
-}
+#define GD_SEQUENCE_IS_PAUSE 0x604AEBE1u
+#define GD_SEQUENCE_GAME_PAUSE_REQUEST_COUNT 0x64A61098u
 
-/* a rectangle from two corners in reference pixels */
-static void add_rect(aw_dot_t *out, int *n, float ax, float ay, float bx, float by, uint8_t color)
-{
-  aw_dot_t *rect = &out[(*n)++];
-  rect->x0 = to_unit16(ax < bx ? ax : bx, REF_WIDTH);
-  rect->x1 = to_unit16(ax < bx ? bx : ax, REF_WIDTH);
-  rect->y0 = to_unit16(ay < by ? ay : by, REF_HEIGHT);
-  rect->y1 = to_unit16(ay < by ? by : ay, REF_HEIGHT);
-  rect->color = color;
-}
-
-/* Cut the line va-vb (camera space) at the near plane. False if it's all behind it. */
-static bool clip_near(float va[3], float vb[3])
-{
-  if (va[2] < NEAR_PLANE && vb[2] < NEAR_PLANE)
-    return false;
-  if (va[2] < NEAR_PLANE || vb[2] < NEAR_PLANE) {
-    float t = (NEAR_PLANE - va[2]) / (vb[2] - va[2]);
-    float cut[3];
-    for (int i = 0; i < 3; i++)
-      cut[i] = va[i] + t * (vb[i] - va[i]);
-    if (va[2] < NEAR_PLANE)
-      memcpy(va, cut, sizeof(cut));
-    else
-      memcpy(vb, cut, sizeof(cut));
-  }
-  return true;
-}
-
-/* Cut the line (x0, y0)-(x1, y1) to the reference picture (Liang-Barsky). False if it's all outside. */
-static bool clip_to_picture(float *x0, float *y0, float *x1, float *y1)
-{
-  float dx = *x1 - *x0, dy = *y1 - *y0;
-  float t0 = 0, t1 = 1;
-  float p[4] = { -dx, dx, -dy, dy };
-  float q[4] = { *x0, REF_WIDTH - *x0, *y0, REF_HEIGHT - *y0 };
-  for (int i = 0; i < 4; i++) {
-    if (p[i] == 0) {
-      if (q[i] < 0)
-        return false;
-      continue;
-    }
-    float r = q[i] / p[i];
-    if (p[i] < 0) {
-      if (r > t1)
-        return false;
-      if (r > t0)
-        t0 = r;
-    } else {
-      if (r < t0)
-        return false;
-      if (r < t1)
-        t1 = r;
-    }
-  }
-  *x1 = *x0 + t1 * dx;
-  *y1 = *y0 + t1 * dy;
-  *x0 += t0 * dx;
-  *y0 += t0 * dy;
-  return true;
-}
-
-/* A line on the picture: near level or upright, a staircase of long rectangles; otherwise dots. */
-static void add_line(aw_dot_t *out, int *n, float x0, float y0, float x1, float y1, uint8_t color)
-{
-  float dx = x1 - x0, dy = y1 - y0;
-  float abs_dx = dx < 0 ? -dx : dx, abs_dy = dy < 0 ? -dy : dy;
-  bool level = abs_dx >= abs_dy;
-  float major = level ? abs_dx : abs_dy, minor = level ? abs_dy : abs_dx;
-  if (minor <= major * STRAIGHT) {
-    /* pieces along the main direction, each at most LINE_WIDTH off the next */
-    int pieces = (int)(minor / LINE_WIDTH) + 1;
-    for (int i = 0; i < pieces && *n < MAX_DOTS; i++) {
-      float ta = (float)i / pieces, tb = (float)(i + 1) / pieces, t_mid = (ta + tb) / 2;
-      float ax, ay, bx, by;
-      if (level) {
-        ax = x0 + dx * ta;
-        bx = x0 + dx * tb;
-        ay = by = y0 + dy * t_mid;
-      } else {
-        ay = y0 + dy * ta;
-        by = y0 + dy * tb;
-        ax = bx = x0 + dx * t_mid;
-      }
-      add_rect(out, n, ax, ay, bx, by, color);
-    }
-    return;
-  }
-  int steps = (int)(major / DOT_SPACING);
-  if (steps > MAX_DOTS_PER_EDGE)
-    steps = MAX_DOTS_PER_EDGE;
-  for (int i = 0; i <= steps && *n < MAX_DOTS; i++) {
-    float t = steps ? (float)i / steps : 0;
-    float x = x0 + dx * t, y = y0 + dy * t;
-    add_rect(out, n, x, y, x, y, color);
-  }
-}
-
-/* The edge a-b (world points), projected, clipped and added to out[*n...]. */
-static void add_edge_dots(aw_dot_t *out, int *n, const cam_t *cam, const float a[3], const float b[3], uint8_t color)
-{
-  float va[3], vb[3];
-  to_view(cam, a, va);
-  to_view(cam, b, vb);
-  if (!clip_near(va, vb))
-    return;
-  float x0, y0, x1, y1;
-  to_screen(cam, va, &x0, &y0);
-  to_screen(cam, vb, &x1, &y1);
-  x0 *= REF_WIDTH;
-  x1 *= REF_WIDTH;
-  y0 *= REF_HEIGHT;
-  y1 *= REF_HEIGHT;
-  if (!clip_to_picture(&x0, &y0, &x1, &y1))
-    return;
-  add_line(out, n, x0, y0, x1, y1, color);
-}
-
-/* --- hidden while the game is paused ------------------------------------------------------------- */
-
-/* The game's own pause state (see debug > pause research). Frame advance holds the game without
- * setting these, so the walls still show while frame advancing. */
-#define GD_SEQUENCE_IS_PAUSE 0x604AEBE1u                   /* Sequence_IsPause (bool) */
-#define GD_SEQUENCE_GAME_PAUSE_REQUEST_COUNT 0x64A61098u   /* Sequence_GamePauseRequestCount (int) */
-
-/* True while the game shows its pause screen or an item menu, where the walls would draw over it. */
 static bool game_is_paused(void)
 {
   bool is_pause = false;
@@ -504,8 +353,6 @@ static int sort_near_walls(const cam_t *cam)
   return count;
 }
 
-typedef struct { aw_dot_t *dots; int *n; const cam_t *cam; } void_draw_t;
-
 #define SURFACE_EDGES 6144
 static struct { vec3f_t a,b; int kind; } surface_edges[SURFACE_EDGES];
 static uint16_t surface_edge_slots[16384];
@@ -544,210 +391,39 @@ static void draw_surface(const vec3f_t v[3],int kind,void *arg)
   }
 }
 
-/* Rasterize complete edges, then merge equal horizontal runs vertically. Never
- * drop individual pieces of a line to meet the command budget. Dense views are
- * retried at a coarser image resolution, keeping every projected edge. */
-#define SURFACE_WIDTH 640
-#define SURFACE_HEIGHT 360
-#define SURFACE_RECTS 8000
-static uint8_t surface_mask[SURFACE_WIDTH*SURFACE_HEIGHT];
-static struct { float x0,y0,x1,y1; uint8_t color; } surface_lines[SURFACE_EDGES];
-static struct { uint16_t x0,y0,x1,y1; uint8_t color; } surface_rects[SURFACE_RECTS];
-static unsigned surface_line_count;
-static int surface_width,surface_height;
-
-static int surface_coord(float value,int size)
-{
-  int p=(int)(value*size);
-  return p<0?0:p>=size?size-1:p;
-}
-
-static void surface_rasterize(int width,int height)
-{
-  memset(surface_mask,0,(size_t)width*height);
-  for (unsigned i=0;i<surface_line_count;i++) {
-    int x=surface_coord(surface_lines[i].x0,width),y=surface_coord(surface_lines[i].y0,height);
-    int x1=surface_coord(surface_lines[i].x1,width),y1=surface_coord(surface_lines[i].y1,height);
-    int dx=x1>x?x1-x:x-x1,dy=y1>y?y-y1:y1-y;
-    int sx=x<x1?1:-1,sy=y<y1?1:-1,error=dx+dy;
-    for (;;) {
-      surface_mask[y*width+x]=surface_lines[i].color;
-      if (x==x1 && y==y1) break;
-      int twice=error*2;
-      if (twice>=dy) { error+=dy;x+=sx; }
-      if (twice<=dx) { error+=dx;y+=sy; }
-    }
-  }
-}
-
-/* -1 means retry at lower resolution; no partial image is published. */
-static int surface_pack(int width,int height,int limit)
-{
-  int previous[SURFACE_WIDTH],current[SURFACE_WIDTH],count=0;
-  for (int x=0;x<width;x++) previous[x]=-1;
-  for (int y=0;y<height;y++) {
-    for (int x=0;x<width;x++) current[x]=-1;
-    for (int x=0;x<width;) {
-      uint8_t color=surface_mask[y*width+x];
-      if (!color) { x++;continue; }
-      int end=x+1;
-      while (end<width && surface_mask[y*width+end]==color) end++;
-      int at=previous[x];
-      if (at>=0 && surface_rects[at].x1==end && surface_rects[at].color==color) {
-        surface_rects[at].y1=(uint16_t)(y+1);
-      } else {
-        if (count>=limit) return -1;
-        at=count++;
-        surface_rects[at].x0=(uint16_t)x;surface_rects[at].x1=(uint16_t)end;
-        surface_rects[at].y0=(uint16_t)y;surface_rects[at].y1=(uint16_t)(y+1);
-        surface_rects[at].color=color;
-      }
-      current[x]=at;x=end;
-    }
-    memcpy(previous,current,(size_t)width*sizeof(*previous));
-  }
-  return count;
-}
-
-static void draw_surface_edges(void_draw_t *draw)
-{
-  surface_line_count=0;
-  for (unsigned i=0;i<surface_edge_count;i++) {
-    vec3f_t a=surface_edges[i].a,b=surface_edges[i].b;
-    float p[3]={a.x,a.y,a.z},q[3]={b.x,b.y,b.z},va[3],vb[3];
-    to_view(draw->cam,p,va);to_view(draw->cam,q,vb);
-    if (!clip_near(va,vb)) continue;
-    float x,y,x1,y1;
-    to_screen(draw->cam,va,&x,&y);to_screen(draw->cam,vb,&x1,&y1);
-    x*=REF_WIDTH;x1*=REF_WIDTH;y*=REF_HEIGHT;y1*=REF_HEIGHT;
-    if (!clip_to_picture(&x,&y,&x1,&y1)) continue;
-    unsigned at=surface_line_count++;
-    surface_lines[at].x0=x/REF_WIDTH;surface_lines[at].y0=y/REF_HEIGHT;
-    surface_lines[at].x1=x1/REF_WIDTH;surface_lines[at].y1=y1/REF_HEIGHT;
-    surface_lines[at].color=(uint8_t)(AW_FLOOR+surface_edges[i].kind);
-  }
-  int available=SURFACE_RECTS-*draw->n;
-  if (available<=0 || !surface_line_count) return;
-  surface_width=SURFACE_WIDTH;surface_height=SURFACE_HEIGHT;
-  /* Four bounded attempts: 640x360, 320x180, 160x90, 80x45. The last has
-   * fewer pixels than the surface budget, even with every pixel a new run. */
-  for (int attempt=0;attempt<4;attempt++) {
-    surface_rasterize(surface_width,surface_height);
-    int count=surface_pack(surface_width,surface_height,available);
-    if (count>=0) {
-      for (int i=0;i<count;i++)
-        add_rect(draw->dots,draw->n,
-                 (float)surface_rects[i].x0*REF_WIDTH/surface_width,
-                 (float)surface_rects[i].y0*REF_HEIGHT/surface_height,
-                 (float)surface_rects[i].x1*REF_WIDTH/surface_width,
-                 (float)surface_rects[i].y1*REF_HEIGHT/surface_height,surface_rects[i].color);
-      return;
-    }
-    if (attempt<3) { surface_width/=2;surface_height/=2; }
-  }
-}
-
-static void_hint_t published_hint;
-static unsigned char hint_lock;
-static void publish_void_hint(const cam_t *cam,bool shown)
-{
-  void_hint_t hint={0};
-  if (shown) {
-    vec3f_t position;void_nearest_t nearest;
-    if (!link_drawn_pos(&position)) snprintf(hint.text,sizeof(hint.text),"VOID VIEW: Link position unavailable");
-    else if (void_view_nearest(position,&nearest)) {
-      void_nearest_t global;
-      if (voids_nearest(position,&global)) nearest.inside=global.inside;
-      hint.inside=nearest.inside;hint.near=nearest.distance<2;
-      float p[3]={nearest.point.x,nearest.point.y,nearest.point.z},view[3],x,y;
-      to_view(cam,p,view);
-      const char *direction=view[2]<0?"behind":view[2]<=NEAR_PLANE?"at camera":
-        view[1]>view[2]*cam->tan_y?"above":view[1]<-view[2]*cam->tan_y?"below":
-        view[0]<-view[2]*cam->tan_x?"left":view[0]>view[2]*cam->tan_x?"right":"marked";
-      snprintf(hint.text,sizeof(hint.text),"%s: %.2f u (%s)",
-               nearest.inside?"INSIDE VOID BOUNDS":"VOID BOUNDARY",(double)nearest.distance,direction);
-      if (view[2]>NEAR_PLANE) {
-        to_screen(cam,view,&x,&y);
-        hint.marker=x>=0 && x<=1 && y>=0 && y<=1;
-        hint.x=to_unit16(x,1);hint.y=to_unit16(y,1);
-      }
-    } else {
-      void_nearest_t global;
-      if (voids_nearest(position,&global) && global.inside) {
-        hint.inside=true;
-        snprintf(hint.text,sizeof(hint.text),"INSIDE VOID BOUNDS: boundary out of view");
-      } else snprintf(hint.text,sizeof(hint.text),"VOID VIEW: no mapped boundary visible");
-    }
-    snprintf(hint.detail,sizeof(hint.detail),"50%% tint = visible void boundary");
-  }
-  if (!__atomic_test_and_set(&hint_lock,__ATOMIC_ACQUIRE)) {
-    published_hint=hint;
-    __atomic_clear(&hint_lock,__ATOMIC_RELEASE);
-  }
-}
-
-bool airwall_void_hint(void_hint_t *out)
-{
-  if (__atomic_test_and_set(&hint_lock,__ATOMIC_ACQUIRE)) return false;
-  *out=published_hint;
-  __atomic_clear(&hint_lock,__ATOMIC_RELEASE);
-  return out->text[0]!=0;
-}
-
 void airwall_frame(void)
 {
-  collision_frame();
-  update_map();
-  check_link();
-  int next = published == 0 ? 1 : 0;
-  int n = 0;
-  n_walls_near = 0;
-  bool draw = (airwalls_shown || voids_shown || collision_shown) && !game_is_paused();
+  collision_frame();update_map();check_link();n_walls_near=0;
   cam_t cam;
-  bool has_camera=draw && read_camera(&cam);
-  if (has_camera && voids_shown) {
-    float range=collision_occlusion_range((vec3f_t){cam.pos[0],cam.pos[1],cam.pos[2]});
-    void_view_begin(&cam,range);
-    if (range>0) {
-      collision_each_occluder(void_view_occluder,NULL);
-      voids_each_box(void_view_box,NULL);
-    }
-    void_view_finish();
-    publish_void_hint(&cam,true);
-    if (range<=0 && !__atomic_test_and_set(&hint_lock,__ATOMIC_ACQUIRE)) {
-      snprintf(published_hint.text,sizeof(published_hint.text),"VOID VIEW: preparing visible boundaries");
-      __atomic_clear(&hint_lock,__ATOMIC_RELEASE);
-    }
-  } else {
-    void_view_clear();
-    publish_void_hint(&cam,false);
+  if (!(airwalls_shown || voids_shown || collision_shown) || game_is_paused() || !read_camera(&cam)) {
+    void_view_clear();return;
   }
-  if (has_camera) {
-    void_draw_t void_draw = { dots[next], &n, &cam };
+  float range=collision_occlusion_range((vec3f_t){cam.pos[0],cam.pos[1],cam.pos[2]});
+  void_view_begin(&cam,range);
+  if (range>0) {
+    collision_each_occluder(void_view_occluder,NULL);
+    vec3f_t feet,head;
+    if (!link_drawn_pos(&feet) || !actor_label_position(link_actor(),&head) || !void_view_link(feet,head)) {
+      void_view_clear();return; /* no geometry over an unresolved player */
+    }
+    if (voids_shown) voids_each_box(void_view_box,NULL);
     surface_edges_reset();
     if (collision_shown) {
-      collision_each_triangle(draw_surface,&void_draw);
-      draw_surface_edges(&void_draw);
+      collision_each_triangle(draw_surface,NULL);
+      for (unsigned i=0;i<surface_edge_count;i++)
+        void_view_line(surface_edges[i].a,surface_edges[i].b,(uint8_t)(VIEW_FLOOR+surface_edges[i].kind));
     }
-    /* nearest wall first, so the dot budget goes to what's close */
-    n_walls_near = airwalls_shown && current_map ? sort_near_walls(&cam) : 0;
-    for (int k = 0; k < n_walls_near && n < MAX_DOTS; k++) {
-      int i = near_order[k];
-      const airwall_t *wall = map_wall(i);
-      uint8_t color = i == link_wall ? AW_INSIDE : wall->kind == WALL_KIND_BLOCKS ? AW_BLOCKS : AW_OTHER;
-      for (int e = wall_geo[i].first_edge; e < wall_geo[i].first_edge + wall_geo[i].n_edges; e++)
-        add_edge_dots(dots[next], &n, &cam, points[edges[e][0]], points[edges[e][1]], color);
+    n_walls_near=airwalls_shown && current_map?sort_near_walls(&cam):0;
+    for (int k=0;k<n_walls_near;k++) {
+      int i=near_order[k];const airwall_t *wall=map_wall(i);
+      uint8_t color=i==link_wall?VIEW_INSIDE:wall->kind==WALL_KIND_BLOCKS?VIEW_BLOCKS:VIEW_OTHER;
+      for (int e=wall_geo[i].first_edge;e<wall_geo[i].first_edge+wall_geo[i].n_edges;e++) {
+        const float *a=points[edges[e][0]],*b=points[edges[e][1]];
+        void_view_line((vec3f_t){a[0],a[1],a[2]},(vec3f_t){b[0],b[1],b[2]},color);
+      }
     }
   }
-  n_dots[next] = n;
-  __atomic_store_n(&published, n ? next : -1, __ATOMIC_RELEASE);
-}
-
-const aw_dot_t *airwall_published(int *n)
-{
-  int buffer = __atomic_load_n(&published, __ATOMIC_ACQUIRE);
-  *n = buffer < 0 ? 0 : n_dots[buffer];
-  return buffer < 0 ? 0 : dots[buffer];
+  void_view_finish();
 }
 
 void airwall_summary(char *buf, int len)

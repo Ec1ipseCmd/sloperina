@@ -1079,3 +1079,33 @@ an unpainted foreground blocker. These are synthetic checks, not native visual o
 verification. Collision-only occlusion cannot cover visual-only or unsupported objects. Recognized
 sensor bounds do not map every scripted death condition. Protection, levitation and watches are
 unchanged by this display update.
+
+
+### Bold lines, X-ray surfaces and unwanted void GUI (0.0.10-test9)
+
+The user reported very bold collision lines, wanted 50% opacity and visibility behind Link/scenery,
+and rejected the void warning panel. The old surface path lowered its 640x360 raster to as little as
+80x45 to fit an opaque-clear rectangle budget; enlarging that raster made lines extremely thick.
+Ordinary barriers/surfaces still used that path after test8's separate void fill.
+
+Remove the rectangle raster and the complete void banner/crosshair path. Send surface, barrier and
+void-boundary edges through the shared occlusion/composition path. Preserve projected float endpoints
+until rasterizing one physical output pixel per dominant-axis step. Blend each occupied pixel once
+at 50%, including intersections. Void faces remain filled in world space. Restore original vertices
+after preview-grid selection: rounded vertices can otherwise be hidden behind their own real surface.
+
+Occlusion scans now run for any enabled world view and include all solid types independently of
+filters. Depth-plane gradients let edges on sloped occluders pass the self-depth test continuously.
+A projected envelope from Link's drawn root and validated upper attachment anchor excludes all world
+paint around him. This is deliberately conservative, leaving a gap around the body; no skinned model
+or native scene depth target has been verified. Visual-only/unsupported objects remain a limitation.
+
+Production host tests verify physical line width across viewport sizes, all steep/reversed directions,
+single-alpha overlap, blocker occlusion, sloped continuity, body exclusion, source loss, band crops
+and current-frame cache/fence ordering. A synthetic world image uses the production band compositor
+with no GUI. These checks are not runtime appearance or performance verification. No void suppression,
+levitation, actor behavior, watch IDs or saved-settings schema changes are part of this update.
+
+Read-only validation against the running session also confirmed Link's actor type, attachment-calculator
+owner, and a valid upper anchor (1.86 world units above the displayed feet). No game memory was written;
+this validates the mask input chain, not the new overlay's in-game appearance.

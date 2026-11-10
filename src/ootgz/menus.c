@@ -1910,7 +1910,7 @@ static void build_scene(void)
   menu_item_t *radius=menu_add_option(&m_surfaces,"range",4,surface_range_names,get_surface_range,set_surface_range,0);
   if (radius) radius->hint="World units around Link; complete views stay visible between scans";
   menu_item_t *detail=menu_add_option(&m_surfaces,"preview grid",4,surface_details,get_surface_detail,set_surface_detail,0);
-  if (detail) detail->hint="World units: 1 merges tiny faces for coverage; exact preserves original vertices";
+  if (detail) detail->hint="World units for sampling nearby faces; drawn edges keep their original positions";
   menu_add_text(&m_surfaces,text_surfaces,0);
   menu_add_return(&m_surfaces);
 
@@ -1931,7 +1931,7 @@ static void build_scene(void)
   menu_add_text(&m_collision, text_air_wall_link, 0);
   menu_add_heading(&m_collision, "void sensors");
   menu_item_t *void_show = menu_add_check(&m_collision, "show voids", get_voids_shown, set_voids_shown, 0);
-  if (void_show) void_show->hint = "50% tint: visible active void bounds; solid collision hides covered faces";
+  if (void_show) void_show->hint = "50% world-space void bounds; visible faces and thin edges; no warning panel";
   menu_item_t *void_mode = menu_add_option(&m_collision, "void-outs", VOIDS_MODE_COUNT, voids_mode_names,
                                           get_voids_mode, set_voids_mode, 0);
   if (void_mode) void_mode->hint = "Blocks new player abyss reactions; normal after restart";

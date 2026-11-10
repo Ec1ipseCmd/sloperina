@@ -1,52 +1,45 @@
 # Collision view
 
-**0.0.10-test8:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
-and up to 128 supported actor mesh bodies through their live physics controllers.
-**Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
-(pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
-Enable **show voids** for a 50% red-orange fill on visible active void boundary faces.
-Faces behind supported loaded solid collision, outside the camera view or outside the complete
-occlusion snapshot's range are hidden. Inactive sensor bounds are hidden. A cross and distance mark
-the nearest visible part; the inside-bounds warning remains even when no boundary is visible.
-The occlusion mesh is exact and independent of the surface display toggles, grid and range.
-This is collision-based visibility, not the game's depth buffer: visual-only objects and unsupported
-shapes cannot mask it. A one-cell conservative edge margin can trim a narrow visible opening.
-Large faces remain visible when their corners and perimeter are off-screen.
-These are sensor bounds, not guessed death heights; curved sensors can occupy only part of a box.
-Distances are world units from Link's displayed position to the sampled visible boundary, not capsule
-clearance. Hidden nearby boundaries do not affect that distance. **INSIDE VOID BOUNDS** means Link's
-point is inside a recognized active box. No visible boundaries does not mean the area is safe.
-Selections persist. Existing invisible-barrier and void-sensor controls are independent.
+**0.0.10-test9:** surfaces and invisible barriers use continuous **one-output-pixel lines at 50%
+opacity**. Thickness does not change with menu size, distance, display resolution or scene density.
+The old coarse-raster enlargement and opaque rectangle drawing are removed. Crossings blend once.
+Supported loaded solid collision hides covered portions, independently of which display filters are on.
+A conservative projected body/attachment envelope keeps the overlay off Link; it can leave empty space
+around him. This is not an exact character silhouette or the game's GPU depth buffer. Visual-only
+objects and unsupported collision shapes may not hide the overlay.
 
-This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
-per frame. Complete views stay visible until the next scan finishes. Range defaults to 12 world units;
-existing saved ranges are preserved. **preview grid** defaults to 1 world unit: vertices are rounded to
-a fixed world grid, collapsed faces discarded and duplicates merged. This improves coverage but can omit
-small features and move a vertex by up to half a grid step per axis. Choose **0.5**, **0.25**, or **exact**
-for finer inspection. Static triggers and void bounds are never snapped. Only the visualization changes.
-Surface edges are continuous raster lines, not sampled dots. Adjacent pixels are merged into rectangles
-for the existing shader-free renderer. The image starts at 640x360 and can fall back to 320x180, 160x90,
-or 80x45 to fit a bounded 8000-rectangle surface budget. Crowded views therefore have coarser/thicker
-outlines instead of missing pieces along every edge. The shared overlay limit is 12000 rectangles and
-command memory is 2 MiB per render slot, with the existing free-space guard retained. Ordinary
-surface lines and invisible barriers keep their previous style and draw through scenery.
-Void visibility uses a separate 320x180 depth/coverage image and up to 32768 exact solid triangles
-within 64 units of Link, scanned at 16384 primitives per frame while the void view is enabled.
-At capacity the guaranteed coverage radius shrinks to the nearest omitted geometry, and camera
-movement reduces it further. The view waits for complete scans; dense maps can take several frames.
-The renderer reads the current RGBA8 picture into bounded 64-row bands, waits for its fence,
-invalidates CPU cache, blends covered pixels once, flushes, and copies them back before other overlay
-content. This adds a GPU wait when a void face is visible; native performance still needs testing.
-Unsupported formats or allocation/cache-API failure disable the fill with a log message. There is
-no fallback to drawing faces through scenery. Unsupported shapes are skipped; capsules/spheres, independently allocated actor shape clones, and unclassified
-scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
+**Scene > Collision > show voids** displays active recognized void bounds directly in the world:
+50% red-orange faces and thin boundary edges. There is **no warning panel, crosshair, distance text,
+or inside-warning HUD**. Large faces remain visible when their perimeter is off-screen. Inactive
+sensors, off-screen faces and covered portions are hidden. The fill indicates the mapped sensor
+volume, not a guessed safe height. Curved sensors can occupy only part of their box, and unsupported
+scripted deaths are not mapped. No visible boundary does not establish safety or exact body clearance.
 
-No extracted collision files are distributed. Read-only checks located live tiles and the decoder was
-compared with `tools/phive.py` on loaded Castle Town data. Native build, synthetic malformed-data and
-lifecycle tests, and headless menu/projection tests pass. The user confirmed geometry appears in test2,
-but reported flicker and poor coverage. After test3 the user described the view as normal but its lines
-as very broken. Test4 removes the line-piece sampling; connectivity, dense fallback, lossless packing and
-production drawing pass host tests. Test4's in-game appearance and performance still need confirmation.
+**surfaces / triggers** offers independent floors (green), walls (blue), ceilings (pink), and static
+triggers (yellow). Enable **show surfaces**; range is 4/8/12/20 world units. **preview grid** keeps its
+saved values but now only selects representative faces: rendered vertices stay at their original
+positions so grid snapping cannot move an edge behind its own occluder. Coarse sampling can omit small
+features; choose **exact** for individual triangle detail. The bounded surface preview retains at most
+2048 triangles and 6144 unique edges. Geometry beyond the line capacity is omitted, never thickened.
+Visibility and void-protection settings remain independent, with existing saved selections preserved.
+
+The shared renderer collects up to 32768 exact solid triangles within 64 units of Link, scanning at
+16384 primitives per frame. Complete snapshots replace each other; dense scenes need several frames.
+At capacity the guaranteed range shrinks conservatively and is reduced by camera displacement.
+Nothing is drawn outside that coverage or before a complete snapshot/player position is available.
+Depth uses a 320x180 raster; edge samples evaluate the selected triangle's depth plane at subpixel
+positions to prevent self-occlusion gaps on slopes. Visible segments stay in floating-point screen
+coordinates until one-pixel rasterization at the actual viewport size. Up to 16384 segments and the
+void face mask are published together. The renderer reads current-frame RGBA8 bands, fences and
+flushes the queue, blends only marked pixels, flushes CPU cache, and copies back before menus/watches.
+Unsupported formats/cache/queue support disable the world overlay and log the failure. This GPU wait
+and CPU work still need native performance testing.
+
+Host checks cover line width from 640 to 3840 pixels, steep/reversed slopes, occlusion, body exclusion,
+odd cropped regions, single-alpha crossings, unavailable sources and scene transitions. Production
+headless band rendering is exercised in `tests/run_void_view.py`. Appearance and performance of test9
+have not been verified in-game. No game assets are added by this display update.
+
 The historical research and future GPU-rendering plan follow; the native
 loaded-resource chain described above resolves the earlier question of finding collision in memory.
 
