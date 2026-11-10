@@ -1,5 +1,6 @@
 #include "collision.h"
 #include "actors.h"
+#include "voids.h"
 #include "gamedata.h"
 #include "sys.h"
 #include "z64hd.h"
@@ -26,6 +27,26 @@ static unsigned unsupported;
 static vec3f_t centre;
 static int previous_kinds, previous_radius, previous_detail;
 static uintptr_t previous_actor;
+static bool previous_voids,previous_shown;
+#define OCCLUDER_MAX 32768
+#define OCCLUDER_RANGE 64.0f
+static triangle_t occluders[OCCLUDER_MAX],occluder_candidates[OCCLUDER_MAX];
+static unsigned occluder_count,occluder_candidate_count;
+static vec3f_t occluder_centre;
+static float occluder_range;
+
+/* Input is a nonnegative squared AABB distance. Use the CPU instruction without
+ * a libm/errno fallback: this module has no verified sqrtf import. */
+static float distance_root(float squared)
+{
+#if defined(__aarch64__)
+  float result;
+  __asm__("fsqrt %s0, %s1" : "=w"(result) : "w"(squared));
+  return result;
+#else
+  return __builtin_sqrtf(squared);
+#endif
+}
 
 static uintptr_t next(uintptr_t p, unsigned off)
 { return p && !(p&7) && p<=UINTPTR_MAX-off ? sys_ptr(p+off) : 0; }
@@ -33,6 +54,7 @@ static uintptr_t next(uintptr_t p, unsigned off)
 static void reset(void)
 {
   count=visible_count=0; cursor=0; collecting=false; ready=false;
+  occluder_count=occluder_candidate_count=0;occluder_range=0;
 }
 
 /* A fixed 4x4 streaming tile window plus the map-wide tile. These are native
@@ -152,6 +174,26 @@ static void collect(const vec3f_t v[3], int kind, void *ctx)
   }
   float p[3]={centre.x,centre.y,centre.z},distance=0;
   for (int j=0;j<3;j++) { float d=p[j]<low[j]?low[j]-p[j]:p[j]>high[j]?p[j]-high[j]:0; distance+=d*d; }
+  if (voids_shown && kind!=COLLISION_TRIGGER && distance<OCCLUDER_RANGE*OCCLUDER_RANGE) {
+    triangle_t item={.distance=distance,.kind=kind};memcpy(item.v,v,sizeof(item.v));
+    if (occluder_candidate_count<OCCLUDER_MAX) {
+      unsigned at=occluder_candidate_count++;
+      while (at && occluder_candidates[(at-1)/2].distance<distance) {
+        occluder_candidates[at]=occluder_candidates[(at-1)/2];at=(at-1)/2;
+      }
+      occluder_candidates[at]=item;
+    } else if (distance<occluder_candidates[0].distance) {
+      unsigned at=0;
+      while (at*2+1<occluder_candidate_count) {
+        unsigned child=at*2+1;
+        if (child+1<occluder_candidate_count && occluder_candidates[child+1].distance>occluder_candidates[child].distance) child++;
+        if (occluder_candidates[child].distance<=distance) break;
+        occluder_candidates[at]=occluder_candidates[child];at=child;
+      }
+      occluder_candidates[at]=item;
+    }
+  }
+  if (!collision_shown || !(collision_kinds&(1<<kind))) return;
   if (distance>(float)(collision_radius*collision_radius)) return;
   triangle_t item={ .distance=distance,.kind=kind };
   memcpy(item.v,v,sizeof(item.v));
@@ -178,7 +220,7 @@ void collision_frame(void)
   gd_get_bool(0xEF2B60C2u,&loading);
   gd_get_bool(0xF8633C7Fu,&changing);
   vec3f_t player;
-  if (!collision_shown || !collision_kinds || loading || changing || !link_drawn_pos(&player) ||
+  if ((!voids_shown && (!collision_shown || !collision_kinds)) || loading || changing || !link_drawn_pos(&player) ||
       !(player.x>-100000 && player.x<100000 && player.y>-100000 && player.y<100000 &&
         player.z>-100000 && player.z<100000)) { tile_count=0; reset(); return; }
   memset(current,0,sizeof(current));
@@ -186,7 +228,7 @@ void collision_frame(void)
   unsigned sources=TILE_COUNT;
   actors_each(actor_shapes,&sources);
   uintptr_t actor=link_actor();
-  bool changed=actor!=previous_actor || previous_kinds!=collision_kinds ||
+  bool changed=actor!=previous_actor || previous_voids!=voids_shown || previous_shown!=collision_shown || previous_kinds!=collision_kinds ||
                previous_radius!=collision_radius || previous_detail!=collision_detail;
   tile_count=0;
   for (unsigned i=0;i<SOURCE_COUNT;i++) {
@@ -195,16 +237,18 @@ void collision_frame(void)
     if (current[i].data) tile_count++;
   }
   previous_actor=actor; previous_kinds=collision_kinds; previous_radius=collision_radius;
+  previous_voids=voids_shown; previous_shown=collision_shown;
   previous_detail=collision_detail;
   if (changed) reset();
   float dx=player.x-centre.x,dy=player.y-centre.y,dz=player.z-centre.z;
   if (dx*dx+dy*dy+dz*dz>64) reset(); /* teleport; old geometry must disappear */
   if (!collecting) {
     memcpy(tiles,current,sizeof(tiles)); /* one coherent transform per scan */
-    centre=player; count=0; cursor=0; collecting=true;
+    centre=player; count=occluder_candidate_count=0; cursor=0; collecting=true;
     memset(seen,0,sizeof(seen));
   }
-  collision_scan_t scan={ .skip=cursor,.remaining=SCAN_BUDGET,.kinds=(unsigned)collision_kinds,
+  collision_scan_t scan={ .skip=cursor,.remaining=voids_shown?SCAN_BUDGET*4:SCAN_BUDGET,
+                         .kinds=(unsigned)collision_kinds|(voids_shown?7u:0u),
                          .main=z64hd_main,.triangle=collect };
   for (unsigned i=0;i<SOURCE_COUNT && scan.remaining;i++) {
     if (!tiles[i].data) continue;
@@ -224,12 +268,31 @@ void collision_frame(void)
       visible[at]=v;
     }
     ready=true;
+    if (voids_shown) {
+      occluder_count=occluder_candidate_count;occluder_centre=centre;
+      memcpy(occluders,occluder_candidates,sizeof(triangle_t)*occluder_count);
+      /* At capacity, omit farther void fragments rather than pretending omitted
+       * blockers are empty space. All closer AABB distances were retained. */
+      occluder_range=occluder_count<OCCLUDER_MAX?OCCLUDER_RANGE:distance_root(occluder_candidates[0].distance);
+    }
   }
   if (scan.remaining) { collecting=false; unsupported=scan.unsupported; }
 }
 
 void collision_each_triangle(void (*draw)(const vec3f_t [3],int,void *),void *ctx)
 { for (unsigned i=0;i<visible_count;i++) draw(visible[i].v,visible[i].kind,ctx); }
+
+float collision_occlusion_range(vec3f_t camera)
+{
+  float sqrtf(float);
+  if (!ready || !voids_shown || !tile_count || !occluder_count) return 0;
+  float x=camera.x-occluder_centre.x,y=camera.y-occluder_centre.y,z=camera.z-occluder_centre.z;
+  float range=occluder_range-sqrtf(x*x+y*y+z*z)-.05f;
+  return range>0?range:0;
+}
+
+void collision_each_occluder(void (*visit)(const vec3f_t [3],int,void *),void *ctx)
+{ for (unsigned i=0;i<occluder_count;i++) visit(occluders[i].v,occluders[i].kind,ctx); }
 
 void collision_summary(char *buf,int len)
 {

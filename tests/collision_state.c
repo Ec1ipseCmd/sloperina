@@ -5,6 +5,7 @@
 static uint64_t objects[19][2560],original[19][2560];
 #define A(i) ((uintptr_t)objects[i])
 uintptr_t z64hd_main=0x100000000ull;
+bool voids_shown;
 static bool loading,changing,mapped=true;
 static uintptr_t actor=123;
 static unsigned drawn;
@@ -111,6 +112,31 @@ int main(void)
   mapped=false;collision_frame();assert(!visible_count);
   mapped=true;finish();assert(visible_count);
   collision_shown=false;collision_frame();assert(!visible_count);
+  /* Void occlusion collects exact solids independently of every display filter. */
+  voids_shown=true;collision_kinds=0;collision_radius=1;collision_detail=3;
+  collision_frame();assert(collecting && !occluder_count && !collision_occlusion_range((vec3f_t){0}));
+  finish();assert(occluder_count==20000 && !visible_count);
+  assert(collision_occlusion_range((vec3f_t){0})>63);
+  assert(collision_occlusion_range((vec3f_t){100,0,0})==0);
+  assert(occluders[0].v[1].x-occluders[0].v[0].x>.10f && occluders[0].v[1].x-occluders[0].v[0].x<.12f);
+  collision_frame();assert(collecting && occluder_count==20000);
+  loading=true;collision_frame();assert(!occluder_count && !collision_occlusion_range((vec3f_t){0}));
+  loading=false;finish();assert(occluder_count==20000);
+  collision_shown=true;collision_frame();assert(!occluder_count);finish();assert(occluder_count);
+  /* At capacity retain all nearer AABBs; a trigger never occupies a blocker slot. */
+  occluder_candidate_count=0;
+  for (unsigned i=0;i<OCCLUDER_MAX+100;i++) {
+    float z=1+(float)i*.001f;
+    vec3f_t v[3]={{0,0,z},{.1f,0,z},{0,.1f,z}};collect(v,COLLISION_WALL,NULL);
+  }
+  assert(occluder_candidate_count==OCCLUDER_MAX);
+  float far=1+(OCCLUDER_MAX-1)*.001f;
+  assert(occluder_candidates[0].distance>=far*far-.01f && occluder_candidates[0].distance<=far*far+.01f);
+  vec3f_t near_trigger[3]={{0,0,1},{1,0,1},{0,1,1}};
+  collect(near_trigger,COLLISION_TRIGGER,NULL);
+  assert(occluder_candidates[0].distance>=far*far-.01f);
+  voids_shown=false;collision_shown=false;collision_frame();assert(!occluder_count);
+  assert(!memcmp(original,objects,sizeof(original)));
   memset(seen,0,sizeof(seen));
   triangle_t trigger={.v={{.1f,.1f,3},{.2f,.1f,3},{.1f,.2f,3}},.kind=COLLISION_TRIGGER};
   assert(preview_triangle(&trigger) && trigger.v[0].x==.1f && trigger.v[2].x==.2f);

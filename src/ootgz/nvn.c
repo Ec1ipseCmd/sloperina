@@ -23,6 +23,7 @@
 
 #include "font.h"
 #include "airwall.h"
+#include "void_view.h"
 #include "enemy_health.h"
 #include "gfx.h"
 #include "sys.h"
@@ -1156,8 +1157,8 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     [AW_BLOCKS] = { 0.23f, 0.84f, 1.0f, 1.0f }, /* cyan: stops Link */
     [AW_INSIDE] = { 1.0f, 0.28f, 0.28f, 1.0f }, /* red: Link is inside it */
     [AW_OTHER] = { 0.60f, 0.55f, 1.0f, 1.0f },  /* violet: other kinds */
-    [AW_VOID] = { 1.0f, 0.20f, 0.15f, 1.0f }, /* red hatch: active void sensor bounds */
-    [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* its logic condition is false */
+    [AW_VOID] = { 1.0f, 0.20f, 0.15f, 1.0f }, /* reserved legacy void-outline color */
+    [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* reserved legacy inactive-outline color */
     [AW_FLOOR] = { 0.30f, 1.0f, 0.35f, 1.0f },
     [AW_WALL] = { 0.25f, 0.65f, 1.0f, 1.0f },
     [AW_CEILING] = { 1.0f, 0.35f, 0.75f, 1.0f },
@@ -1167,11 +1168,7 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
   int size = MIN_DOT_SIZE; /* line width is independent of menu text size */
   set_render_target(tex);
   int rectangles=0;
-  /* Danger boundaries must remain legible over ordinary collision and inactive
-   * sensors, regardless of actor-list order. */
-  for (int pass=0;pass<3;pass++) for (int i = 0; i < n; i++) {
-    int layer=dots[i].color==AW_VOID?2:dots[i].color==AW_VOID_INACTIVE?1:0;
-    if (layer!=pass) continue;
+  for (int i = 0; i < n; i++) {
     if (command_memory_low(rectangles++)) {
       reset_scissor();
       return;
@@ -1574,6 +1571,98 @@ static void record_readback(nvn_texture_t *tex, const panel_draw_t *draw)
   }
 }
 
+/* Read the current picture, blend only depth-tested void pixels, then copy it
+ * back in the same present. Never blend against the menu's older readbacks. */
+#define VOID_FILL_ROWS 64
+#define VOID_FILL_BANDS 64
+static struct {
+  nvn_obj_t pool;
+  uint32_t *pixels;
+  size_t capacity;
+  nvn_region_t region;
+  bool ready;
+} void_fill_bands[VOID_FILL_BANDS];
+static uint8_t void_fill_mask[VOID_VIEW_PIXELS];
+static bool void_fill_failed;
+static void (*void_fill_flush)(const nvn_obj_t *,ptrdiff_t,size_t);
+static void (*void_fill_queue_flush)(nvn_queue_t *);
+
+static bool prepare_void_fill(nvn_queue_t *queue,nvn_texture_t *tex,nvn_rect_t area,int slot)
+{
+  if (void_fill_failed) return false;
+  if (!void_fill_flush)
+    void_fill_flush=(void (*)(const nvn_obj_t *,ptrdiff_t,size_t))real_getproc(device,"nvnMemoryPoolFlushMappedRange");
+  if (!void_fill_queue_flush)
+    void_fill_queue_flush=(void (*)(nvn_queue_t *))real_getproc(device,"nvnQueueFlush");
+  if (!is_rgba8(swapchain_format) || !void_fill_flush || !void_fill_queue_flush ||
+      area.h>VOID_FILL_ROWS*VOID_FILL_BANDS || area.w>4096) {
+    log_printf("void fill unavailable: format %d, viewport %dx%d, cache/queue APIs %d/%d",
+               swapchain_format,area.w,area.h,void_fill_flush!=NULL,void_fill_queue_flush!=NULL);
+    void_fill_failed=true;return false;
+  }
+  for (int band=0;band<VOID_FILL_BANDS;band++) {
+    void_fill_bands[band].ready=false;
+    int y=band*VOID_FILL_ROWS;if (y>=area.h) continue;
+    int h=area.h-y<VOID_FILL_ROWS?area.h-y:VOID_FILL_ROWS;
+    int low=VOID_VIEW_WIDTH,high=-1;
+    int y0=y*VOID_VIEW_HEIGHT/area.h,y1=(y+h-1)*VOID_VIEW_HEIGHT/area.h;
+    for (int yy=y0;yy<=y1;yy++) for (int x=0;x<VOID_VIEW_WIDTH;x++)
+      if (void_fill_mask[yy*VOID_VIEW_WIDTH+x]) { if (x<low) low=x;if (x>high) high=x; }
+    if (high<low) continue;
+    int x0=low*area.w/VOID_VIEW_WIDTH,x1=((high+1)*area.w+VOID_VIEW_WIDTH-1)/VOID_VIEW_WIDTH;
+    size_t bytes=(size_t)(x1-x0)*h*4;
+    if (!void_fill_bands[band].pixels) {
+      size_t capacity=round_page((size_t)fn.tex_width(tex)*VOID_FILL_ROWS*4);
+      void_fill_bands[band].pixels=aligned_alloc(PAGE_SIZE,capacity);
+      void_fill_bands[band].capacity=capacity;
+      if (!void_fill_bands[band].pixels ||
+          !make_pool(&void_fill_bands[band].pool,void_fill_bands[band].pixels,capacity,POOL_CPU_CACHED|POOL_GPU_UNCACHED)) {
+        log_printf("void fill unavailable: allocation/pool for band %d (%u bytes)",band,(unsigned)capacity);
+        void_fill_failed=true;return false;
+      }
+    }
+    if (bytes>void_fill_bands[band].capacity) {
+      log_printf("void fill unavailable: resolution increased beyond allocated storage; restart required");
+      void_fill_failed=true;return false;
+    }
+    void_fill_bands[band].region=(nvn_region_t){area.x+x0,area.y+y,0,x1-x0,h,1};
+    void_fill_bands[band].ready=true;
+  }
+  fn.cmd_add_command(&cmd_buffer,&command_pool,slot*CMD_SIZE,CMD_SIZE);
+  fn.cmd_add_control(&cmd_buffer,control_mem+slot*CTRL_SIZE,CTRL_SIZE);
+  fn.cmd_begin(&cmd_buffer);
+  for (int i=0;i<VOID_FILL_BANDS;i++) if (void_fill_bands[i].ready)
+    fn.cmd_copy_to_buffer(&cmd_buffer,tex,0,&void_fill_bands[i].region,fn.pool_address(&void_fill_bands[i].pool),0);
+  nvn_handle_t handle=fn.cmd_end(&cmd_buffer);
+  fn.queue_submit(queue,1,&handle);
+  fn.queue_fence(queue,&slot_sync[slot],SYNC_ALL_GPU_COMMANDS_COMPLETE,0);
+  slot_used[slot]=true;
+  /* Present normally flushes later. This readback must reach the GPU before
+   * the CPU waits, while still inside the present hook. */
+  void_fill_queue_flush(queue);
+  if (!slot_finished(slot)) { overlay_fail("GPU didn't finish void readback");return false; }
+  for (int i=0;i<VOID_FILL_BANDS;i++) if (void_fill_bands[i].ready) {
+    nvn_region_t r=void_fill_bands[i].region;size_t bytes=(size_t)r.w*r.h*4;
+    fn.pool_invalidate(&void_fill_bands[i].pool,0,bytes);
+    uint32_t *pixels=void_fill_bands[i].pixels;
+    for (int y=0;y<r.h;y++) {
+      int my=(r.y-area.y+y)*VOID_VIEW_HEIGHT/area.h;
+      for (int x=0;x<r.w;x++) {
+        int mx=(r.x-area.x+x)*VOID_VIEW_WIDTH/area.w;
+        if (void_fill_mask[my*VOID_VIEW_WIDTH+mx]) pixels[y*r.w+x]=void_view_blend(pixels[y*r.w+x]);
+      }
+    }
+    void_fill_flush(&void_fill_bands[i].pool,0,bytes);
+  }
+  return true;
+}
+
+static void copy_void_fill(nvn_texture_t *tex)
+{
+  for (int i=0;i<VOID_FILL_BANDS;i++) if (void_fill_bands[i].ready)
+    fn.cmd_copy_to_texture(&cmd_buffer,fn.pool_address(&void_fill_bands[i].pool),tex,0,&void_fill_bands[i].region,0);
+}
+
 static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
 {
   const gfx_screen_t *screen = gfx_published();
@@ -1583,8 +1672,9 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   const aw_dot_t *dots = airwall_published(&n_dots);
   void_hint_t void_hint;
   bool has_void_hint=airwall_void_hint(&void_hint);
+  bool has_void_fill=void_view_copy(void_fill_mask);
   int pause_icon = gfx_pause_icon;
-  if ((!screen && !n_dots && !n_health && !pause_icon && !has_void_hint) || overlay_state == OV_FAILED)
+  if ((!screen && !n_dots && !n_health && !pause_icon && !has_void_hint && !has_void_fill) || overlay_state == OV_FAILED)
     return;
   if (index < 0 || index >= swapchain_texture_count) {
     static bool warned;
@@ -1688,13 +1778,19 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
     draw->scale = scale;
     n++;
   }
-  if (!n && !n_dots && !n_health && !pause_icon && !has_void_hint)
+  if (!n && !n_dots && !n_health && !pause_icon && !has_void_hint && !has_void_fill)
     return;
+  if (has_void_fill && !prepare_void_fill(queue,tex,frame.area,frame.slot)) {
+    if (overlay_state==OV_FAILED) return;
+    has_void_fill=false;
+    if (has_void_hint) snprintf(void_hint.detail,sizeof(void_hint.detail),"Void fill unavailable; see log");
+  }
   __asm__ volatile("dsb sy" ::: "memory"); /* pixels reach memory before the GPU copies them */
 
   fn.cmd_add_command(&cmd_buffer, &command_pool, frame.slot * CMD_SIZE, CMD_SIZE);
   fn.cmd_add_control(&cmd_buffer, control_mem + frame.slot * CTRL_SIZE, CTRL_SIZE);
   fn.cmd_begin(&cmd_buffer);
+  if (has_void_fill) copy_void_fill(tex);
   if (n_dots)
     draw_airwall_dots(dots, n_dots, tex, frame.area, th, frame.scale);
   if (has_void_hint)

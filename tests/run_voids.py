@@ -76,7 +76,7 @@ def main():
     for name, source in (("voids", "tests/voids.c"), ("void_geometry", "tests/void_geometry.c"),
                          ("mkips_test", "src/host/mkips.c")):
         exe = out / (name + suffix)
-        extra = (["src/ootgz/world_view.c", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"]
+        extra = (["src/ootgz/world_view.c", "src/ootgz/void_view.c", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"]
                  if name == "void_geometry" else [])
         for command in ([args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Isrc/ootgz",
                          source] + extra + ["-lm", "-o", str(exe)],

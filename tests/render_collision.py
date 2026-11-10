@@ -132,23 +132,23 @@ int main(void)
   file=fopen("obj/tests/collision-dense.ppm","wb");assert(file);
   fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
   printf("Dense scene: %u projected edges, %dx%d raster, %d rectangles\n",surface_line_count,surface_width,surface_height,n);
-  memset(pixels,30,sizeof(pixels));n=0;
   vec3f_t corners[8];
-  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
-  draw_void_box(corners,true,&dense);assert(n>0);
-  draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
-  file=fopen("obj/tests/void-large-volume.ppm","wb");assert(file);
-  fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
   for (int scenario=0;scenario<3;scenario++) {
-    memset(pixels,40,sizeof(pixels));n=0;
+    memset(pixels,40,sizeof(pixels));
     for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?2:-2,i&2?2:-1,i&4?7:5};
     if (scenario==1) for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
+    void_view_begin(&cam,60);
+    if (scenario!=2) void_view_box(corners,true,NULL);
+    void_view_finish();
+    uint8_t coverage[VOID_VIEW_PIXELS];
+    if (void_view_copy(coverage)) for (int y=0;y<360;y++) for (int x=0;x<640;x++) {
+      if (!coverage[y/2*VOID_VIEW_WIDTH+x/2]) continue;
+      uint32_t color=void_view_blend(0xff282828u);
+      for (int k=0;k<3;k++) pixels[y][x][k]=(color>>(8*k))&255;
+    }
     position_ready=nearest_ready=true;
-    fake_nearest=(void_nearest_t){.point={0,0,5},.distance=2.3f,.inside=scenario==1};
-    if (scenario==2) nearest_ready=false;
-    else draw_void_box(corners,true,&dense);
+    fake_nearest=(void_nearest_t){.inside=scenario==1};
     publish_void_hint(&cam,true);void_hint_t hint;assert(airwall_void_hint(&hint));
-    draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
     draw_void_hint(&hint,NULL,(nvn_rect_t){0,0,640,360},360,32);
     char path[80];snprintf(path,sizeof(path),"obj/tests/void-warning-%d.ppm",scenario);
     file=fopen(path,"wb");assert(file);
@@ -164,7 +164,7 @@ path = out / "collision_overlay.c"
 path.write_text(overlay, encoding="utf-8")
 exe = out / ("collision_overlay.exe" if os.name == "nt" else "collision_overlay")
 for cmd in ([args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Isrc/ootgz", str(path),
-             "src/ootgz/world_view.c", "src/ootgz/font.c", "-lm", "-o", str(exe)], [str(exe)]):
+             "src/ootgz/world_view.c", "src/ootgz/void_view.c", "src/ootgz/font.c", "-lm", "-o", str(exe)], [str(exe)]):
     result = subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, **flags)
     print(result.stdout, end="")
     print(result.stderr, end="")

@@ -133,7 +133,7 @@ The two lines under them count the walls in this map and those near you, and say
 
 | Item | What it does |
 |---|---|
-| **show voids** | Draw recognized player void-sensor bounds within 60 units. Red hatched faces: active logic; grey: its condition is false. Includes nearest-boundary distance, an on-screen cross or off-screen direction, and an inside-bounds warning. Saved between launches. |
+| **show voids** | Fill visible active player void-sensor bounds with a 50% red-orange tint. Loaded solid collision masks covered faces; inactive sensors and off-screen faces are hidden. Includes distance/cross to the nearest visible part and an inside-bounds warning. Saved between launches. |
 | **void-outs** | **normal**, **off while levitating**, or **off**. Filters Link's abyss/sand messages and blocks new abyss reactions before camera/event dispatch. Shows `void-out blocked` when intercepted. Enable before entering a trigger; does not cancel an event already running. Resets to normal at launch. |
 
 The summary counts recognized sensors, supported bounds and unavailable bounds. When none are identified,
@@ -397,4 +397,7 @@ Test6 levitation fix: L3 release restores collision on every attached controller
 that hover session, including bodies selected by posture changes. Restart after installing; the update
 does not repair a collision flag already left disabled by the old module in a running session.
 To inspect the tower death barrier, enable Scene > Collision > show voids. Large identified
-volumes show red hatched faces and solid outlines, including from inside the bounds. Protection and visualization remain independent controls.
+volumes show a 50% red-orange fill on visible faces, including from inside the bounds.
+Visibility uses supported loaded solid collision, not the renderer's depth buffer: visual-only objects
+and unsupported shapes may not hide it. The view waits for a complete collision scan and hides
+fragments outside its bounded coverage. An empty view does not prove that an area is safe. Protection and visualization remain independent controls.

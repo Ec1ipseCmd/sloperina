@@ -1,17 +1,21 @@
 # Collision view
 
-**0.0.10-test7:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
+**0.0.10-test8:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
 and up to 128 supported actor mesh bodies through their live physics controllers.
 **Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
 (pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
-Enable **show voids** for red hatched boundary faces and a persistent distance/inside warning.
-Grey hatching means the sensor condition is inactive. A cross marks the nearest active boundary;
-if it is off-screen, the warning says behind/above/below/left/right. Full-face clipping keeps
-large and close-up boundaries visible even when their corners and perimeter are off-screen.
+Enable **show voids** for a 50% red-orange fill on visible active void boundary faces.
+Faces behind supported loaded solid collision, outside the camera view or outside the complete
+occlusion snapshot's range are hidden. Inactive sensor bounds are hidden. A cross and distance mark
+the nearest visible part; the inside-bounds warning remains even when no boundary is visible.
+The occlusion mesh is exact and independent of the surface display toggles, grid and range.
+This is collision-based visibility, not the game's depth buffer: visual-only objects and unsupported
+shapes cannot mask it. A one-cell conservative edge margin can trim a narrow visible opening.
+Large faces remain visible when their corners and perimeter are off-screen.
 These are sensor bounds, not guessed death heights; curved sensors can occupy only part of a box.
-Distances are world units from Link's displayed position to those bounds, not capsule clearance.
-The warning says **INSIDE VOID BOUNDS** when that point is inside a recognized active box.
-No active mapped boundaries does not mean the area is safe: unsupported logic is still omitted.
+Distances are world units from Link's displayed position to the sampled visible boundary, not capsule
+clearance. Hidden nearby boundaries do not affect that distance. **INSIDE VOID BOUNDS** means Link's
+point is inside a recognized active box. No visible boundaries does not mean the area is safe.
 Selections persist. Existing invisible-barrier and void-sensor controls are independent.
 
 This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
@@ -24,10 +28,17 @@ Surface edges are continuous raster lines, not sampled dots. Adjacent pixels are
 for the existing shader-free renderer. The image starts at 640x360 and can fall back to 320x180, 160x90,
 or 80x45 to fit a bounded 8000-rectangle surface budget. Crowded views therefore have coarser/thicker
 outlines instead of missing pieces along every edge. The shared overlay limit is 12000 rectangles and
-command memory is 2 MiB per render slot, with the existing free-space guard retained. Void faces use a separate, bounded 4000-rectangle hatch/outline budget. Their screen spacing
-does not grow with distance or menu text size. Ordinary invisible barriers keep their previous style. Geometry refresh takes
-several frames and can take longer in dense maps. It draws
-through scenery. Unsupported shapes are skipped; capsules/spheres, independently allocated actor shape clones, and unclassified
+command memory is 2 MiB per render slot, with the existing free-space guard retained. Ordinary
+surface lines and invisible barriers keep their previous style and draw through scenery.
+Void visibility uses a separate 320x180 depth/coverage image and up to 32768 exact solid triangles
+within 64 units of Link, scanned at 16384 primitives per frame while the void view is enabled.
+At capacity the guaranteed coverage radius shrinks to the nearest omitted geometry, and camera
+movement reduces it further. The view waits for complete scans; dense maps can take several frames.
+The renderer reads the current RGBA8 picture into bounded 64-row bands, waits for its fence,
+invalidates CPU cache, blends covered pixels once, flushes, and copies them back before other overlay
+content. This adds a GPU wait when a void face is visible; native performance still needs testing.
+Unsupported formats or allocation/cache-API failure disable the fill with a log message. There is
+no fallback to drawing faces through scenery. Unsupported shapes are skipped; capsules/spheres, independently allocated actor shape clones, and unclassified
 scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
 
 No extracted collision files are distributed. Read-only checks located live tiles and the decoder was
@@ -43,8 +54,7 @@ The goal: **scene > collision > show collision** draws the floors, walls and cei
 collision view), coloured by kind, the way the air walls are drawn now.
 
 The native test build separately adds **Scene > Collision > show voids**. It resolves live Area
-logic/sensor objects and draws supported player-void sensor bounding boxes, using the existing air-wall
-  renderer. This is separate from solid mesh triangles. No extracted geometry is added
+logic/sensor objects and fills visible faces of supported player-void sensor bounding boxes. This is separate from solid mesh triangles. No extracted geometry is added
 for the void viewer; see [MANUAL.md](MANUAL.md#231-collision) for coverage and controls.
 
 ## Contents

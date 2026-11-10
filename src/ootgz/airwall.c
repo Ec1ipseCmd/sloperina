@@ -11,6 +11,7 @@
 #include "airwall.h"
 #include "world_view.h"
 #include "voids.h"
+#include "void_view.h"
 #include "collision.h"
 
 #include "data.h"
@@ -646,113 +647,6 @@ static void draw_surface_edges(void_draw_t *draw)
   }
 }
 
-/* Clip whole faces, not just their perimeter. A plane filling the camera must
- * remain visible even when none of its corners/edges are on screen. */
-static float void_clip_distance(const float p[3],int plane,const cam_t *cam)
-{
-  switch (plane) {
-    case 0:return p[2]-NEAR_PLANE;
-    case 1:return p[0]+p[2]*cam->tan_x;
-    case 2:return p[2]*cam->tan_x-p[0];
-    case 3:return p[1]+p[2]*cam->tan_y;
-    default:return p[2]*cam->tan_y-p[1];
-  }
-}
-
-static int void_face_polygon(const vec3f_t corners[8],int face,int side,const cam_t *cam,float screen[16][2])
-{
-  float poly[16][3],next_poly[16][3];
-  int u=(face+1)%3,v=(face+2)%3,origin=side<<face;
-  int ids[4]={origin,origin|(1<<u),origin|(1<<u)|(1<<v),origin|(1<<v)};
-  for (int i=0;i<4;i++) {
-    vec3f_t c=corners[ids[i]];float p[3]={c.x,c.y,c.z};to_view(cam,p,poly[i]);
-  }
-  int count=4;
-  for (int plane=0;plane<5 && count;plane++) {
-    int n=0;
-    for (int i=0;i<count;i++) {
-      float *a=poly[i],*b=poly[(i+1)%count];
-      float da=void_clip_distance(a,plane,cam),db=void_clip_distance(b,plane,cam);
-      if ((da>=0)!=(db>=0)) {
-        if (n==16) return 0;
-        float t=da/(da-db);
-        for (int j=0;j<3;j++) next_poly[n][j]=a[j]+(b[j]-a[j])*t;
-        n++;
-      }
-      if (db>=0) {
-        if (n==16) return 0;
-        memcpy(next_poly[n++],b,3*sizeof(float));
-      }
-    }
-    count=n;memcpy(poly,next_poly,(size_t)count*sizeof(poly[0]));
-  }
-  for (int i=0;i<count;i++) {
-    float x,y;to_screen(cam,poly[i],&x,&y);
-    if (!(x>-.001f && x<1.001f && y>-.001f && y<1.001f)) return 0;
-    screen[i][0]=x*REF_WIDTH;screen[i][1]=y*REF_HEIGHT;
-  }
-  return count;
-}
-
-#define VOID_RECTS 4000
-static void void_solid_line(void_draw_t *draw,float x,float y,float x1,float y1,uint8_t color)
-{
-  float dx=x1-x,dy=y1-y,ax=dx<0?-dx:dx,ay=dy<0?-dy:dy;
-  bool horizontal=ax>=ay;
-  int pieces=(int)((horizontal?ay:ax)/2)+1;
-  for (int i=0;i<pieces && *draw->n<VOID_RECTS;i++) {
-    float a=(float)i/pieces,b=(float)(i+1)/pieces,m=(a+b)*.5f;
-    if (horizontal) add_rect(draw->dots,draw->n,x+dx*a,y+dy*m,x+dx*b,y+dy*m,color);
-    else add_rect(draw->dots,draw->n,x+dx*m,y+dy*a,x+dx*m,y+dy*b,color);
-  }
-}
-
-static void draw_void_box(const vec3f_t corners[8], bool active, void *arg)
-{
-  void_draw_t *draw=arg;
-  float local[3],length[3],basis[3][3],origin[3]={corners[0].x,corners[0].y,corners[0].z};
-  bool camera_inside=true;float distance=0;
-  for (int i=0;i<3;i++) {
-    vec3f_t c=corners[1<<i];float end[3]={c.x,c.y,c.z};
-    for (int j=0;j<3;j++) basis[i][j]=end[j]-origin[j];
-    length[i]=sqrtf(basis[i][0]*basis[i][0]+basis[i][1]*basis[i][1]+basis[i][2]*basis[i][2]);
-    if (!(length[i]>.0001f)) return;
-    local[i]=0;
-    for (int j=0;j<3;j++) { basis[i][j]/=length[i];local[i]+=(draw->cam->pos[j]-origin[j])*basis[i][j]; }
-    float d=local[i]<0?-local[i]:local[i]>length[i]?local[i]-length[i]:0;
-    if (d>0) camera_inside=false;
-    distance+=d*d;
-  }
-  if (distance>AW_RANGE*AW_RANGE) return;
-  uint8_t color=active?AW_VOID:AW_VOID_INACTIVE;
-  for (int face=0;face<3 && *draw->n<VOID_RECTS;face++) for (int side=0;side<2;side++) {
-    if (!camera_inside && (side?local[face]<length[face]:local[face]>0)) continue;
-    float poly[16][2];int count=void_face_polygon(corners,face,side,draw->cam,poly);
-    if (count<3) continue;
-    float low=REF_HEIGHT,high=0;
-    for (int i=0;i<count;i++) { if (poly[i][1]<low) low=poly[i][1];if (poly[i][1]>high) high=poly[i][1]; }
-    /* Screen-space hatching has constant spacing at every distance. Unlike a
-     * sparse world grid, there is no close-up hole between grid lines. */
-    int spacing=active?18:36;
-    int first=(int)(low/spacing)*spacing;
-    for (int y=first;y<=high && *draw->n<VOID_RECTS;y+=spacing) {
-      float scan=(float)y+.5f,left=REF_WIDTH,right=0;int hits=0;
-      for (int i=0;i<count;i++) {
-        float *a=poly[i],*b=poly[(i+1)%count];
-        if ((a[1]<=scan && b[1]>scan)||(b[1]<=scan && a[1]>scan)) {
-          float x=a[0]+(b[0]-a[0])*(scan-a[1])/(b[1]-a[1]);
-          if (x<left) left=x;
-          if (x>right) right=x;
-          hits++;
-        }
-      }
-      if (hits>=2 && right>left) add_rect(draw->dots,draw->n,left,scan,right,scan+2,color);
-    }
-    for (int i=0;i<count && *draw->n<VOID_RECTS;i++)
-      void_solid_line(draw,poly[i][0],poly[i][1],poly[(i+1)%count][0],poly[(i+1)%count][1],color);
-  }
-}
-
 static void_hint_t published_hint;
 static unsigned char hint_lock;
 static void publish_void_hint(const cam_t *cam,bool shown)
@@ -761,7 +655,9 @@ static void publish_void_hint(const cam_t *cam,bool shown)
   if (shown) {
     vec3f_t position;void_nearest_t nearest;
     if (!link_drawn_pos(&position)) snprintf(hint.text,sizeof(hint.text),"VOID VIEW: Link position unavailable");
-    else if (voids_nearest(position,&nearest)) {
+    else if (void_view_nearest(position,&nearest)) {
+      void_nearest_t global;
+      if (voids_nearest(position,&global)) nearest.inside=global.inside;
       hint.inside=nearest.inside;hint.near=nearest.distance<2;
       float p[3]={nearest.point.x,nearest.point.y,nearest.point.z},view[3],x,y;
       to_view(cam,p,view);
@@ -776,9 +672,13 @@ static void publish_void_hint(const cam_t *cam,bool shown)
         hint.x=to_unit16(x,1);hint.y=to_unit16(y,1);
       }
     } else {
-      snprintf(hint.text,sizeof(hint.text),"VOID VIEW: no active mapped boundaries");
+      void_nearest_t global;
+      if (voids_nearest(position,&global) && global.inside) {
+        hint.inside=true;
+        snprintf(hint.text,sizeof(hint.text),"INSIDE VOID BOUNDS: boundary out of view");
+      } else snprintf(hint.text,sizeof(hint.text),"VOID VIEW: no mapped boundary visible");
     }
-    snprintf(hint.detail,sizeof(hint.detail),"Red hatch = void bounds | Grey = inactive");
+    snprintf(hint.detail,sizeof(hint.detail),"50%% tint = visible void boundary");
   }
   if (!__atomic_test_and_set(&hint_lock,__ATOMIC_ACQUIRE)) {
     published_hint=hint;
@@ -805,10 +705,25 @@ void airwall_frame(void)
   bool draw = (airwalls_shown || voids_shown || collision_shown) && !game_is_paused();
   cam_t cam;
   bool has_camera=draw && read_camera(&cam);
-  publish_void_hint(&cam,has_camera && voids_shown);
+  if (has_camera && voids_shown) {
+    float range=collision_occlusion_range((vec3f_t){cam.pos[0],cam.pos[1],cam.pos[2]});
+    void_view_begin(&cam,range);
+    if (range>0) {
+      collision_each_occluder(void_view_occluder,NULL);
+      voids_each_box(void_view_box,NULL);
+    }
+    void_view_finish();
+    publish_void_hint(&cam,true);
+    if (range<=0 && !__atomic_test_and_set(&hint_lock,__ATOMIC_ACQUIRE)) {
+      snprintf(published_hint.text,sizeof(published_hint.text),"VOID VIEW: preparing visible boundaries");
+      __atomic_clear(&hint_lock,__ATOMIC_RELEASE);
+    }
+  } else {
+    void_view_clear();
+    publish_void_hint(&cam,false);
+  }
   if (has_camera) {
     void_draw_t void_draw = { dots[next], &n, &cam };
-    if (voids_shown) voids_each_box(draw_void_box, &void_draw);
     surface_edges_reset();
     if (collision_shown) {
       collision_each_triangle(draw_surface,&void_draw);

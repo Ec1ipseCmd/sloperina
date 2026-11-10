@@ -1054,3 +1054,28 @@ inactive/missing/invalid data, giant-volume and near-face projection, rotated vi
 shared drawing limits, warning states and actual NVN text rendering at multiple scales. Headless
 approach/inside/unmapped views were rendered and inspected. No runtime appearance or avoidance
 claim is made for the new build. No game assets or new rendering dependencies are included.
+
+
+### Void hatching drew through scenery (0.0.10-test8)
+
+The user reported that red lines did not clearly show the danger area and asked for visible voids
+only. Test7 clipped to the camera frustum but had no scene occlusion. Replace hatching with a binary
+coverage mask for active boundary faces and an actual 50% red-orange framebuffer tint. Rasterize
+reciprocal camera depth against exact loaded solid triangles. Keep that collection separate from
+the snapped, filtered 2048-triangle surface preview; disabling floors must not expose covered voids.
+At the occluder cap, shorten visible range conservatively. Camera projection and read-only sensor
+and mesh sources remain the same.
+
+ClearColor replaces pixels; setting its alpha cannot fake translucency. Blending overlapping boxes
+repeatedly would darken the fill, and the menu's older readback could copy a stale picture over the
+game. Instead read this present's texture, fence/queue-flush/wait, invalidate cached storage, blend once, flush,
+and copy back. Buffers are bounded bands; unavailable support is reported instead of X-ray lines.
+
+Host checks cover complete/partial occlusion, doorway openings, near/frustum clipping, inside large
+volumes, independent filters, exact triangles, bounded selection and clearing. A deferred mock GPU
+executes production copy/composite functions and verifies fence/cache ordering, current-frame
+colors, untouched pixels, odd cropped regions and failures. Headless images show filled faces and
+an unpainted foreground blocker. These are synthetic checks, not native visual or performance
+verification. Collision-only occlusion cannot cover visual-only or unsupported objects. Recognized
+sensor bounds do not map every scripted death condition. Protection, levitation and watches are
+unchanged by this display update.

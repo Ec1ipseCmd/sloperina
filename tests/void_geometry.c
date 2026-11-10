@@ -11,6 +11,8 @@ const int data_n_airmaps = 0;
 bool voids_shown;
 bool collision_shown;
 void collision_frame(void) {}
+float collision_occlusion_range(vec3f_t p) { (void)p;return 0; }
+void collision_each_occluder(void (*f)(const vec3f_t[3],int,void *),void *ctx) { (void)f;(void)ctx; }
 void collision_each_triangle(void (*draw)(const vec3f_t [3],int,void *),void *ctx) { (void)draw;(void)ctx; }
 const char *T(const char *s) { return s; }
 const char *TF(const char *s) { return s; }
@@ -70,45 +72,21 @@ int main(void)
   memset(output,0x5A,sizeof(output));
   int n=0;
   void_draw_t draw={output,&n,&cam};
-  vec3f_t corners[8];
-  for (int i=0;i<8;i++) corners[i]=(vec3f_t){ i&1 ? 1:-1, i&2 ? 1:-1, i&4 ? 6:4 };
-  draw_void_box(corners,true,&draw);
-  assert(n>12 && n<=MAX_DOTS);
-  for (int i=0;i<n;i++) assert(output[i].color==AW_VOID && output[i].x0<=output[i].x1 && output[i].y0<=output[i].y1);
-  for (int i=0;i<8;i++) corners[i].z-=10;
-  n=0; draw_void_box(corners,true,&draw); assert(n==0); /* all behind the camera */
-  for (int i=0;i<8;i++) corners[i].z+=5;
-  n=0; draw_void_box(corners,false,&draw); assert(n>0 && n<=MAX_DOTS); /* crossing near plane */
-  for (int i=0;i<n;i++) assert(output[i].color==AW_VOID_INACTIVE);
-  for (int i=0;i<8;i++) corners[i].z+=100;
-  n=0; draw_void_box(corners,true,&draw); assert(n==0); /* range culling */
-  for (int i=0;i<8;i++) corners[i].z-=95;
-  n=MAX_DOTS-1; draw_void_box(corners,true,&draw); assert(n==MAX_DOTS-1);
   const unsigned char *guard=(const unsigned char *)&output[MAX_DOTS];
-  for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
-  /* Inside a tower-sized slab: its perimeter misses the entire viewport. */
-  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
-  n=0;draw_void_box(corners,true,&draw);assert(n>0 && n<MAX_DOTS);
-  assert(n>50 && n<500); /* full-screen hatching, bounded independent of box size */
-  cam.pos[0]=2.123f;cam.pos[1]=3.456f;cam.pos[2]=4.94f;
-  n=0;draw_void_box(corners,true,&draw);assert(n>50 && n<500); /* near face, between old grid lines */
-  cam.pos[0]=cam.pos[1]=cam.pos[2]=0;
-  /* Camera outside a rotated box: near/frustum clipping stays bounded. */
-  for (int i=0;i<8;i++) {
-    float x=i&1?2:-2,y=i&2?3:-3,z=i&4?2:-2;
-    corners[i]=(vec3f_t){.8f*x+.6f*z,y,5-.6f*x+.8f*z};
-  }
-  n=0;draw_void_box(corners,true,&draw);assert(n>0 && n<VOID_RECTS);
-  for (int i=0;i<n;i++) assert(output[i].x0<=output[i].x1 && output[i].y0<=output[i].y1);
+  vec3f_t corners[8];
+  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?1:-1,i&2?1:-1,i&4?7:5};
+  void_view_begin(&cam,60);void_view_box(corners,true,NULL);void_view_finish();
   position_ready=nearest_ready=true;fake_nearest=(void_nearest_t){.point={0,0,5},.distance=5};
   void_hint_t hint;
   publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.marker && !hint.inside);
   assert(strstr(hint.text,"5.00 u") && strstr(hint.text,"marked"));
-  fake_nearest.inside=true;fake_nearest.point.z=-5;
-  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.inside && !hint.marker);
-  assert(strstr(hint.text,"INSIDE") && strstr(hint.text,"behind"));
-  nearest_ready=false;publish_void_hint(&cam,true);
-  assert(airwall_void_hint(&hint) && strstr(hint.text,"no active mapped"));
+  fake_nearest.inside=true;
+  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.inside && hint.marker);
+  assert(strstr(hint.text,"INSIDE"));
+  void_view_clear();publish_void_hint(&cam,true);
+  assert(airwall_void_hint(&hint) && hint.inside && !hint.marker && strstr(hint.text,"out of view"));
+  fake_nearest.inside=false;publish_void_hint(&cam,true);
+  assert(airwall_void_hint(&hint) && strstr(hint.text,"no mapped boundary visible"));
   publish_void_hint(&cam,false);assert(!airwall_void_hint(&hint));
   position_ready=false;
   vec3f_t triangle[3]={{-1,-1,5},{1,-1,5},{0,1,5}};

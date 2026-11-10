@@ -305,3 +305,15 @@ Test7: `tests/run_voids.py` also tests nearest active void bounds and full-face 
 `tests/render_collision.py` writes `obj/tests/void-warning-{0,1,2}.ppm` for approaching,
 inside and unmapped cases using production NVN text/rectangle drawing. The native build checks
 that the new math lowers to existing CPU instructions without adding an unverified SDK import.
+
+
+Test8: run `python tests/run_void_view.py` for the production depth raster and deferred NVN fill
+mock (accepts `--cc`). It writes `obj/tests/void-filled.ppm` and `void-occluded.ppm`;
+`render_collision.py` renders filled warning examples. `run_collision.py` also checks exact
+occluders with every surface filter disabled, snapshot resets and bounded nearest selection.
+Build normally with `make dist`, replace both mod files, and restart; native code is not hot-loaded.
+In Scene > Collision, enable **show voids**. Turn off **show surfaces** and **show barriers** if only
+the danger fill is wanted. Test an exposed void, then move a solid wall/floor between it and the
+camera: the covered portion should disappear. Pan away and back, approach an opening, and change
+areas. Check for frame-rate loss or stale fill while moving. Rendering uses supported collision
+rather than GPU depth; an invisible result does not certify safety. This needs in-game confirmation.
