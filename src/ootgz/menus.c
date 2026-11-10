@@ -1931,7 +1931,7 @@ static void build_scene(void)
   menu_add_text(&m_collision, text_air_wall_link, 0);
   menu_add_heading(&m_collision, "void sensors");
   menu_item_t *void_show = menu_add_check(&m_collision, "show voids", get_voids_shown, set_voids_shown, 0);
-  if (void_show) void_show->hint = "amber: bounds; grey: condition inactive; curved sensors use bounding boxes";
+  if (void_show) void_show->hint = "red hatch: active void bounds; grey: inactive; distance/inside warning on screen";
   menu_item_t *void_mode = menu_add_option(&m_collision, "void-outs", VOIDS_MODE_COUNT, voids_mode_names,
                                           get_voids_mode, set_voids_mode, 0);
   if (void_mode) void_mode->hint = "Blocks new player abyss reactions; normal after restart";

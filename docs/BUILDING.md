@@ -299,3 +299,9 @@ queued versus applied physics origins. `tests/run_collision.py` covers actor res
 standalone mesh placement and malformed roots. `tests/render_collision.py` writes
 `obj/tests/void-large-volume.ppm`, exercising a camera inside a volume with an off-screen perimeter.
 These host checks do not substitute for an in-game landing or tower-view check after restart.
+
+
+Test7: `tests/run_voids.py` also tests nearest active void bounds and full-face clipping.
+`tests/render_collision.py` writes `obj/tests/void-warning-{0,1,2}.ppm` for approaching,
+inside and unmapped cases using production NVN text/rectangle drawing. The native build checks
+that the new math lowers to existing CPU instructions without adding an unverified SDK import.

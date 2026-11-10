@@ -19,5 +19,11 @@ void airwall_frame(void);                     /* game thread, once per frame */
 const aw_dot_t *airwall_published(int *n);    /* render thread */
 void airwall_summary(char *buf, int len);     /* "12 walls, 3 within 60" */
 void airwall_link_text(char *buf, int len);   /* the air wall watch: depth inside, or "outside" */
+typedef struct {
+  char text[64], detail[64];
+  uint16_t x,y;
+  bool marker,inside,near;
+} void_hint_t;
+bool airwall_void_hint(void_hint_t *out); /* mod-owned snapshot, no game reads */
 
 #endif

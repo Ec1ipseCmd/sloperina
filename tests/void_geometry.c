@@ -16,7 +16,10 @@ const char *T(const char *s) { return s; }
 const char *TF(const char *s) { return s; }
 const char *gd_get_str(int i) { (void)i; return NULL; }
 void log_printf(const char *fmt, ...) { (void)fmt; }
-bool link_drawn_pos(vec3f_t *out) { (void)out; return false; }
+static bool position_ready,nearest_ready;
+static void_nearest_t fake_nearest;
+bool link_drawn_pos(vec3f_t *out) { *out=(vec3f_t){0};return position_ready; }
+bool voids_nearest(vec3f_t position,void_nearest_t *out) { (void)position;*out=fake_nearest;return nearest_ready; }
 bool gd_get_bool(uint32_t h, bool *out) { (void)h; *out=false; return true; }
 bool gd_get_int(uint32_t h, int32_t *out) { (void)h; *out=0; return true; }
 void voids_each_box(void (*draw)(const vec3f_t [8], bool, void *), void *ctx) { (void)draw; (void)ctx; }
@@ -80,12 +83,34 @@ int main(void)
   for (int i=0;i<8;i++) corners[i].z+=100;
   n=0; draw_void_box(corners,true,&draw); assert(n==0); /* range culling */
   for (int i=0;i<8;i++) corners[i].z-=95;
-  n=MAX_DOTS-1; draw_void_box(corners,true,&draw); assert(n==MAX_DOTS);
+  n=MAX_DOTS-1; draw_void_box(corners,true,&draw); assert(n==MAX_DOTS-1);
   const unsigned char *guard=(const unsigned char *)&output[MAX_DOTS];
   for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
   /* Inside a tower-sized slab: its perimeter misses the entire viewport. */
   for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
   n=0;draw_void_box(corners,true,&draw);assert(n>0 && n<MAX_DOTS);
+  assert(n>50 && n<500); /* full-screen hatching, bounded independent of box size */
+  cam.pos[0]=2.123f;cam.pos[1]=3.456f;cam.pos[2]=4.94f;
+  n=0;draw_void_box(corners,true,&draw);assert(n>50 && n<500); /* near face, between old grid lines */
+  cam.pos[0]=cam.pos[1]=cam.pos[2]=0;
+  /* Camera outside a rotated box: near/frustum clipping stays bounded. */
+  for (int i=0;i<8;i++) {
+    float x=i&1?2:-2,y=i&2?3:-3,z=i&4?2:-2;
+    corners[i]=(vec3f_t){.8f*x+.6f*z,y,5-.6f*x+.8f*z};
+  }
+  n=0;draw_void_box(corners,true,&draw);assert(n>0 && n<VOID_RECTS);
+  for (int i=0;i<n;i++) assert(output[i].x0<=output[i].x1 && output[i].y0<=output[i].y1);
+  position_ready=nearest_ready=true;fake_nearest=(void_nearest_t){.point={0,0,5},.distance=5};
+  void_hint_t hint;
+  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.marker && !hint.inside);
+  assert(strstr(hint.text,"5.00 u") && strstr(hint.text,"marked"));
+  fake_nearest.inside=true;fake_nearest.point.z=-5;
+  publish_void_hint(&cam,true);assert(airwall_void_hint(&hint) && hint.inside && !hint.marker);
+  assert(strstr(hint.text,"INSIDE") && strstr(hint.text,"behind"));
+  nearest_ready=false;publish_void_hint(&cam,true);
+  assert(airwall_void_hint(&hint) && strstr(hint.text,"no active mapped"));
+  publish_void_hint(&cam,false);assert(!airwall_void_hint(&hint));
+  position_ready=false;
   vec3f_t triangle[3]={{-1,-1,5},{1,-1,5},{0,1,5}};
   for (int kind=0;kind<COLLISION_KINDS;kind++) {
     n=0;surface_edges_reset();

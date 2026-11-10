@@ -181,6 +181,55 @@ void voids_summary(char *buf, int len)
   else snprintf(buf, len, "%d sensors, %d bounds, %d unavailable", sensor_count, box_count, missing_bounds);
 }
 
+bool voids_nearest(vec3f_t position, void_nearest_t *out)
+{
+  float sqrtf(float);
+  if (!out || !(position.x>-100000 && position.x<100000 && position.y>-100000 &&
+      position.y<100000 && position.z>-100000 && position.z<100000)) return false;
+  bool found=false;
+  for (int n=0;n<box_count;n++) {
+    if (!boxes[n].active) continue;
+    const vec3f_t *c=boxes[n].corners;
+    float origin[3]={c[0].x,c[0].y,c[0].z},p[3]={position.x,position.y,position.z};
+    float axis[3][3],length[3],local[3],clamped[3];
+    bool inside=true,valid=true;
+    int face=0;float face_distance=1e9f;
+    for (int i=0;i<3;i++) {
+      vec3f_t end=c[1<<i];float e[3]={end.x,end.y,end.z};
+      for (int j=0;j<3;j++) axis[i][j]=e[j]-origin[j];
+      length[i]=sqrtf(axis[i][0]*axis[i][0]+axis[i][1]*axis[i][1]+axis[i][2]*axis[i][2]);
+      if (!(length[i]>.0001f)) { valid=false;break; }
+      local[i]=0;
+      for (int j=0;j<3;j++) { axis[i][j]/=length[i];local[i]+=(p[j]-origin[j])*axis[i][j]; }
+      clamped[i]=local[i]<0?0:local[i]>length[i]?length[i]:local[i];
+      if (local[i]<0 || local[i]>length[i]) inside=false;
+      float d=local[i]<length[i]*.5f?local[i]:length[i]-local[i];
+      if (d<face_distance) { face_distance=d;face=i; }
+    }
+    if (!valid) continue;
+    /* Cached bounds should form an orthogonal box. Reject skew instead of
+     * advertising an incorrect distance to a reconstructed surface. */
+    for (int i=0;i<3;i++) for (int j=i+1;j<3;j++) {
+      float dot=0;for (int k=0;k<3;k++) dot+=axis[i][k]*axis[j][k];
+      if (dot<-.01f || dot>.01f) valid=false;
+    }
+    if (!valid) continue;
+    if (inside) clamped[face]=local[face]<length[face]*.5f?0:length[face];
+    float q[3],delta[3];
+    for (int j=0;j<3;j++) {
+      q[j]=origin[j];for (int i=0;i<3;i++) q[j]+=axis[i][j]*clamped[i];
+      delta[j]=q[j]-p[j];
+    }
+    float distance=sqrtf(delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]);
+    /* An inside warning takes precedence over a closer, separate outside box. */
+    if (!found || (inside && !out->inside) || (inside==out->inside && distance<out->distance)) {
+      *out=(void_nearest_t){.point={q[0],q[1],q[2]},.distance=distance,.inside=inside};
+      found=true;
+    }
+  }
+  return found;
+}
+
 static bool protects(const uint32_t *target, uint32_t kind)
 {
   uint32_t id = __atomic_load_n(&protected_actor, __ATOMIC_ACQUIRE);

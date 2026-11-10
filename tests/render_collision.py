@@ -72,6 +72,7 @@ overlay = r'''
 #define main geometry_test_main
 #include "../../tests/void_geometry.c"
 #undef main
+#include "font.h"
 #define SC_ONE 16
 #define DOT_COORD_MAX 65535
 #define MIN_DOT_SIZE 2
@@ -90,7 +91,8 @@ static void clear_scissored(int x,int y,int w,int h,int height,const float rgba[
     for (int k=0;k<3;k++) pixels[j][i][k]=(unsigned char)(rgba[k]*255);
 }
 '''
-overlay += function(nvn, "draw_airwall_dots")
+overlay += "\n".join(function(nvn,name) for name in
+                      ("font_pixel","font_to_screen_ceil","draw_airwall_dots","void_hint_text","draw_void_hint"))
 overlay += r'''
 int main(void)
 {
@@ -137,6 +139,23 @@ int main(void)
   draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
   file=fopen("obj/tests/void-large-volume.ppm","wb");assert(file);
   fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
+  for (int scenario=0;scenario<3;scenario++) {
+    memset(pixels,40,sizeof(pixels));n=0;
+    for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?2:-2,i&2?2:-1,i&4?7:5};
+    if (scenario==1) for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
+    position_ready=nearest_ready=true;
+    fake_nearest=(void_nearest_t){.point={0,0,5},.distance=2.3f,.inside=scenario==1};
+    if (scenario==2) nearest_ready=false;
+    else draw_void_box(corners,true,&dense);
+    publish_void_hint(&cam,true);void_hint_t hint;assert(airwall_void_hint(&hint));
+    draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
+    draw_void_hint(&hint,NULL,(nvn_rect_t){0,0,640,360},360,32);
+    char path[80];snprintf(path,sizeof(path),"obj/tests/void-warning-%d.ppm",scenario);
+    file=fopen(path,"wb");assert(file);
+    fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
+    for (int scale=1;scale<96;scale++)
+      draw_void_hint(&hint,NULL,(nvn_rect_t){10,10,620,340},360,scale);
+  }
   puts("PASS: production surface projection and NVN colors/raster");
   return 0;
 }
@@ -145,7 +164,7 @@ path = out / "collision_overlay.c"
 path.write_text(overlay, encoding="utf-8")
 exe = out / ("collision_overlay.exe" if os.name == "nt" else "collision_overlay")
 for cmd in ([args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Isrc/ootgz", str(path),
-             "src/ootgz/world_view.c", "-lm", "-o", str(exe)], [str(exe)]):
+             "src/ootgz/world_view.c", "src/ootgz/font.c", "-lm", "-o", str(exe)], [str(exe)]):
     result = subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, **flags)
     print(result.stdout, end="")
     print(result.stderr, end="")

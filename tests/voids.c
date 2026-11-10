@@ -70,6 +70,28 @@ static int run(void)
 }
 int main(void)
 {
+  void_nearest_t nearest;
+  box_count=1;boxes[0].active=true;
+  for (int i=0;i<8;i++) boxes[0].corners[i]=(vec3f_t){i&1?2:-2,i&2?3:-3,i&4?4:-4};
+  assert(voids_nearest((vec3f_t){0,0,0},&nearest) && nearest.inside && nearest.distance==2);
+  assert(voids_nearest((vec3f_t){5,0,0},&nearest) && !nearest.inside && nearest.distance==3 && nearest.point.x==2);
+  assert(voids_nearest((vec3f_t){2,0,0},&nearest) && nearest.inside && nearest.distance==0);
+  assert(voids_nearest((vec3f_t){5,7,4},&nearest) && nearest.distance==5);
+  box_count=2;boxes[1]=boxes[0];
+  for (int i=0;i<8;i++) boxes[1].corners[i].x+=2.1f;
+  assert(voids_nearest((vec3f_t){0,0,0},&nearest) && nearest.inside && nearest.distance==2);
+  box_count=1;
+  /* Rotated/translated box: local x becomes world y, local y becomes -x. */
+  for (int i=0;i<8;i++) {
+    vec3f_t p=boxes[0].corners[i];boxes[0].corners[i]=(vec3f_t){10-p.y,20+p.x,30+p.z};
+  }
+  assert(voids_nearest((vec3f_t){10,25,30},&nearest) && nearest.distance==3 && nearest.point.y==22);
+  boxes[0].active=false;assert(!voids_nearest((vec3f_t){10,20,30},&nearest));
+  boxes[0].active=true;assert(!voids_nearest((vec3f_t){NAN,0,0},&nearest));
+  boxes[0].corners[1]=boxes[0].corners[0];
+  assert(!voids_nearest((vec3f_t){10,20,30},&nearest));
+  box_count=0;assert(!voids_nearest((vec3f_t){0},&nearest));
+  puts("PASS: nearest void boundary, rotated boxes, inside/outside, inactive and unavailable bounds");
   assert(voids_mode==VOIDS_NORMAL && !voids_shown);
   setup(); assert(run()==1 && active_box && sensor_count==1 && !missing_bounds);
   assert(fabsf(drawn_corners[0].x+28.58f)<.001f && drawn_corners[0].y==100 && drawn_corners[7].y==108);

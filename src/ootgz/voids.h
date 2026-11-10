@@ -12,6 +12,9 @@ extern const char *const voids_mode_names[VOIDS_MODE_COUNT];
 void voids_frame(void);
 void voids_each_box(void (*draw)(const vec3f_t corners[8], bool active, void *ctx), void *ctx);
 void voids_summary(char *buf, int len);
+typedef struct { vec3f_t point; float distance; bool inside; } void_nearest_t;
+/* Distance to an identified active sensor's boundary, not a safe clearance. */
+bool voids_nearest(vec3f_t position, void_nearest_t *out);
 /* Mid-function classifier hook; returns the native continuation address. */
 uintptr_t voids_transition_target(uintptr_t player, uint32_t abyss_type);
 void void_state_entry(void);

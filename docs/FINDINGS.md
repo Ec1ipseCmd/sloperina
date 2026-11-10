@@ -1022,3 +1022,35 @@ and malformed-input tests; giant-volume headless render. This establishes the or
 fault and source-level regressions, not successful runtime behavior of the new build. The game
 closed before the new module was installed. Dense-line coarsening, actual 50% opacity and
 visible-surfaces-only rendering remain separate renderer work.
+
+
+### Void lines did not communicate the danger area (0.0.10-test7)
+
+The user confirmed that lines were present, but the dangerous region was unclear. Test6's
+8-unit grid (capped at 32 subdivisions) left large close-up gaps and offered no distance or
+inside indication. This is a visualization change, not a broader claim about detected hazards.
+
+Project and clip the complete sensor-box faces against the near plane and all four frustum
+sides. Draw continuous contours plus fixed screen-space red hatching for active bounds;
+inactive bounds are grey. Outside a box, draw the camera-facing faces; inside, draw the faces
+visible from the interior. This avoids perimeter-only failures and hidden back-face clutter.
+Use a bounded 4000-rectangle budget. Draw active void overlays after ordinary collision and
+inactive bounds. Minimum outline width no longer follows menu font size. Hatching is opaque
+with gaps; it is NOT alpha blending. General dense-surface raster coarsening is unchanged.
+
+Compute the nearest point on each recognized active oriented box by projecting Link's displayed
+position onto its orthogonal axes. Outside: clamp to the box; inside: select the nearest face.
+An inside warning takes priority over proximity to a separate box. Reject invalid positions,
+degenerate/skewed bounds; ignore inactive sensors. Distances are to sensor bounds, not a guarantee
+of safe clearance for Link's capsule. Curved sensors still use conservative bounding boxes.
+
+A small mod-owned snapshot feeds a persistent bottom-center warning and boundary cross. Off-screen
+nearest points show a direction; no identified active bounds is stated explicitly. The graphics
+thread performs no game-memory reads for this feature. Toggling show voids off or pausing clears
+the hint. Existing visibility settings and void suppression behavior are preserved.
+
+Host regressions cover rotated and overlapping boxes, inside/outside/face/corner distances,
+inactive/missing/invalid data, giant-volume and near-face projection, rotated view clipping,
+shared drawing limits, warning states and actual NVN text rendering at multiple scales. Headless
+approach/inside/unmapped views were rendered and inspected. No runtime appearance or avoidance
+claim is made for the new build. No game assets or new rendering dependencies are included.

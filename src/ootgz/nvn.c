@@ -1156,18 +1156,26 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     [AW_BLOCKS] = { 0.23f, 0.84f, 1.0f, 1.0f }, /* cyan: stops Link */
     [AW_INSIDE] = { 1.0f, 0.28f, 0.28f, 1.0f }, /* red: Link is inside it */
     [AW_OTHER] = { 0.60f, 0.55f, 1.0f, 1.0f },  /* violet: other kinds */
-    [AW_VOID] = { 1.0f, 0.70f, 0.10f, 1.0f }, /* amber: player void sensor bounds */
+    [AW_VOID] = { 1.0f, 0.20f, 0.15f, 1.0f }, /* red hatch: active void sensor bounds */
     [AW_VOID_INACTIVE] = { 0.55f, 0.55f, 0.55f, 1.0f }, /* its logic condition is false */
     [AW_FLOOR] = { 0.30f, 1.0f, 0.35f, 1.0f },
     [AW_WALL] = { 0.25f, 0.65f, 1.0f, 1.0f },
     [AW_CEILING] = { 1.0f, 0.35f, 0.75f, 1.0f },
     [AW_TRIGGER] = { 1.0f, 0.95f, 0.25f, 1.0f },
   };
-  int size = scale / SC_ONE < MIN_DOT_SIZE ? MIN_DOT_SIZE : scale / SC_ONE;
+  (void)scale;
+  int size = MIN_DOT_SIZE; /* line width is independent of menu text size */
   set_render_target(tex);
-  for (int i = 0; i < n; i++) {
-    if (command_memory_low(i))
-      break;
+  int rectangles=0;
+  /* Danger boundaries must remain legible over ordinary collision and inactive
+   * sensors, regardless of actor-list order. */
+  for (int pass=0;pass<3;pass++) for (int i = 0; i < n; i++) {
+    int layer=dots[i].color==AW_VOID?2:dots[i].color==AW_VOID_INACTIVE?1:0;
+    if (layer!=pass) continue;
+    if (command_memory_low(rectangles++)) {
+      reset_scissor();
+      return;
+    }
     const aw_dot_t *dot = &dots[i];
     /* to texture pixels; a side thinner than the line width is widened to it, about its middle */
     int x = (int)((int64_t)dot->x0 * area.w / DOT_COORD_MAX);
@@ -1188,6 +1196,53 @@ static void draw_airwall_dots(const aw_dot_t *dots, int n, nvn_texture_t *tex, n
     x = x < 0 ? 0 : x + w > area.w ? area.w - w : x;
     y = y < 0 ? 0 : y + h > area.h ? area.h - h : y;
     clear_scissored(area.x + x, area.y + y, w, h, texture_height, colours[dot->color < AW_NCOLORS ? dot->color : 0]);
+  }
+  reset_scissor();
+}
+
+static void void_hint_text(const char *text,int x,int y,int scale,int texture_height,
+                           const float color[4],int *rectangles)
+{
+  int length=(int)strlen(text);
+  for (int row=0;row<FONT_H;row++) for (int col=0;col<length*FONT_W;) {
+    if (!font_pixel((unsigned char)text[col/FONT_W],col%FONT_W,row)) { col++;continue; }
+    int start=col++;
+    while (col<length*FONT_W && font_pixel((unsigned char)text[col/FONT_W],col%FONT_W,row)) col++;
+    if (command_memory_low((*rectangles)++)) return;
+    int x0=font_to_screen_ceil(start,scale),x1=font_to_screen_ceil(col,scale);
+    int y0=font_to_screen_ceil(row,scale),y1=font_to_screen_ceil(row+1,scale);
+    clear_scissored(x+x0,y+y0,x1-x0,y1-y0,texture_height,color);
+  }
+}
+
+static void draw_void_hint(const void_hint_t *hint,nvn_texture_t *tex,nvn_rect_t area,
+                           int texture_height,int menu_scale)
+{
+  static const float black[4]={.035f,.035f,.035f,1},white[4]={1,1,1,1};
+  static const float red[4]={1,.20f,.15f,1},amber[4]={1,.8f,.25f,1};
+  int scale=menu_scale<SC_ONE?SC_ONE:menu_scale>2*SC_ONE?2*SC_ONE:menu_scale;
+  int len=(int)strlen(hint->text),detail=(int)strlen(hint->detail);
+  int longest=len>detail?len:detail;
+  while (scale>SC_ONE && font_to_screen_ceil(longest*FONT_W+4,scale)>area.w-8) scale--;
+  int w=font_to_screen_ceil(longest*FONT_W+4,scale),h=font_to_screen_ceil(FONT_H*2+8,scale);
+  if (w>area.w-8 || h>area.h-8 || command_memory_low(0)) return;
+  int x=area.x+(area.w-w)/2,y=area.y+area.h-h-8,rectangles=1;
+  set_render_target(tex);
+  clear_scissored(x,y,w,h,texture_height,black);
+  const float *color=hint->inside||hint->near?red:amber;
+  clear_scissored(x,y,w,2,texture_height,color);
+  int margin=font_to_screen_ceil(2,scale);
+  void_hint_text(hint->text,x+margin,y+margin,scale,texture_height,color,&rectangles);
+  void_hint_text(hint->detail,x+margin,y+font_to_screen_ceil(FONT_H+5,scale),scale,texture_height,white,&rectangles);
+  if (hint->marker && !command_memory_low(0)) {
+    int mx=area.x+(int)((int64_t)hint->x*area.w/65535),my=area.y+(int)((int64_t)hint->y*area.h/65535);
+    int radius=8;
+    if (mx>=area.x+radius && mx<area.x+area.w-radius && my>=area.y+radius && my<area.y+area.h-radius) {
+      clear_scissored(mx-radius,my-2,radius*2,5,texture_height,black);
+      clear_scissored(mx-2,my-radius,5,radius*2,texture_height,black);
+      clear_scissored(mx-radius,my-1,radius*2,3,texture_height,red);
+      clear_scissored(mx-1,my-radius,3,radius*2,texture_height,red);
+    }
   }
   reset_scissor();
 }
@@ -1526,8 +1581,10 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   int n_health = enemy_health_copy(health_labels);
   int n_dots;
   const aw_dot_t *dots = airwall_published(&n_dots);
+  void_hint_t void_hint;
+  bool has_void_hint=airwall_void_hint(&void_hint);
   int pause_icon = gfx_pause_icon;
-  if ((!screen && !n_dots && !n_health && !pause_icon) || overlay_state == OV_FAILED)
+  if ((!screen && !n_dots && !n_health && !pause_icon && !has_void_hint) || overlay_state == OV_FAILED)
     return;
   if (index < 0 || index >= swapchain_texture_count) {
     static bool warned;
@@ -1631,7 +1688,7 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
     draw->scale = scale;
     n++;
   }
-  if (!n && !n_dots && !n_health && !pause_icon)
+  if (!n && !n_dots && !n_health && !pause_icon && !has_void_hint)
     return;
   __asm__ volatile("dsb sy" ::: "memory"); /* pixels reach memory before the GPU copies them */
 
@@ -1640,6 +1697,8 @@ static void draw_overlay(nvn_queue_t *queue, nvn_window_t *window, int index)
   fn.cmd_begin(&cmd_buffer);
   if (n_dots)
     draw_airwall_dots(dots, n_dots, tex, frame.area, th, frame.scale);
+  if (has_void_hint)
+    draw_void_hint(&void_hint,tex,frame.area,th,frame.scale);
   if (n_health)
     draw_enemy_labels(health_labels, n_health, tex, frame.area, th, frame.scale);
   if (pause_icon)

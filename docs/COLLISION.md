@@ -1,11 +1,17 @@
 # Collision view
 
-**0.0.10-test6:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
+**0.0.10-test7:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
 and up to 128 supported actor mesh bodies through their live physics controllers.
 **Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
 (pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
-Large identified void boxes also show grids across their boundary faces so their surfaces can be
-located when the outer edges are off-screen. These are actual sensor bounds, not guessed death heights.
+Enable **show voids** for red hatched boundary faces and a persistent distance/inside warning.
+Grey hatching means the sensor condition is inactive. A cross marks the nearest active boundary;
+if it is off-screen, the warning says behind/above/below/left/right. Full-face clipping keeps
+large and close-up boundaries visible even when their corners and perimeter are off-screen.
+These are sensor bounds, not guessed death heights; curved sensors can occupy only part of a box.
+Distances are world units from Link's displayed position to those bounds, not capsule clearance.
+The warning says **INSIDE VOID BOUNDS** when that point is inside a recognized active box.
+No active mapped boundaries does not mean the area is safe: unsupported logic is still omitted.
 Selections persist. Existing invisible-barrier and void-sensor controls are independent.
 
 This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
@@ -18,8 +24,8 @@ Surface edges are continuous raster lines, not sampled dots. Adjacent pixels are
 for the existing shader-free renderer. The image starts at 640x360 and can fall back to 320x180, 160x90,
 or 80x45 to fit a bounded 8000-rectangle surface budget. Crowded views therefore have coarser/thicker
 outlines instead of missing pieces along every edge. The shared overlay limit is 12000 rectangles and
-command memory is 2 MiB per render slot, with the existing free-space guard retained. Void/barrier outlines
-still use their previous drawing style. Geometry refresh takes
+command memory is 2 MiB per render slot, with the existing free-space guard retained. Void faces use a separate, bounded 4000-rectangle hatch/outline budget. Their screen spacing
+does not grow with distance or menu text size. Ordinary invisible barriers keep their previous style. Geometry refresh takes
 several frames and can take longer in dense maps. It draws
 through scenery. Unsupported shapes are skipped; capsules/spheres, independently allocated actor shape clones, and unclassified
 scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
