@@ -1109,3 +1109,32 @@ levitation, actor behavior, watch IDs or saved-settings schema changes are part 
 Read-only validation against the running session also confirmed Link's actor type, attachment-calculator
 owner, and a valid upper anchor (1.86 world units above the displayed feet). No game memory was written;
 this validates the mask input chain, not the new overlay's in-game appearance.
+
+
+### Empty collision view after enabling it in Kokiri Forest (0.0.10-test10)
+
+The user's log identifies a renderer failure, not absent map geometry: it loaded
+`KokiriForest_Child: 34 walls, 444 edges`, then reported `world overlay unavailable:
+allocation/pool for band 8 (655360 bytes)` at a 2560x1440 viewport. Other sessions
+failed at different bands. The previous path retained one texture-width allocation
+and NVN pool for each occupied 64-row band. Full-height 1440p coverage could retain
+14.375 MiB on top of menu buffers. Any allocation or pool failure set a permanent
+failure flag, hiding surfaces, barriers and voids until restart. The old log did
+not distinguish a failed heap allocation from failed pool initialization.
+
+Use one reusable pool capped at 2 MiB, halving allocation attempts down to 64 KiB
+if necessary. Pack cropped regions into bounded batches, fence/invalidate each
+readback, blend the current picture, flush and fence uploads before reusing either
+pixel or command storage. Smaller buffers use shorter strips. Resolution changes
+reuse the same pool. Failed pool initialization frees its unused allocation;
+unavailable memory/APIs retry after 120 drawing attempts instead of disabling the
+world view for the session. Logs distinguish memory allocation from pool failure.
+No raster, geometry filter, visibility, opacity, player mask or gameplay logic changed.
+
+The production NVN mock now enforces a 2 MiB allocation budget, exercises complete
+2560x1440 coverage and resizing to 3840x2160, and checks exact pixels/crops. It also
+covers a fragmented 64 KiB limit, sparse 4096x4096 coverage, metadata-batch limits,
+retry recovery and readback/upload timeouts. Every batch must finish GPU use before
+storage is reused. Native build and host validation do not verify the new in-game
+appearance or performance: bounded batches require additional GPU waits, especially
+with the smallest fallback buffer. Restart is required to load the corrected module.

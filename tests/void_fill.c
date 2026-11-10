@@ -11,7 +11,7 @@ uintptr_t camera(void) { return 0; }
 bool sys_mapped(uintptr_t a,size_t n,uint32_t p) { (void)a;(void)n;(void)p;return false; }
 typedef struct { uint32_t *pixels;size_t bytes;bool flushed; } nvn_obj_t;
 typedef int nvn_queue_t;
-typedef struct { uint32_t pixels[400][700]; } nvn_texture_t;
+typedef struct { uint32_t pixels[4096][4096];int w,h; } nvn_texture_t;
 typedef struct { int x,y,z,w,h,d; } nvn_region_t;
 typedef struct { int x,y,w,h; } nvn_rect_t;
 typedef uintptr_t nvn_addr_t;
@@ -26,56 +26,71 @@ static nvn_obj_t cmd_buffer,command_pool,slot_sync[2];
 static char control_mem[CTRL_SIZE*2];
 static bool slot_used[2],wait_ok=true,waited,failed,fail_pool,fail_alloc,have_flush=true;
 static bool queue_flushed,have_queue_flush=true;
-static int swapchain_format=37,invalidations,flushes,uploads;
+static int swapchain_format=37,invalidations,flushes,uploads,waits,fail_wait;
+static bool pending;
+static size_t live_bytes,peak_bytes,allocation_limit=2*1024*1024,max_allocation=2*1024*1024;
+static unsigned allocations;
+static nvn_obj_t *mock_pool;
 static void *device;
 static size_t round_page(size_t n) { return (n+4095)&~(size_t)4095; }
 static bool is_rgba8(int n) { return n==37; }
 static void log_printf(const char *fmt,...) { (void)fmt; }
 static void overlay_fail(const char *message) { (void)message;failed=true; }
 static void *test_alloc(size_t alignment,size_t size)
-{ assert(alignment==PAGE_SIZE && !(size%PAGE_SIZE));return fail_alloc?NULL:malloc(size); }
+{
+  assert(alignment==PAGE_SIZE && !(size%PAGE_SIZE));allocations++;
+  if (fail_alloc || size>max_allocation || live_bytes+size>allocation_limit) return NULL;
+  void *p=malloc(size);assert(p);live_bytes+=size;
+  if (live_bytes>peak_bytes) peak_bytes=live_bytes;
+  return p;
+}
+static void test_free(void *p) { if (p) { free(p);live_bytes=0; } }
+#define free test_free
 #define aligned_alloc test_alloc
 static bool make_pool(nvn_obj_t *p,void *data,size_t size,int flags)
-{ assert(flags==(POOL_CPU_CACHED|POOL_GPU_UNCACHED));*p=(nvn_obj_t){data,size,false};return !fail_pool; }
-static struct { nvn_texture_t *tex;nvn_obj_t *pool;nvn_region_t r;bool upload; } ops[64];
+{ assert(flags==(POOL_CPU_CACHED|POOL_GPU_UNCACHED));*p=(nvn_obj_t){data,size,false};mock_pool=p;return !fail_pool; }
+static struct { nvn_texture_t *tex;nvn_obj_t *pool;nvn_region_t r;size_t offset;bool upload; } ops[64];
 static unsigned operations;
 static void add_command(nvn_obj_t *b,const nvn_obj_t *p,ptrdiff_t at,size_t n)
 { (void)b;(void)p;assert(at==0 && n==CMD_SIZE); }
 static void add_control(nvn_obj_t *b,void *p,size_t n)
 { (void)b;assert(p==control_mem && n==CTRL_SIZE); }
-static void begin(nvn_obj_t *b) { (void)b;operations=0;waited=false;queue_flushed=false; }
+static void begin(nvn_obj_t *b) { (void)b;assert(!pending);operations=0;waited=false;queue_flushed=false; }
 static nvn_handle_t end(nvn_obj_t *b) { (void)b;return operations; }
-static nvn_addr_t address(const nvn_obj_t *p) { return (uintptr_t)p; }
-static int width(const nvn_texture_t *t) { (void)t;return 700; }
-static void record(nvn_texture_t *t,nvn_obj_t *p,const nvn_region_t *r,bool upload)
+static nvn_addr_t address(const nvn_obj_t *p) { return (uintptr_t)p->pixels; }
+static int width(const nvn_texture_t *t) { return t->w; }
+static void record(nvn_texture_t *t,nvn_addr_t a,const nvn_region_t *r,bool upload)
 {
-  assert(operations<64 && r->x>=0 && r->y>=0 && r->x+r->w<=700 && r->y+r->h<=400);
-  assert(r->z==0 && r->d==1 && (size_t)r->w*r->h*4<=p->bytes);
+  nvn_obj_t *p=mock_pool;size_t offset=a-(uintptr_t)p->pixels;
+  assert(operations<64 && r->x>=0 && r->y>=0 && r->x+r->w<=t->w && r->y+r->h<=t->h);
+  assert(r->z==0 && r->d==1 && offset+(size_t)r->w*r->h*4<=p->bytes);
   if (upload) { assert(p->flushed);uploads++; }
-  ops[operations].tex=t;ops[operations].pool=p;ops[operations].r=*r;
+  ops[operations].tex=t;ops[operations].pool=p;ops[operations].r=*r;ops[operations].offset=offset;
   ops[operations++].upload=upload;
 }
 static void to_buffer(nvn_obj_t *b,const nvn_texture_t *t,const void *v,const nvn_region_t *r,nvn_addr_t a,int flags)
-{ (void)b;assert(!v && !flags);record((nvn_texture_t *)t,(nvn_obj_t *)a,r,false); }
+{ (void)b;assert(!v && !flags);record((nvn_texture_t *)t,a,r,false); }
 static void to_texture(nvn_obj_t *b,nvn_addr_t a,const nvn_texture_t *t,const void *v,const nvn_region_t *r,int flags)
-{ (void)b;assert(!v && !flags);record((nvn_texture_t *)t,(nvn_obj_t *)a,r,true); }
+{ (void)b;assert(!v && !flags);record((nvn_texture_t *)t,a,r,true); }
 static void submit(nvn_queue_t *q,int n,const nvn_handle_t *h)
-{ (void)q;assert(n==1 && *h==operations); }
+{ (void)q;assert(n==1 && *h==operations && !pending);pending=true; }
 static void fence(nvn_queue_t *q,nvn_obj_t *sync,int condition,int flags)
 { (void)q;assert(sync==slot_sync && condition==0 && !flags); }
 static bool slot_finished(int slot)
 {
   assert(slot==0 && slot_used[slot] && queue_flushed);
-  if (!wait_ok) return false;
+  assert(pending);waits++;
+  if (!wait_ok || waits==fail_wait) return false;
   for (unsigned i=0;i<operations;i++) {
     nvn_region_t r=ops[i].r;nvn_obj_t *p=ops[i].pool;nvn_texture_t *t=ops[i].tex;
+    uint32_t *pixels=p->pixels+ops[i].offset/4;
     for (int y=0;y<r.h;y++) for (int x=0;x<r.w;x++) {
-      if (ops[i].upload) t->pixels[y+r.y][x+r.x]=p->pixels[y*r.w+x];
-      else p->pixels[y*r.w+x]=t->pixels[y+r.y][x+r.x];
+      if (ops[i].upload) t->pixels[y+r.y][x+r.x]=pixels[y*r.w+x];
+      else pixels[y*r.w+x]=t->pixels[y+r.y][x+r.x];
     }
     if (!ops[i].upload) p->flushed=false;
   }
-  waited=true;return true;
+  waited=true;pending=false;return true;
 }
 static void invalidate(const nvn_obj_t *p,ptrdiff_t offset,size_t bytes)
 { assert(waited && !offset && bytes<=p->bytes);invalidations++; }
@@ -105,26 +120,46 @@ static struct {
 static nvn_texture_t texture,original;
 static void reset(void)
 {
-  for (int i=0;i<VOID_FILL_BANDS;i++) free(void_fill_bands[i].pixels);
-  memset(void_fill_bands,0,sizeof(void_fill_bands));
-  void_fill_failed=false;fail_pool=fail_alloc=false;void_fill_flush=NULL;have_flush=wait_ok=true;
+  free(world_pixels);world_pixels=NULL;world_capacity=0;world_retry=0;world_warned=false;
+  fail_pool=fail_alloc=failed=pending=false;void_fill_flush=NULL;have_flush=wait_ok=true;
   void_fill_queue_flush=NULL;have_queue_flush=true;
-  swapchain_format=37;invalidations=flushes=uploads=0;
+  swapchain_format=37;invalidations=flushes=uploads=waits=fail_wait=0;
+  allocations=0;peak_bytes=0;max_allocation=allocation_limit=2*1024*1024;
+}
+static void check_view(nvn_rect_t area)
+{
+  for (int y=0;y<texture.h;y++) for (int x=0;x<texture.w;x++)
+    texture.pixels[y][x]=0x7f000000u|((x*123+y*789+waits*55555)&0xffffff);
+  original=texture;
+  assert(draw_world_fill(NULL,&texture,area,0));
+  assert(invalidations && invalidations==flushes && !pending);
+  assert(waits==invalidations*2 && peak_bytes<=allocation_limit);
+  /* Compare every pixel against the independent band raster; outside stays put. */
+  static uint8_t band[4096*64];
+  for (int y=0;y<area.h;y+=64) {
+    int h=area.h-y<64?area.h-y:64;
+    void_view_band(&world_view,area.w,area.h,y,h,band);
+    for (int yy=0;yy<h;yy++) for (int x=0;x<area.w;x++) {
+      uint32_t expected=void_view_color(original.pixels[area.y+y+yy][area.x+x],band[yy*area.w+x]);
+      assert(texture.pixels[area.y+y+yy][area.x+x]==expected);
+    }
+  }
+  for (int y=0;y<texture.h;y++) for (int x=0;x<texture.w;x++)
+    if (x<area.x || x>=area.x+area.w || y<area.y || y>=area.y+area.h)
+      assert(texture.pixels[y][x]==original.pixels[y][x]);
 }
 int main(void)
 {
   /* Nonzero crop, odd size, last partial band, holes and disconnected coverage. */
-  nvn_rect_t area={17,11,641,367};
+  nvn_rect_t area={17,11,641,367};texture.w=700;texture.h=400;
   for (int y=0;y<VOID_VIEW_HEIGHT;y++) for (int x=0;x<VOID_VIEW_WIDTH;x++)
     world_view.mask[y*VOID_VIEW_WIDTH+x]=(y%3!=0 && x%7<3);
   for (int frame=0;frame<2;frame++) {
     for (int y=0;y<400;y++) for (int x=0;x<700;x++)
       texture.pixels[y][x]=0x7f000000u|((x*123+y*789+frame*55555)&0xffffff);
     original=texture;
-    assert(prepare_void_fill(NULL,&texture,area,0));
-    assert(invalidations && invalidations==flushes && !memcmp(&texture,&original,sizeof(texture)));
-    begin(&cmd_buffer);copy_void_fill(&texture);
-    nvn_handle_t h=end(&cmd_buffer);submit(NULL,1,&h);queue_flush(NULL);assert(slot_finished(0));
+    assert(draw_world_fill(NULL,&texture,area,0));
+    assert(invalidations && invalidations==flushes && !pending);
     for (int y=0;y<400;y++) for (int x=0;x<700;x++) {
       uint32_t expected=original.pixels[y][x];
       if (x>=area.x && x<area.x+area.w && y>=area.y && y<area.y+area.h &&
@@ -141,8 +176,7 @@ int main(void)
   world_view.hide_link=true;
   world_view.link[0]=world_view.link[1]=.4f;world_view.link[2]=world_view.link[3]=.6f;
   texture=original;
-  assert(prepare_void_fill(NULL,&texture,area,0));begin(&cmd_buffer);copy_void_fill(&texture);
-  nvn_handle_t handle=end(&cmd_buffer);submit(NULL,1,&handle);queue_flush(NULL);assert(slot_finished(0));
+  assert(draw_world_fill(NULL,&texture,area,0));
   for (int y=0;y<400;y++) for (int x=0;x<700;x++) {
     uint32_t expected=original.pixels[y][x];int xx=x-area.x,yy=y-area.y;
     bool inside=xx>=0 && xx<area.w && yy>=0 && yy<area.h;
@@ -159,10 +193,38 @@ int main(void)
     if (failure==3) fail_pool=true;
     if (failure==4) wait_ok=false;
     if (failure==5) have_queue_flush=false;
-    assert(!prepare_void_fill(NULL,&texture,area,0));
+    assert(!draw_world_fill(NULL,&texture,area,0));
     assert(!invalidations && !flushes && !uploads);
-    assert(failure==4?failed:void_fill_failed);
+    assert(failure==4?failed:world_retry>0);
   }
+  /* Regression: full 1440p coverage previously kept 23 separate 640 KiB
+   * pools and went permanently blank when the eighth pool failed. */
+  reset();memset(&world_view,0,sizeof(world_view));
+  memset(world_view.mask,VIEW_VOID,sizeof(world_view.mask));
+  texture.w=2560;texture.h=1440;check_view((nvn_rect_t){0,0,2560,1440});
+  assert(allocations==1 && world_capacity==2*1024*1024 && waits>2);
+  /* A larger viewport uses the same buffer, without restart/reallocation. */
+  texture.w=3840;texture.h=2160;check_view((nvn_rect_t){0,0,3840,2160});
+  assert(allocations==1);
+  /* Fragmented heap: fall back to just 64 KiB, keeping every pixel intact. */
+  reset();max_allocation=allocation_limit=64*1024;
+  texture.w=2560;texture.h=1440;check_view((nvn_rect_t){0,0,2560,1440});
+  assert(world_capacity==64*1024 && allocations==6);
+  /* Sparse strips also flush safely when the metadata array is full. */
+  memset(&world_view,0,sizeof(world_view));world_view.count=1;
+  world_view.lines[0]=(view_line_t){.5f,0,.5f,1,VIEW_WALL};
+  texture.w=4096;texture.h=4096;check_view((nvn_rect_t){0,0,4096,4096});
+  /* Memory pressure is retryable, and failed pools release their allocation. */
+  for (int pool=0;pool<2;pool++) {
+    reset();fail_alloc=!pool;fail_pool=pool;
+    assert(!draw_world_fill(NULL,&texture,area,0) && !live_bytes && world_retry==120);
+    fail_alloc=fail_pool=false;
+    for (int frame=0;frame<120;frame++) assert(!draw_world_fill(NULL,&texture,area,0));
+    check_view(area);assert(world_pixels);
+  }
+  /* A stalled upload must not allow scratch/command storage to be reused. */
+  reset();fail_wait=2;
+  assert(!draw_world_fill(NULL,&texture,area,0) && failed && pending && waits==2);
   reset();
-  puts("PASS: production NVN fill, deferred readback/fence/invalidate/blend/flush/upload ordering, current frame, untouched pixels/crop, failure paths");
+  puts("PASS: bounded NVN batches at 1440p/4K, 64 KiB fallback/recovery, resize, deferred read/upload fences, cache ordering, alpha/crop/player masking");
 }

@@ -1,6 +1,6 @@
 # Collision view
 
-**0.0.10-test9:** surfaces and invisible barriers use continuous **one-output-pixel lines at 50%
+**0.0.10-test10:** surfaces and invisible barriers use continuous **one-output-pixel lines at 50%
 opacity**. Thickness does not change with menu size, distance, display resolution or scene density.
 The old coarse-raster enlargement and opaque rectangle drawing are removed. Crossings blend once.
 Supported loaded solid collision hides covered portions, independently of which display filters are on.
@@ -32,12 +32,15 @@ positions to prevent self-occlusion gaps on slopes. Visible segments stay in flo
 coordinates until one-pixel rasterization at the actual viewport size. Up to 16384 segments and the
 void face mask are published together. The renderer reads current-frame RGBA8 bands, fences and
 flushes the queue, blends only marked pixels, flushes CPU cache, and copies back before menus/watches.
-Unsupported formats/cache/queue support disable the world overlay and log the failure. This GPU wait
+Copies use one reusable pool capped at 2 MiB, with fallback down to 64 KiB. Each batch
+finishes its readback and upload before storage is reused; full-screen coverage no longer
+retains a separate allocation for every strip. Temporary allocation failures retry.
+Unavailable formats/cache/queue support are logged and retried. The extra GPU waits
 and CPU work still need native performance testing.
 
 Host checks cover line width from 640 to 3840 pixels, steep/reversed slopes, occlusion, body exclusion,
 odd cropped regions, single-alpha crossings, unavailable sources and scene transitions. Production
-headless band rendering is exercised in `tests/run_void_view.py`. Appearance and performance of test9
+headless band rendering is exercised in `tests/run_void_view.py`. Appearance and performance of test10
 have not been verified in-game. No game assets are added by this display update.
 
 The historical research and future GPU-rendering plan follow; the native

@@ -330,3 +330,14 @@ walls and Link. Enable **show voids** for in-world faces/edges only: the banner 
 Move toward an exposed mapped boundary, pan the camera, and change scenes. Check performance as well
 as coverage. The projected player envelope can leave a gap around Link; collision-based visibility
 and mapped sensor bounds do not guarantee an exact safe distance or coverage of every death trigger.
+
+
+Test10: `tests/run_void_view.py` additionally executes the production compositor
+under a strict 2 MiB allocation budget at 2560x1440, reuses it at 3840x2160, and
+checks fallback/recovery with just 64 KiB. It verifies readback and upload fences
+before buffer/command reuse. Build/install both mod files as above and restart.
+In Kokiri Forest, enable **surfaces / triggers > show surfaces** and the desired
+floor/wall/ceiling filters, then close the menu. The log should report
+`world overlay ready: ... KiB reusable buffer`, without the old per-band allocation
+failure. Check camera movement, area changes and frame rate; host tests cannot
+confirm the new rendering or performance in the running game.
