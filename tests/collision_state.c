@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "../src/ootgz/collision.c"
-static uint64_t objects[7][2560],original[7][2560];
+static uint64_t objects[19][2560],original[19][2560];
 #define A(i) ((uintptr_t)objects[i])
 uintptr_t z64hd_main=0x100000000ull;
 static bool loading,changing,mapped=true;
@@ -13,7 +13,7 @@ bool sys_mapped(uintptr_t at,size_t n,uint32_t perm)
 {
   assert(perm==SYS_PERM_R);
   if (!mapped || n>UINTPTR_MAX-at) return false;
-  for (unsigned i=0;i<7;i++) if (at>=A(i)&&at+n<=A(i)+sizeof(objects[i])) return true;
+  for (unsigned i=0;i<19;i++) if (at>=A(i)&&at+n<=A(i)+sizeof(objects[i])) return true;
   return false;
 }
 uintptr_t sys_ptr(uintptr_t at)
@@ -27,6 +27,10 @@ bool gd_get_bool(uint32_t hash,bool *out)
 { *out=hash==0xEF2B60C2u?loading:changing;return true; }
 bool link_drawn_pos(vec3f_t *p) { *p=(vec3f_t){0,0,0};return true; }
 uintptr_t link_actor(void) { return actor; }
+bool actors_each(void (*visit)(uintptr_t,const char *,void *),void *ctx)
+{ (void)visit;(void)ctx;return true; }
+void collision_shape_scan(const void *bytes,size_t size,const float world[3][4],float scale,collision_scan_t *s)
+{ (void)bytes;(void)size;(void)world;(void)scale;(void)s;assert(false); }
 void collision_mesh_scan(const void *bytes,size_t size,collision_scan_t *s)
 {
   assert(bytes==(void *)A(6)&&size==0x1000);
@@ -38,6 +42,32 @@ void collision_mesh_scan(const void *bytes,size_t size,collision_scan_t *s)
   }
 }
 static void put(uintptr_t at,uintptr_t v) { memcpy((void *)at,&v,8); }
+static void test_actor_sources(void)
+{
+  put(A(7)+0x270,A(8));put(A(8)+0x50,A(9));put(A(9)+0x20,A(10));
+  put(A(10)+0x18,1);put(A(10)+0x20,A(11));put(A(11),A(12));put(A(12)+8,A(13));
+  put(A(13)+0x10,1);put(A(13)+0x18,A(11)+0x100);put(A(11)+0x108,A(14));
+  put(A(14),MAIN(Z64HD_VT_ENTITY_BODY));put(A(14)+0x28,A(15));
+  put(A(15),MAIN(Z64HD_VT_MESH_WRAPPER));put(A(15)+0xA0,A(16)+0x48);
+  put(A(16),MAIN(Z64HD_VT_SHAPE_DESCRIPTOR));put(A(16)+8,A(17));put(A(16)+0x10,0x1000);
+  put(A(16)+0x48,MAIN(Z64HD_VT_SHAPE_RESOURCE));
+  put(A(15)+0x80,A(18));put(A(18)+8,A(17)+0x50);put(A(17)+0x80,A(16)+0x48);
+  memcpy(original,objects,sizeof(original));
+  unsigned used=TILE_COUNT;
+  actor_shapes(A(7),"scenery",&used);
+  assert(used==TILE_COUNT+1 && current[TILE_COUNT].data==A(17) && current[TILE_COUNT].body==A(14));
+  assert(!memcmp(original,objects,sizeof(original)));
+  for (int invalid=0;invalid<4;invalid++) {
+    memcpy(objects,original,sizeof(objects));used=TILE_COUNT;
+    if (invalid==0) put(A(16),0); /* independently allocated resource, not inline */
+    if (invalid==1) put(A(18)+8,A(17)+0x2000); /* root outside file */
+    if (invalid==2) put(A(13)+0x10,129);
+    if (invalid==3) put(A(14),0);
+    actor_shapes(A(7),"scenery",&used);assert(used==TILE_COUNT);
+  }
+  memset(objects,0,sizeof(objects));
+  puts("PASS: live actor shape ownership, file/root bounds, count/type guards and read-only collection");
+}
 static void draw(const vec3f_t v[3],int kind,void *ctx)
 {
   (void)ctx;assert(kind==COLLISION_WALL && v[0].z==3);drawn++;
@@ -47,6 +77,7 @@ static void finish(void)
 { unsigned frames=0;do { collision_frame();assert(++frames<8); } while (collecting); }
 int main(void)
 {
+  test_actor_sources();
   put(A(0)+0x1F0,A(1));put(A(1)+0x58,A(2));put(A(2)+0x50,A(3));
   put(A(3),MAIN(Z64HD_VT_STATIC_MGR));put(A(3)+0x720,A(4));
   put(A(4),MAIN(Z64HD_VT_STATIC_BODY));put(A(4)+0x10,A(5));

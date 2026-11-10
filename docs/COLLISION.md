@@ -1,8 +1,11 @@
 # Collision view
 
-**0.0.10-test4:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`.
+**0.0.10-test6:** the native viewer reads loaded static collision through `StaticCompoundBodyMgr`
+and up to 128 supported actor mesh bodies through their live physics controllers.
 **Scene > Collision > surfaces / triggers** offers independent floors (green), walls (blue), ceilings
 (pink), and static door/general-area sensors (yellow). Enable **show surfaces**; range is 4/8/12/20 world units.
+Large identified void boxes also show grids across their boundary faces so their surfaces can be
+located when the outer edges are off-screen. These are actual sensor bounds, not guessed death heights.
 Selections persist. Existing invisible-barrier and void-sensor controls are independent.
 
 This is a bounded wireframe preview: at most 2048 nearby triangles, scanned in batches of 4096 primitives
@@ -18,7 +21,7 @@ outlines instead of missing pieces along every edge. The shared overlay limit is
 command memory is 2 MiB per render slot, with the existing free-space guard retained. Void/barrier outlines
 still use their previous drawing style. Geometry refresh takes
 several frames and can take longer in dense maps. It draws
-through scenery. Unsupported shapes are skipped; capsules/spheres, moving actor collision, and unclassified
+through scenery. Unsupported shapes are skipped; capsules/spheres, independently allocated actor shape clones, and unclassified
 scripted voids are not included. Convex hulls omit the solver's contact-radius expansion.
 
 No extracted collision files are distributed. Read-only checks located live tiles and the decoder was

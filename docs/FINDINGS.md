@@ -973,3 +973,52 @@ that the user's exact trigger is fixed in-game. Already-running events and unrel
 warps are not cancelled. Test after installing both files and restarting; enable protection before
 entering the trigger, check there is no void camera/fade/respawn, then return to safe ground and
 verify normal mode and ordinary area transitions still work.
+
+
+### Collision left disabled after L3; tower death-volume visibility (0.0.10-test6)
+
+Read-only inspection of a user-reproduced stuck state found the current CCT body with
+force-no-hit still set, ground state 1 (unsupported), and vertical velocity -60 after
+levitation was off. The log showed the same property selecting different bodies, followed
+by a later activation saving `was 1` and release restoring 1. The former owner comparison
+included the selected body: a posture/body switch was mistaken for controller replacement,
+so the original body was never restored. Its disabled flag became the next baseline.
+
+The property remains stable while +20 selects among the typed CCT bodies in its attached
+list (+58 -> count +10, pointer array +18). Keep a bounded per-session baseline for each
+body touched. Accept body selection changes within the same actor/property, and restore all
+still-attached, revalidated bodies on release. Actor/property replacement still forbids stale
+writes; unreadable controllers are retried. A body whose collision was already disabled
+before this session keeps that state. Restart after installing to clear a state left by an
+older build; this fix does not force arbitrary existing no-hit states off.
+
+Also seed native hover from the CCT's actual 3x4 transform (+80 translation +0C/+1C/+2C),
+with the pending transform (+60, flag +100 bit 6) taking precedence as in native setter
++6B2530. The drawn position can differ from physics during animation: one stationary sample
+was about 0.072 units below the physics origin. Using it could move the capsule into a floor.
+
+At tower collapse, three direct player-abyss Area associations had valid box bounds. Two
+volumes were 200 units across. Twelve perimeter edges do not visualize a boundary whose
+entire perimeter is off-screen. Add bounded grids across the actual six faces, keeping the
+active/inactive colors. A conditional abyss node without a direct sensor input was NOT used
+to classify every Area sharing its graph as a death barrier.
+
+Missing tower scenery also has ordinary entity bodies, outside StaticCompoundBodyMgr.
+Read entity controller count/array at physics controller +18/+20, controller +8 pool,
+pool +10 count/+18 entries, 24-byte entries with body at +8. Verified entity body vtable
++4C378C0; body +28 mesh wrapper (+4C31DE8), +80 world matrix. Wrapper +10 scale,
++80 holder -> +8 root, +A0 resource (+4C31EE0). For inline resources only, descriptor
+at resource-48 has vtable +4C31F00, bytes +8 and size +10; require the root to lie inside
+those bytes and root+30 to point back to the resource. Constructor +3864670 establishes
+that inline layout; independently allocated resource clones are intentionally skipped.
+Standalone shape sections use the existing relative-array decoder and player-material filter.
+Collect up to 128 actor shapes in addition to 17 static slots. Capture one transform per
+complete scan, retain source bounds/type checks each frame, and reuse existing triangle budgets.
+
+Validation: synthetic body-switch A/B/A restoration, original flag preservation, stale-owner
+and unavailable-controller guards; queued/physical origin and animated-position regression;
+actor ownership/root/file bounds and read-only tests; standalone shape transform/scale/filter
+and malformed-input tests; giant-volume headless render. This establishes the original runtime
+fault and source-level regressions, not successful runtime behavior of the new build. The game
+closed before the new module was installed. Dense-line coarsening, actual 50% opacity and
+visible-surfaces-only rendering remain separate renderer work.

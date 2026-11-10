@@ -533,20 +533,19 @@ static void steer(double dt)
 }
 
 /* Through-walls movement already has a verified native controller setter.
- * Start directly from the drawn feet, without heap scans or test-lifting a
+ * Start directly from the physics origin, without heap scans or test-lifting a
  * look-alike record. The legacy search remains for collision-respecting mode
  * and 2x speed. Use real pause flags: stationary hover is not a frozen game. */
 static void controller_float_step(double dt,bool menu_open)
 {
-  vec3f_t drawn;
-  if (!link_drawn_pos(&drawn) ||
-      !(drawn.x>-100000 && drawn.x<100000 && drawn.y>-100000 && drawn.y<100000 &&
-        drawn.z>-100000 && drawn.z<100000) || !cct_noclip_begin()) {
+  uintptr_t actor = link_actor();
+  vec3f_t position;
+  if (!cct_position(actor, &position) || !cct_noclip_begin()) {
     drop();gfx_notice("levitate: controller unavailable; stopped");return;
   }
   if (!controller_float) {
-    float_actor=link_actor();landing_actor=0;landed_frames=0;
-    pos_x=drawn.x;pos_y=drawn.y;pos_z=drawn.z;
+    float_actor=actor;landing_actor=0;landed_frames=0;
+    pos_x=position.x;pos_y=position.y;pos_z=position.z;
     vel_x=vel_y=vel_z=0;float_clock=0;
     record=0;record_has_motion=false;search_state=SEARCH_IDLE;
     controller_float=moving_link=true;
@@ -559,7 +558,7 @@ static void controller_float_step(double dt,bool menu_open)
   if (paused || pause_requests>0) return;
   if (!menu_open) steer(dt);
   pos_x+=vel_x*dt;pos_z+=vel_z*dt;
-  vec3f_t position={(float)pos_x,(float)pos_y,(float)pos_z};
+  position=(vec3f_t){(float)pos_x,(float)pos_y,(float)pos_z};
   if (!cct_noclip_move(&position) || !cct_reset_vertical_velocity(float_actor) ||
       !cct_clear_fall_distance(float_actor)) {
     drop();gfx_notice("levitate: controller or fall protection unavailable; stopped");

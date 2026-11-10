@@ -1,4 +1,5 @@
 #include "collision.h"
+#include "actors.h"
 #include "gamedata.h"
 #include "sys.h"
 #include "z64hd.h"
@@ -9,12 +10,13 @@ int collision_radius = 12;
 int collision_detail = 3; /* exact, quarter, half, one world unit */
 
 #define TILE_COUNT 17
+#define SOURCE_COUNT (TILE_COUNT + 128)
 #define TRIANGLE_MAX 2048
 #define SEEN_MAX 16384
 #define SCAN_BUDGET 4096
-typedef struct { uintptr_t data; uint32_t size; } tile_t;
+typedef struct { uintptr_t data, body; uint32_t size; float world[3][4],scale; } tile_t;
 typedef struct { vec3f_t v[3]; float distance; int kind; } triangle_t;
-static tile_t tiles[TILE_COUNT];
+static tile_t tiles[SOURCE_COUNT], current[SOURCE_COUNT];
 static triangle_t candidates[TRIANGLE_MAX], visible[TRIANGLE_MAX];
 static struct { vec3f_t v[3]; int kind; } seen[SEEN_MAX];
 static unsigned count, visible_count, tile_count;
@@ -47,9 +49,42 @@ static bool loaded_tiles(tile_t out[TILE_COUNT])
     uintptr_t data=next(res,8); uint32_t size;
     if (!data || !sys_read32(res+0x10,&size) || size<0x510 || size>(128u<<20) ||
         data>UINTPTR_MAX-size || !sys_mapped(data,size,SYS_PERM_R)) continue;
-    if (next(slot,0x30)==body && next(body,0x10)==res && next(res,8)==data) out[i]=(tile_t){data,size};
+    if (next(slot,0x30)==body && next(body,0x10)==res && next(res,8)==data)
+      out[i]=(tile_t){.data=data,.size=size};
   }
   return true;
+}
+
+static void actor_shapes(uintptr_t actor, const char *name, void *ctx)
+{
+  (void)name;
+  unsigned *used=ctx;
+  uintptr_t ctrl=next(next(next(actor,0x270),0x50),0x20);
+  uint32_t controllers;
+  if (*used>=SOURCE_COUNT || !ctrl || !sys_read32(ctrl+0x18,&controllers) || controllers>32) return;
+  uintptr_t entries=next(ctrl,0x20);
+  for (unsigned i=0;i<controllers && *used<SOURCE_COUNT;i++) {
+    uintptr_t pool=next(next(entries,i*8),8),bodies=next(pool,0x18);
+    uint32_t count;
+    if (!pool || !sys_read32(pool+0x10,&count) || count>128) continue;
+    for (unsigned j=0;j<count && *used<SOURCE_COUNT;j++) {
+      uintptr_t body=next(bodies,j*24+8),shape=next(body,0x28),res=next(shape,0xA0);
+      if (next(body,0)!=MAIN(Z64HD_VT_ENTITY_BODY) || next(shape,0)!=MAIN(Z64HD_VT_MESH_WRAPPER) ||
+          next(res,0)!=MAIN(Z64HD_VT_SHAPE_RESOURCE) || res<0x48) continue;
+      uintptr_t descriptor=res-0x48,data=next(descriptor,8); uint32_t size;
+      if (next(descriptor,0)!=MAIN(Z64HD_VT_SHAPE_DESCRIPTOR) || !data ||
+          !sys_read32(descriptor+0x10,&size) || size<48 || size>(32u<<20) ||
+          data>UINTPTR_MAX-size || !sys_mapped(data,size,SYS_PERM_R) ||
+          !sys_mapped(body+0x80,48,SYS_PERM_R) || !sys_mapped(shape+0x10,4,SYS_PERM_R)) continue;
+      uintptr_t root=next(next(shape,0x80),8);
+      if (root<data || root-data>size-48 || next(root,0x30)!=res) continue;
+      tile_t item={.data=data,.body=body,.size=size};
+      memcpy(item.world,(const void *)(body+0x80),48);
+      memcpy(&item.scale,(const void *)(shape+0x10),4);
+      if (next(body,0x28)!=shape || next(shape,0xA0)!=res || next(descriptor,8)!=data) continue;
+      current[(*used)++]=item;
+    }
+  }
 }
 
 static bool point_before(vec3f_t a,vec3f_t b)
@@ -146,16 +181,18 @@ void collision_frame(void)
   if (!collision_shown || !collision_kinds || loading || changing || !link_drawn_pos(&player) ||
       !(player.x>-100000 && player.x<100000 && player.y>-100000 && player.y<100000 &&
         player.z>-100000 && player.z<100000)) { tile_count=0; reset(); return; }
-  tile_t current[TILE_COUNT]={0};
+  memset(current,0,sizeof(current));
   if (!loaded_tiles(current)) { tile_count=0; reset(); return; }
+  unsigned sources=TILE_COUNT;
+  actors_each(actor_shapes,&sources);
   uintptr_t actor=link_actor();
   bool changed=actor!=previous_actor || previous_kinds!=collision_kinds ||
                previous_radius!=collision_radius || previous_detail!=collision_detail;
   tile_count=0;
-  for (unsigned i=0;i<TILE_COUNT;i++) {
-    if (current[i].data!=tiles[i].data || current[i].size!=tiles[i].size) changed=true;
+  for (unsigned i=0;i<SOURCE_COUNT;i++) {
+    if (current[i].data!=tiles[i].data || current[i].size!=tiles[i].size ||
+        current[i].body!=tiles[i].body) changed=true;
     if (current[i].data) tile_count++;
-    tiles[i]=current[i];
   }
   previous_actor=actor; previous_kinds=collision_kinds; previous_radius=collision_radius;
   previous_detail=collision_detail;
@@ -163,13 +200,18 @@ void collision_frame(void)
   float dx=player.x-centre.x,dy=player.y-centre.y,dz=player.z-centre.z;
   if (dx*dx+dy*dy+dz*dz>64) reset(); /* teleport; old geometry must disappear */
   if (!collecting) {
+    memcpy(tiles,current,sizeof(tiles)); /* one coherent transform per scan */
     centre=player; count=0; cursor=0; collecting=true;
     memset(seen,0,sizeof(seen));
   }
   collision_scan_t scan={ .skip=cursor,.remaining=SCAN_BUDGET,.kinds=(unsigned)collision_kinds,
                          .main=z64hd_main,.triangle=collect };
-  for (unsigned i=0;i<TILE_COUNT && scan.remaining;i++)
-    if (tiles[i].data) collision_mesh_scan((const void *)tiles[i].data,tiles[i].size,&scan);
+  for (unsigned i=0;i<SOURCE_COUNT && scan.remaining;i++) {
+    if (!tiles[i].data) continue;
+    if (tiles[i].body)
+      collision_shape_scan((const void *)tiles[i].data,tiles[i].size,tiles[i].world,tiles[i].scale,&scan);
+    else collision_mesh_scan((const void *)tiles[i].data,tiles[i].size,&scan);
+  }
   cursor+=scan.visited;
   /* Retain the complete old snapshot throughout the next scan. Publishing a
    * partial heap here made most geometry disappear every few frames. */
@@ -194,6 +236,6 @@ void collision_summary(char *buf,int len)
   if (!collision_shown) snprintf(buf,len,"enable show surfaces to inspect");
   else if (!collision_kinds) snprintf(buf,len,"select a surface or trigger type");
   else if (!tile_count) snprintf(buf,len,"loaded collision: N/A");
-  else snprintf(buf,len,"%u triangles, %u tiles%s%s",visible_count,tile_count,
+  else snprintf(buf,len,"%u triangles, %u sources%s%s",visible_count,tile_count,
                 ready?"":" (scanning)",unsupported?"; some shapes omitted":"");
 }

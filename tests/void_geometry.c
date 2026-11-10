@@ -83,6 +83,9 @@ int main(void)
   n=MAX_DOTS-1; draw_void_box(corners,true,&draw); assert(n==MAX_DOTS);
   const unsigned char *guard=(const unsigned char *)&output[MAX_DOTS];
   for (unsigned i=0;i<sizeof(output[0]);i++) assert(guard[i]==0x5A);
+  /* Inside a tower-sized slab: its perimeter misses the entire viewport. */
+  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
+  n=0;draw_void_box(corners,true,&draw);assert(n>0 && n<MAX_DOTS);
   vec3f_t triangle[3]={{-1,-1,5},{1,-1,5},{0,1,5}};
   for (int kind=0;kind<COLLISION_KINDS;kind++) {
     n=0;surface_edges_reset();

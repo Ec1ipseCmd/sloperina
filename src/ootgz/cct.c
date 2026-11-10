@@ -9,7 +9,10 @@
 
 typedef struct { uintptr_t actor, property, body; } controller_t;
 static controller_t owner;
-static bool original_no_hit;
+/* A controller selects different bodies while Link changes posture/action.
+ * Remember every body we changed, not just the currently selected one. */
+static struct { uintptr_t body; bool no_hit; } saved_bodies[128];
+static unsigned saved_count;
 static bool restore_wait_logged;
 
 static uintptr_t next(uintptr_t p, size_t offset)
@@ -57,7 +60,23 @@ static bool resolve(controller_t *out)
 
 static bool same(controller_t a, controller_t b)
 {
-  return a.actor == b.actor && a.property == b.property && a.body == b.body;
+  return a.actor == b.actor && a.property == b.property;
+}
+
+static bool attached(controller_t controller, uintptr_t body)
+{
+  uintptr_t lists = next(controller.property, 0x58);
+  uint32_t count;
+  if (!sys_read32(lists + 0x10, &count) || count > 128 ||
+      !writable(body, 0x320) || sys_ptr(body) != MAIN(Z64HD_VT_CCT_BODY))
+    return false;
+  uintptr_t entries = next(lists, 0x18);
+  for (unsigned i = 0; i < count; i++)
+    if (next(entries, i * 8) == body) {
+      uintptr_t pending = next(body, 0x60);
+      return !pending || writable(pending, 0x108);
+    }
+  return false;
 }
 
 static bool no_hit(uintptr_t body)
@@ -73,6 +92,25 @@ static bool no_hit(uintptr_t body)
 static void set_no_hit(uintptr_t body, bool enabled)
 {
   MAIN_FN(void (*)(uintptr_t, bool), Z64HD_CCT_FORCE_NO_HIT)(body, enabled);
+}
+
+bool cct_position(uintptr_t expected_actor, vec3f_t *position)
+{
+  controller_t current;
+  if (!position || !expected_actor || !resolve(&current) || current.actor != expected_actor)
+    return false;
+  uintptr_t pending = next(current.body, 0x60), transform = current.body + 0x80;
+  /* Match the native position setter: a queued transform takes precedence. */
+  if (pending && (*(volatile uint64_t *)(pending + 0x100) & (1ull << 6)))
+    transform = pending;
+  vec3f_t p = { *(volatile float *)(transform + 0x0C),
+                *(volatile float *)(transform + 0x1C),
+                *(volatile float *)(transform + 0x2C) };
+  if (!(p.x > -100000 && p.x < 100000 && p.y > -100000 && p.y < 100000 &&
+        p.z > -100000 && p.z < 100000))
+    return false;
+  *position = p;
+  return true;
 }
 
 bool cct_reset_vertical_velocity(uintptr_t expected_actor)
@@ -141,24 +179,33 @@ bool cct_noclip_active(void) { return owner.body != 0; }
 bool cct_noclip_begin(void)
 {
   controller_t current;
-  if (!resolve(&current))
+  if (!resolve(&current) || !attached(current, current.body))
     return false;
-  if (owner.body)
-    return same(owner, current);
-  original_no_hit = no_hit(current.body);
+  if (owner.body && !same(owner, current))
+    return false;
+  if (!owner.body) saved_count = 0;
+  unsigned i;
+  for (i = 0; i < saved_count; i++)
+    if (saved_bodies[i].body == current.body) break;
+  if (i == saved_count) {
+    if (saved_count == 128) return false;
+    saved_bodies[i].body = current.body;
+    saved_bodies[i].no_hit = no_hit(current.body);
+    saved_count++;
+    log_printf("levitate: controller %#lx, body %#lx, collision bypass on (was %d)",
+               (unsigned long)current.property, (unsigned long)current.body, saved_bodies[i].no_hit);
+  }
   owner = current;
   restore_wait_logged = false;
-  if (!original_no_hit)
+  if (!no_hit(owner.body))
     set_no_hit(owner.body, true);
-  log_printf("levitate: controller %#lx, body %#lx, collision bypass on (was %d)",
-             (unsigned long)owner.property, (unsigned long)owner.body, original_no_hit);
   return true;
 }
 
 bool cct_noclip_move(const vec3f_t *position)
 {
   controller_t current;
-  if (!owner.body || !resolve(&current) || !same(owner, current) ||
+  if (!owner.body || !resolve(&current) || !same(owner, current) || current.body != owner.body ||
       !(position->x > -100000 && position->x < 100000 &&
         position->y > -100000 && position->y < 100000 &&
         position->z > -100000 && position->z < 100000))
@@ -181,11 +228,17 @@ void cct_noclip_end(void)
     return; /* Retry while idle; never forget a temporarily unreadable owner. */
   }
   if (same(owner, current)) {
-    if (no_hit(owner.body) != original_no_hit)
-      set_no_hit(owner.body, original_no_hit);
-    log_printf("levitate: collision bypass restored to %d", original_no_hit);
+    for (unsigned i = 0; i < saved_count; i++) {
+      uintptr_t body = saved_bodies[i].body;
+      /* Revalidate membership in the live controller; never write a detached
+       * or replaced body through a saved address. */
+      if (attached(current, body) && no_hit(body) != saved_bodies[i].no_hit)
+        set_no_hit(body, saved_bodies[i].no_hit);
+    }
+    log_printf("levitate: restored collision for %u controller bodies", saved_count);
   } else {
     log_printf("levitate: controller changed/unavailable; skipped stale collision restore");
   }
   owner = (controller_t){0};
+  saved_count = 0;
 }

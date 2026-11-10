@@ -11,6 +11,7 @@ void cct_noclip_end(void);
 bool cct_noclip_active(void);
 
 /* Resolve on every call. These work with collision enabled as well. */
+bool cct_position(uintptr_t expected_actor, vec3f_t *position);
 bool cct_reset_vertical_velocity(uintptr_t expected_actor);
 bool cct_on_ground(uintptr_t expected_actor, bool *grounded);
 bool cct_clear_fall_distance(uintptr_t expected_actor);

@@ -33,6 +33,7 @@ bool gd_get_int(uint32_t hash,int32_t *out)
 { assert(hash==0x64A61098u);*out=pause_requests;return true; }
 const char *gd_get_str(int idx) { assert(idx == GD_STR_MAP); return map_name; }
 bool cct_reset_vertical_velocity(uintptr_t a) { (void)a; velocity_resets++; return controller_available; }
+bool cct_position(uintptr_t a, vec3f_t *p) { (void)a; *p=drawn_pos; p->y+=0.07f; return controller_available && position_available; }
 bool cct_clear_fall_distance(uintptr_t a) { (void)a; distance_resets++; return controller_available; }
 bool cct_on_ground(uintptr_t a, bool *grounded) { (void)a; *grounded = on_ground; return controller_available; }
 bool cct_noclip_begin(void) { return controller_active = controller_available; }
@@ -303,10 +304,10 @@ static void test_native_start(void)
   levitate_frame(false);
   assert(controller_float && moving_link && floating && controller_active);
   assert(!record && !region_scans && controller_moves==1);
-  assert(native_position.y==drawn_pos.y); /* no test lift or height offset */
+  assert(native_position.y==drawn_pos.y+0.07f); /* physics origin, not animated feet */
   pressed=0;
   for (int i=0;i<60;i++) controller_float_step(1.0/30,false);
-  assert(native_position.y==drawn_pos.y && !memcmp(before,physics,sizeof(before)));
+  assert(native_position.y==drawn_pos.y+0.07f && !memcmp(before,physics,sizeof(before)));
   held=BTN_X;controller_float_step(1.0/30,false);
   assert(native_position.y>drawn_pos.y); /* standing hover must not freeze controls */
   float y=native_position.y;

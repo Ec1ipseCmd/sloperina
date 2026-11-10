@@ -20,7 +20,7 @@ static uintptr_t function_at(unsigned offset)
 #define MAIN_FN(type, off) ((type)function_at(off))
 #include "../src/ootgz/cct.c"
 
-static uint64_t objects[11][1024];
+static uint64_t objects[14][1024];
 #define A(n) ((uintptr_t)objects[n])
 uintptr_t z64hd_main = 0x100000000ull;
 static uintptr_t actor, blocked;
@@ -33,7 +33,7 @@ uintptr_t link_actor(void) { return actor; }
 bool sys_mapped(uintptr_t a, size_t n, uint32_t perm)
 {
   if (n > UINTPTR_MAX - a || (read_only && (perm & SYS_PERM_W))) return false;
-  for (unsigned i = 0; i < 11; i++)
+  for (unsigned i = 0; i < 14; i++)
     if (a >= A(i) && a + n <= A(i) + sizeof(objects[i]) && A(i) != blocked) return true;
   return false;
 }
@@ -51,10 +51,11 @@ bool sys_read32(uintptr_t a, uint32_t *v)
 void log_printf(const char *fmt, ...) { (void)fmt; }
 static void fake_no_hit(uintptr_t body, bool on)
 {
-  assert(body == A(6));
+  assert(body == A(6) || body == A(11));
   toggles++;
-  putp(8, 0x100, 1ull << 19);
-  put32(8, 0xF8, on); /* queued state, applied body flag deliberately stays unchanged */
+  int pending = body == A(6) ? 8 : 12;
+  putp(pending, 0x100, sys_ptr(A(pending) + 0x100) | (1ull << 19));
+  put32(pending, 0xF8, on); /* queued state, applied body flag deliberately stays unchanged */
 }
 static void fake_position(uintptr_t property, const vec3f_t *p)
 {
@@ -99,7 +100,7 @@ static void test_fall(void)
   assert(*(float *)(A(9) + 0x18D4) == y && *(float *)(A(9) + 0x18E0) == y);
   assert(*(float *)(A(9) + 0x190C) == 0 && *(float *)(A(10) + 0x189C) == 0);
   assert(*(float *)(A(10) + 0x1898) == y && *(uint32_t *)(A(9) + 0x18E8) == 0x7F7FFFFF);
-  static uint64_t before[11][1024];
+  static uint64_t before[14][1024];
   for (int invalid = 0; invalid < 4; invalid++) {
     reset();
     if (invalid == 0) blocked = A(9);
@@ -115,6 +116,25 @@ static void test_fall(void)
 int main(void)
 {
   test_fall();
+  reset();
+  vec3f_t position;
+  put32(6, 0x9C, 0x42C80000); /* physics Y = 100 */
+  assert(cct_position(actor, &position) && position.y == 100);
+  putp(8, 0x100, 1ull << 6); put32(8, 0x1C, 0x43480000);
+  assert(cct_position(actor, &position) && position.y == 200); /* queued Y */
+  put32(8, 0x1C, 0x7FC00000); assert(!cct_position(actor, &position));
+  assert(!cct_position(actor + 8, &position));
+  /* Posture changes select another attached body without replacing Link's
+   * controller. Cycling back must not save our own no-hit flag as the baseline. */
+  reset();
+  putp(11, 0, MAIN(Z64HD_VT_CCT_BODY)); putp(11, 0x60, A(12));
+  put32(4, 0x10, 2); putp(7, 8, A(11));
+  assert(cct_noclip_begin() && no_hit(A(6)));
+  putp(5, 0x20, A(11)); assert(cct_noclip_begin() && no_hit(A(11)));
+  putp(5, 0x20, A(6)); assert(cct_noclip_begin() && saved_count == 2);
+  cct_noclip_end();
+  assert(!no_hit(A(6)) && !no_hit(A(11)) && toggles == 4);
+  puts("PASS: posture body switches restore all touched bodies; physics and queued origins");
   vec3f_t p = { 2, 100, -3 };
   reset(); assert(cct_noclip_begin() && toggles == 1);
   assert(cct_noclip_begin() && toggles == 1);

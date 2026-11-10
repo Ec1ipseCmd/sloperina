@@ -107,7 +107,7 @@ and you'll come out at the chosen place. Under **return**: the **current** map a
 
 #### 2.3.1 Collision
 
-**surfaces / triggers** opens the static collision filters. Turn on **show surfaces**, then select
+**surfaces / triggers** opens the loaded collision filters. Turn on **show surfaces**, then select
 **floors**, **walls**, **ceilings**, and/or **static triggers**. Green is floor, blue wall, pink ceiling,
 yellow a door/general-area sensor. The range is 4, 8, 12, or 20 world units around Link. Settings persist.
 Up to 2048 supported preview triangles are selected. Completed views remain visible between scans.
@@ -116,7 +116,7 @@ so outlines may become thicker. **preview grid** defaults to **1** world unit,
 merging tiny faces for coverage; vertices can move by half that step per axis and small features can
 disappear. Choose **0.5**, **0.25**, or **exact** for finer detail. Static triggers and void bounds retain
 their original coordinates. The default range is 12; saved ranges are preserved. This preview draws through scenery.
-Static triggers are not necessarily voids. Moving actor collision and unsupported shapes are omitted.
+Static triggers are not necessarily voids. Supported actor mesh bodies are included; primitive actor shapes and unverified resource clones are omitted.
 
 **invisible barriers** (previously called **air walls**): invisible collision placed by the game,
 separate from ordinary terrain, drawn as outlines over the game.
@@ -391,3 +391,10 @@ dropped (é shows as e) and other alphabets can't be shown yet.
 - Frame advance freezes the picture while paused ([4](#4-about-frame-advance)).
 - Some changes only show after the game redraws them (pause screen, loading zone); story stages need a loading
   zone.
+
+
+Test6 levitation fix: L3 release restores collision on every attached controller body modified during
+that hover session, including bodies selected by posture changes. Restart after installing; the update
+does not repair a collision flag already left disabled by the old module in a running session.
+To inspect the tower death barrier, enable Scene > Collision > show voids. Large identified
+volumes show face grids as well as outlines. Protection and visualization remain independent controls.

@@ -224,6 +224,22 @@ static void shape(bytes_t b, size_t o, const transform_t *t, filter_t f, bytes_t
   }
 }
 
+void collision_shape_scan(const void *bytes, size_t size, const float world[3][4], float scale,
+                          collision_scan_t *s)
+{
+  bytes_t file={bytes,size},data; size_t root;
+  if (size<12 || !equal(bytes,"Phive\0",6) || file.data[10]!=0 ||
+      !(scale>0 && scale<10000)) return;
+  transform_t t;
+  for (int i=0;i<3;i++) for (int j=0;j<4;j++) {
+    t.m[i][j]=world[i][j]*(j==3?1:scale);
+    if (!coord_finite(t.m[i][j])) return;
+  }
+  filter_t f={section(file,1),section(file,2),0,0,-1};
+  f.count=(unsigned)(f.materials.size/16);
+  if (tag_root(section(file,0),&data,&root)) shape(data,root,&t,f,(bytes_t){0},s,0);
+}
+
 void collision_mesh_scan(const void *bytes, size_t size, collision_scan_t *s)
 {
   bytes_t file={bytes,size};

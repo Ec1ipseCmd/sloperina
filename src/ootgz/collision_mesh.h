@@ -13,4 +13,6 @@ typedef struct {
   void *ctx;
 } collision_scan_t;
 void collision_mesh_scan(const void *bytes, size_t size, collision_scan_t *scan);
+void collision_shape_scan(const void *bytes, size_t size, const float world[3][4], float scale,
+                          collision_scan_t *scan);
 #endif

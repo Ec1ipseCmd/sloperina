@@ -674,6 +674,31 @@ static void draw_void_box(const vec3f_t corners[8], bool active, void *arg)
       add_edge_dots(draw->dots, draw->n, draw->cam, a, b, active ? AW_VOID : AW_VOID_INACTIVE);
     }
   }
+  /* Large death volumes can fill the view while all twelve outer edges are
+   * off-screen. Subdivide their actual boundary faces, including rotated boxes.
+   * Keep a separate budget so the surface viewer still has room to draw. */
+  int limit=*draw->n+2400;
+  if (limit>MAX_DOTS/2) limit=MAX_DOTS/2;
+  for (int face=0;face<3 && *draw->n<limit;face++) {
+    int u=(face+1)%3,v=(face+2)%3;
+    for (int side=0;side<2 && *draw->n<limit;side++) {
+      int origin=side<<face;
+      for (int direction=0;direction<2;direction++) {
+        int step=direction?u:v,along=direction?v:u;
+        vec3f_t a=corners[origin],b=corners[origin|(1<<step)];
+        vec3f_t c=corners[origin|(1<<along)],d=corners[origin|(1<<along)|(1<<step)];
+        float dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+        int divisions=(int)(sqrtf(dx*dx+dy*dy+dz*dz)/8)+1;
+        if (divisions>32) divisions=32;
+        for (int k=1;k<divisions && *draw->n<limit;k++) {
+          float t=(float)k/divisions;
+          float p[3]={a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,a.z+(b.z-a.z)*t};
+          float q[3]={c.x+(d.x-c.x)*t,c.y+(d.y-c.y)*t,c.z+(d.z-c.z)*t};
+          add_edge_dots(draw->dots,draw->n,draw->cam,p,q,active?AW_VOID:AW_VOID_INACTIVE);
+        }
+      }
+    }
+  }
 }
 
 void airwall_frame(void)

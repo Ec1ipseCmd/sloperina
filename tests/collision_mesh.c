@@ -25,6 +25,25 @@ static void mesh_test(void)
   memcpy(b+0x400,vertices,sizeof(vertices));
   memcpy(b+0x300,(unsigned char[]){0,1,2,2,0,2,1,1},8);
   q(masks,0,8); filter_t filter={{materials,16},{masks,16},0,1,-1};
+  /* Standalone actor shape: same mesh, placed through its native body matrix. */
+  unsigned char file[4352]={0};
+  memcpy(file,"Phive\0",6);file[6]=1;file[11]=3;
+  w(file,12,48);w(file,16,4240);w(file,20,4256);
+  w(file,24,4192);w(file,28,16);w(file,32,16);
+  header(file,48,"TAG0",4192);header(file,56,"DATA",4104);
+  memcpy(file+64,b,sizeof(b));
+  header(file,4160,"INDX",80);header(file,4168,"ITEM",72);
+  w(file,4188,0x10000001);w(file,4192,0);w(file,4196,1);
+  q(file,4256,8);
+  transform_t placed=identity;placed.m[0][3]=10;placed.m[1][3]=20;
+  collision_scan_t actor_scan={.remaining=100,.main=0x100000000ull,.kinds=15,.triangle=collect};
+  memset(totals,0,sizeof(totals));
+  collision_shape_scan(file,sizeof(file),placed.m,2,&actor_scan);
+  assert(totals[COLLISION_FLOOR]==1 && totals[COLLISION_CEILING]==1);
+  assert(last[0].x==10 && last[0].y==20 && last[1].x==12);
+  for (size_t n=0;n<48;n++) collision_shape_scan(file,n,placed.m,2,&actor_scan);
+  collision_shape_scan(file,sizeof(file),placed.m,0,&actor_scan);
+  assert(totals[COLLISION_FLOOR]==1);
   collision_scan_t s={.remaining=1,.main=0x100000000ull,.kinds=15,.triangle=collect};
   memset(totals,0,sizeof(totals));
   shape((bytes_t){b,sizeof(b)},0,&identity,filter,(bytes_t){0},&s,0);
@@ -89,13 +108,17 @@ int main(int argc,char **argv)
     void *data=malloc((size_t)size);assert(data&&fread(data,1,(size_t)size,file)==(size_t)size);fclose(file);
     memset(totals,0,sizeof(totals));
     collision_scan_t s={.remaining=10000000,.kinds=15,.main=strtoull(argv[2],NULL,0),.triangle=collect};
-    collision_mesh_scan(data,(size_t)size,&s);
+    bool standalone=size>12 && ((unsigned char *)data)[10]==0;
+    if (standalone) collision_shape_scan(data,(size_t)size,identity.m,1,&s);
+    else collision_mesh_scan(data,(size_t)size,&s);
     printf("tile: floor %u wall %u ceiling %u trigger %u; %zu primitives, %u unsupported shapes\n",
            totals[0],totals[1],totals[2],totals[3],s.visited,s.unsupported);
     unsigned full[4];memcpy(full,totals,sizeof(full));memset(totals,0,sizeof(totals));
     size_t cursor=0;unsigned frames=0;
     do { s=(collision_scan_t){.remaining=4096,.skip=cursor,.kinds=15,.main=strtoull(argv[2],NULL,0),.triangle=collect};
-      collision_mesh_scan(data,(size_t)size,&s);cursor+=s.visited;assert(++frames<4096);
+      if (standalone) collision_shape_scan(data,(size_t)size,identity.m,1,&s);
+      else collision_mesh_scan(data,(size_t)size,&s);
+      cursor+=s.visited;assert(++frames<4096);
     } while (!s.remaining);
     assert(!memcmp(full,totals,sizeof(full)));printf("PASS: incremental scan matches full scan in %u batches\n",frames);
     free(data);

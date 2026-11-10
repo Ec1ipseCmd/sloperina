@@ -104,6 +104,10 @@
 
 /* Link, camera, frame (game.py) --------------------------------------------------------- */
 #define Z64HD_VT_LINKOBJ        0x4B25E18
+#define Z64HD_VT_ENTITY_BODY    0x4C378C0
+#define Z64HD_VT_MESH_WRAPPER   0x4C31DE8
+#define Z64HD_VT_SHAPE_RESOURCE 0x4C31EE0
+#define Z64HD_VT_SHAPE_DESCRIPTOR 0x4C31F00
 #define Z64HD_ACTOR_MGR_PTR     0x4C7DC40 /* ** = process manager; actor list +0x68 */
 #define Z64HD_VT_POSITION_CALCULATOR 0x4B47058
 #define Z64HD_VT_PARAM          0x4B63438

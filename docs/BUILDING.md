@@ -292,3 +292,10 @@ module-absent, forwarded and blocked paths, the native store, stack alignment, l
 and LR with an ABI-clobbering mock predicate. It requires no game files and is not an in-game test.
 The full build and existing host suites passed; the collision menu was rendered and inspected.
 The earlier-entry protection still requires testing against the user's failing trigger.
+
+
+Test6 regressions extend `tests/run_levitate.py` with same-controller body selection changes and
+queued versus applied physics origins. `tests/run_collision.py` covers actor resource ownership,
+standalone mesh placement and malformed roots. `tests/render_collision.py` writes
+`obj/tests/void-large-volume.ppm`, exercising a camera inside a volume with an off-screen perimeter.
+These host checks do not substitute for an in-game landing or tower-view check after restart.

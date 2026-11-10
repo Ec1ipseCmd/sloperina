@@ -130,6 +130,13 @@ int main(void)
   file=fopen("obj/tests/collision-dense.ppm","wb");assert(file);
   fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
   printf("Dense scene: %u projected edges, %dx%d raster, %d rectangles\n",surface_line_count,surface_width,surface_height,n);
+  memset(pixels,30,sizeof(pixels));n=0;
+  vec3f_t corners[8];
+  for (int i=0;i<8;i++) corners[i]=(vec3f_t){i&1?100:-100,i&2?100:-100,i&4?5:-5};
+  draw_void_box(corners,true,&dense);assert(n>0);
+  draw_airwall_dots(dots,n,NULL,(nvn_rect_t){0,0,640,360},360,32);
+  file=fopen("obj/tests/void-large-volume.ppm","wb");assert(file);
+  fprintf(file,"P6\n640 360\n255\n");fwrite(pixels,1,sizeof(pixels),file);fclose(file);
   puts("PASS: production surface projection and NVN colors/raster");
   return 0;
 }
